@@ -1,7 +1,7 @@
 "use client";
 
 import { Conversation, PromptInput } from "../components/ai-elements";
-import { Canvas } from "@vercel/ai-canvas";
+import { Canvas } from "../components/ai-elements";
 
 export default function Page() {
   return (
