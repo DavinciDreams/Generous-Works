@@ -2,7 +2,7 @@
 
 import type { FormEvent, ComponentType } from "react";
 import { nanoid } from "nanoid";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { FileUIPart } from "ai";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 
@@ -15,7 +15,7 @@ import { useMessages, useAppState } from "@/lib/store";
 // AI Elements Components
 // ============================================================================
 import { GenerativeMessage } from "@/components/ai-elements/generative-message";
-import { PromptInput, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { Conversation } from "@/components/ai-elements/conversation";
 import { Canvas } from "@/components/ai-elements/canvas";
 
@@ -61,6 +61,78 @@ interface ExtendedStickToBottomContext extends StickToBottomContext {
 type ComponentRegistry = Record<string, ComponentType<any>>;
 
 // ============================================================================
+// Component Bindings (defined outside component to avoid re-creation)
+// ============================================================================
+const componentBindings: ComponentRegistry = {
+  Button,
+  Card,
+  CardHeader,
+  CardContent,
+  CardFooter,
+  CardTitle,
+  CardDescription,
+  Input,
+  Textarea,
+  Badge,
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  Progress,
+  Spinner,
+  Switch,
+  Alert,
+  AlertTitle,
+  AlertDescription,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+  Separator,
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  ScrollArea,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Command,
+  CommandInput,
+  CommandList,
+  CommandItem,
+  CommandGroup,
+  CommandEmpty,
+  ButtonGroup,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+};
+
+// ============================================================================
 // Main Page Component
 // ============================================================================
 export default function Page() {
@@ -69,78 +141,6 @@ export default function Page() {
   // =====================
   const { messages, addMessage, updateMessage } = useMessages();
   const { isLoading, error, setLoading, setError } = useAppState();
-
-  // =====================
-  // Component Bindings
-  // =====================
-  const componentBindings = useMemo<ComponentRegistry>(() => ({
-    Button,
-    Card,
-    CardHeader,
-    CardContent,
-    CardFooter,
-    CardTitle,
-    CardDescription,
-    Input,
-    Textarea,
-    Badge,
-    Avatar,
-    AvatarImage,
-    AvatarFallback,
-    Progress,
-    Spinner,
-    Switch,
-    Alert,
-    AlertTitle,
-    AlertDescription,
-    Tabs,
-    TabsList,
-    TabsTrigger,
-    TabsContent,
-    Accordion,
-    AccordionItem,
-    AccordionTrigger,
-    AccordionContent,
-    Separator,
-    Dialog,
-    DialogTrigger,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-    ScrollArea,
-    Tooltip,
-    TooltipTrigger,
-    TooltipContent,
-    HoverCard,
-    HoverCardTrigger,
-    HoverCardContent,
-    Popover,
-    PopoverTrigger,
-    PopoverContent,
-    DropdownMenu,
-    DropdownMenuTrigger,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    Select,
-    SelectTrigger,
-    SelectValue,
-    SelectContent,
-    SelectItem,
-    Command,
-    CommandInput,
-    CommandList,
-    CommandItem,
-    CommandGroup,
-    CommandEmpty,
-    ButtonGroup,
-    InputGroup,
-    InputGroupAddon,
-    InputGroupButton,
-    InputGroupTextarea,
-  }), []);
 
   // =====================
   // Chat Functionality
@@ -325,7 +325,9 @@ export default function Page() {
               {/* Prompt Input */}
               <div className="border-t bg-background p-4">
                 <div className="mx-auto max-w-3xl">
-                  <PromptInput onSubmit={handleSubmit} />
+                  <PromptInput onSubmit={handleSubmit}>
+                    <PromptInputTextarea placeholder="What would you like to know?" />
+                  </PromptInput>
                 </div>
               </div>
             </div>

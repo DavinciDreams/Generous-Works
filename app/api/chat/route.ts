@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       baseURL: process.env.ZHIPU_BASE_URL,
       apiKey: process.env.ZHIPU_API_KEY,
     });
-    const modelName = process.env.ZHIPU_MODEL || "glm-4-plus";
+    const modelName = process.env.ZHIPU_MODEL || "glm-4.7";
 
     // Prepare messages - combine system prompt with user input
     const preparedMessages = messages || [{ role: "user" as const, content: prompt || "Hello!" }];
