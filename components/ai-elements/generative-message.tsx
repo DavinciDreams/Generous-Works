@@ -126,14 +126,28 @@ export const GenerativeMessage = memo(
 
     const { textContent, jsxBlocks } = parsedContent;
 
+    // Debug logging
+    console.log('[DEBUG GenerativeMessage]', {
+      messageId: id,
+      hasJsx: !!jsx,
+      jsxBlocksCount: jsxBlocks.length,
+      jsx: jsx?.substring(0, 100),
+      components: !!components
+    });
+
     // Don't render for system messages
     if (role === "system") {
       return null;
     }
 
+    // BYPASS Message/MessageContent - render directly
     return (
-      <Message from={role} className={className} {...props}>
-        <MessageContent>
+      <div className={cn("my-4 p-4 border-2", role === "user" ? "border-blue-500 bg-blue-50" : "border-green-500 bg-green-50", className)} {...props}>
+        {/* DEBUG MARKER */}
+        <div className="bg-pink-500 text-white font-bold text-xl p-4 my-2 border-4 border-black">
+          GenerativeMessage RENDERING - Role: {role} - jsxBlocksCount: {jsxBlocks.length}
+        </div>
+
           {/* Render text content with markdown */}
           {textContent && (
             <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -170,8 +184,7 @@ export const GenerativeMessage = memo(
               <span>Generating...</span>
             </div>
           )}
-        </MessageContent>
-      </Message>
+      </div>
     );
   }
 );

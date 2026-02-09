@@ -4,7 +4,8 @@ import { useState, useCallback, useMemo } from "react";
 import { Canvas } from "@/components/ai-elements/canvas";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { GenerativeMessage } from "@/components/ai-elements/generative-message";
-import { PromptInput, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
+import { PromptInput } from "@/components/ai-elements/prompt-input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -143,12 +144,12 @@ export default function CanvasPage() {
 
               {/* Input */}
               <div className="border-t p-4">
-                <PromptInputTextarea
+                <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message..."
-                  className="min-h-[80px]"
+                  className="min-h-[80px] resize-none"
                 />
                 <Button
                   onClick={handleSendMessage}

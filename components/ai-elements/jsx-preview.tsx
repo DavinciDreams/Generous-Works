@@ -125,6 +125,8 @@ export const JSXPreview = memo(
     children,
     ...props
   }: JSXPreviewProps) => {
+    console.log('[JSXPreview] Rendering wrapper', { jsx: jsx?.substring(0, 50) });
+
     const [prevJsx, setPrevJsx] = useState(jsx);
     const [error, setError] = useState<Error | null>(null);
 
@@ -151,8 +153,10 @@ export const JSXPreview = memo(
           setError,
         }}
       >
-        <div className={cn("relative", className)} {...props}>
+        <div className={cn("relative bg-yellow-200 border-4 border-red-500 p-8", className)} {...props}>
+          <div className="text-red-900 font-bold text-2xl mb-4">JSXPreview WRAPPER</div>
           {children}
+          <div className="text-red-900 font-bold text-2xl mt-4">END JSXPreview WRAPPER</div>
         </div>
       </JSXPreviewContext.Provider>
     );
@@ -177,6 +181,7 @@ export const JSXPreviewContent = memo(
 
     const handleError = useCallback(
       (err: Error) => {
+        console.error('[JSXPreview] Parse error:', err);
         // Prevent duplicate error reports for the same jsx
         if (errorReportedRef.current === processedJsx) {
           return;
@@ -188,15 +193,42 @@ export const JSXPreviewContent = memo(
       [processedJsx, onErrorProp, setError]
     );
 
+    console.log('[JSXPreviewContent]', {
+      jsx: processedJsx?.substring(0, 100),
+      componentsCount: Object.keys(components || {}).length,
+      componentKeys: Object.keys(components || {}).slice(0, 10)
+    });
+
+    // TEST: Direct render a button to verify React rendering works
+    const Button = components && typeof components === "object" && "Button" in components
+      ? (components as Record<string, React.ComponentType<any>>)["Button"]
+      : undefined;
+
     return (
-      <div className={cn("jsx-preview-content", className)} {...props}>
-        <JsxParser
-          bindings={bindings}
-          components={components}
-          jsx={processedJsx}
-          onError={handleError}
-          renderInWrapper={false}
-        />
+      <div className={cn("jsx-preview-content border-2 border-green-500 p-4 my-4", className)} {...props}>
+        <div className="text-red-500 font-bold mb-2">DEBUG: JSX Preview</div>
+
+        {/* TEST: Direct button render */}
+        {typeof Button === "function" && (
+          <div className="border-2 border-blue-500 p-2 mb-2">
+            <div className="text-xs text-blue-500 mb-1">Direct Button Test:</div>
+            <Button className="bg-purple-600 text-white">TEST BUTTON</Button>
+          </div>
+        )}
+
+        {/* Original JsxParser */}
+        <div className="border-2 border-orange-500 p-2">
+          <div className="text-xs text-orange-500 mb-1">JsxParser Output:</div>
+          <JsxParser
+            bindings={bindings}
+            components={components}
+            jsx={processedJsx}
+            onError={handleError}
+            renderInWrapper={false}
+          />
+        </div>
+
+        <div className="text-blue-500 mt-2">DEBUG: After JsxParser</div>
       </div>
     );
   }
