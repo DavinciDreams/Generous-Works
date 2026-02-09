@@ -67,6 +67,31 @@ export const MyComponent = ({ className, children, ...props }: MyComponentProps)
 // For compound components that share state, use React Context:
 // const MyContext = createContext<MyContextType>(defaultValue);
 // const useMyContext = () => { ... };
+
+// --- Avoiding Infinite Loops in useEffect ---
+// CRITICAL: Be careful with useEffect dependency arrays to avoid infinite re-rendering
+//
+// ❌ BAD - Objects in dependencies cause infinite loops:
+// useEffect(() => {
+//   // initialization code
+// }, [data, options, someRef, someFunction]);
+//
+// ✅ GOOD - Only include stable primitives:
+// useEffect(() => {
+//   // initialization code
+// }, [isMounted, componentId]);
+// // eslint-disable-next-line react-hooks/exhaustive-deps
+//
+// Why this happens:
+// - Objects like `data`, `options` are recreated on every render
+// - Refs and functions may also cause re-runs
+// - The effect runs → cleanup disposes resources → triggers re-render → effect runs again
+//
+// Solution:
+// - Only depend on primitive values that change intentionally (strings, numbers, booleans)
+// - Common safe dependencies: `isMounted`, component IDs (stable strings)
+// - Add eslint-disable comment to acknowledge intentional omission
+// - Capture data/options in the effect closure - they'll be used but won't trigger re-runs
 ```
 
 Key conventions for AI elements:
