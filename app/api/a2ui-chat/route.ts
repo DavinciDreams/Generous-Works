@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
-import { createZhipu } from "zhipu-ai-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 
 /**
@@ -193,23 +193,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use Zhipu provider from env
-    const zhipu = createZhipu({
-      baseURL: process.env.ZHIPU_BASE_URL,
-      apiKey: process.env.ZHIPU_API_KEY,
+    // Use OpenRouter with free tool-calling model
+    const openrouter = createOpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
     });
-    const modelName = process.env.ZHIPU_MODEL || "glm-4-flash";
+
+    // Use Google Gemini Flash 1.5 8B (free, supports tool calling)
+    const modelName = "google/gemini-flash-1.5-8b";
 
     // Generate A2UI system prompt with catalog
     const systemPrompt = getA2UISystemPrompt();
 
     // Stream the response
     const result = streamText({
-      model: zhipu(modelName),
+      model: openrouter(modelName),
       system: systemPrompt,
       messages,
       temperature,
-      maxOutputTokens: maxTokens,
+      maxTokens,
       onError: ({ error }) => {
         console.error("[A2UI Chat] Streaming error:", error);
       },
