@@ -33,25 +33,35 @@ export default function A2UIChatPage() {
    * Extract A2UI JSON from markdown code blocks
    */
   function extractA2UIFromResponse(text: string): A2UIMessage | null {
+    console.log('[A2UI Chat] Extracting A2UI from text:', text.substring(0, 200));
+
     // Look for JSON code blocks
     const jsonBlockRegex = /```json\s*([\s\S]*?)```/g;
     const matches = Array.from(text.matchAll(jsonBlockRegex));
 
+    console.log('[A2UI Chat] Found', matches.length, 'JSON blocks');
+
     for (const match of matches) {
       try {
         const jsonStr = match[1].trim();
+        console.log('[A2UI Chat] Attempting to parse JSON:', jsonStr.substring(0, 100));
         const parsed = JSON.parse(jsonStr);
+
+        console.log('[A2UI Chat] Parsed successfully:', parsed);
 
         // Check if it's a valid A2UI message (has surfaceUpdate)
         if (parsed.surfaceUpdate && parsed.surfaceUpdate.components) {
+          console.log('[A2UI Chat] Valid A2UI message found!', parsed);
           return parsed as A2UIMessage;
         }
       } catch (e) {
+        console.log('[A2UI Chat] JSON parse error:', e);
         // Not valid JSON, continue searching
         continue;
       }
     }
 
+    console.log('[A2UI Chat] No valid A2UI message found');
     return null;
   }
 
