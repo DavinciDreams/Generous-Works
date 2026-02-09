@@ -199,8 +199,9 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.OPENROUTER_API_KEY,
     });
 
-    // Use Qwen 2 7B Instruct (free)
-    const modelName = "qwen/qwen-2-7b-instruct:free";
+    // Use GPT-3.5 Turbo (cheap, widely available)
+    // Note: This has a small cost, but should work reliably for testing
+    const modelName = "openai/gpt-3.5-turbo";
 
     // Generate A2UI system prompt with catalog
     const systemPrompt = getA2UISystemPrompt();
