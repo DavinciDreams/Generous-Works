@@ -227,8 +227,10 @@ export default function Page() {
 
       // Extract JSX from the response and add to message
       const jsxMatch = fullContent.match(/```(?:jsx|tsx)\s*\n([\s\S]*?)```/);
+      console.log('[DEBUG] JSX extraction:', { matched: !!jsxMatch, fullContent: fullContent.substring(0, 200) });
       if (jsxMatch) {
         const extractedJsx = jsxMatch[1].trim();
+        console.log('[DEBUG] Extracted JSX:', extractedJsx);
         updateMessage(assistantMessageId, {
           jsx: extractedJsx,
         });
