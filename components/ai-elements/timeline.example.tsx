@@ -5,7 +5,6 @@ import {
   TimelineActions,
   TimelineContent,
   TimelineCopyButton,
-  TimelineError,
   TimelineFullscreenButton,
   TimelineHeader,
   TimelineTitle,
@@ -66,7 +65,6 @@ export function SimpleTimeline() {
           <TimelineFullscreenButton />
         </TimelineActions>
       </TimelineHeader>
-      <TimelineError />
       <TimelineContent />
     </Timeline>
   );
@@ -126,7 +124,6 @@ export function TimelineWithMedia() {
           <TimelineFullscreenButton />
         </TimelineActions>
       </TimelineHeader>
-      <TimelineError />
       <TimelineContent />
     </Timeline>
   );
@@ -200,7 +197,6 @@ export function TimelineWithDateRanges() {
           <TimelineFullscreenButton />
         </TimelineActions>
       </TimelineHeader>
-      <TimelineError />
       <TimelineContent />
     </Timeline>
   );
@@ -302,7 +298,6 @@ export function TimelineWithEras() {
           <TimelineFullscreenButton />
         </TimelineActions>
       </TimelineHeader>
-      <TimelineError />
       <TimelineContent />
     </Timeline>
   );
@@ -364,7 +359,6 @@ export function TimelineWithCustomOptions() {
           <TimelineFullscreenButton />
         </TimelineActions>
       </TimelineHeader>
-      <TimelineError />
       <TimelineContent />
     </Timeline>
   );
@@ -420,14 +414,6 @@ export function TimelineWithError() {
       <TimelineHeader>
         <TimelineTitle />
       </TimelineHeader>
-      <TimelineError>
-        {(error) => (
-          <div className="flex items-center gap-2">
-            <span className="font-bold">⚠️ Timeline Error:</span>
-            <span>{error.message}</span>
-          </div>
-        )}
-      </TimelineError>
       <TimelineContent />
     </Timeline>
   );

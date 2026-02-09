@@ -1,7 +1,6 @@
 "use client";
 
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -13,16 +12,20 @@ import {
 } from "lucide-react";
 import {
   createContext,
+  forwardRef,
   memo,
   useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useImperativeHandle,
   useRef,
   useState,
 } from "react";
 
-// --- Types ---
+// Import TimelineJS3
+import "@knight-lab/timelinejs/dist/css/timeline.css";
+
+// --- Types (Matching TimelineJS3 format) ---
 
 export interface TimelineDate {
   year: number;
@@ -33,6 +36,7 @@ export interface TimelineDate {
   second?: number;
   millisecond?: number;
   display_date?: string;
+  format?: string;
 }
 
 export interface TimelineText {
@@ -93,40 +97,38 @@ export interface TimelineOptions {
   zoom_sequence?: number[];
   marker_height_min?: number;
   marker_width_min?: number;
-  marker_padding?: number;
-  timenav_height?: number;
-  timenav_height_percentage?: number;
-  timenav_mobile_height_percentage?: number;
-  timenav_height_min?: number;
-  slide_padding_lr?: number;
-  slide_default_fade?: string;
-  duration?: number;
-  ease?: string;
-  dragging?: boolean;
-  trackResize?: boolean;
+  [key: string]: unknown;
 }
 
-export type TimelineProps = HTMLAttributes<HTMLDivElement> & {
-  data: TimelineData;
-  options?: TimelineOptions;
-  title?: string;
-};
-
-interface TimelineContextType {
-  data: TimelineData;
-  options?: TimelineOptions;
-  title?: string;
-  error: Error | null;
-  setError: (error: Error | null) => void;
-  isFullscreen: boolean;
-  setIsFullscreen: (isFullscreen: boolean) => void;
+export interface TimelineRef {
+  goTo: (slideIndex: number) => void;
+  goToId: (id: string) => void;
+  goToNext: () => void;
+  goToPrev: () => void;
+  goToStart: () => void;
+  goToEnd: () => void;
+  getData: (slideIndex: number) => TimelineSlide | null;
+  getDataById: (id: string) => TimelineSlide | null;
 }
 
 // --- Context ---
 
-const TimelineContext = createContext<TimelineContextType | null>(null);
+interface TimelineContextValue {
+  data: TimelineData;
+  options?: TimelineOptions;
+  error: string | null;
+  setError: (error: string | null) => void;
+  fullscreen: boolean;
+  setFullscreen: (fullscreen: boolean) => void;
+  copyToClipboard: () => Promise<void>;
+  timelineRef: React.RefObject<TimelineRef | null>;
+  timelineInstanceRef: React.RefObject<any>;
+  timelineId: string;
+}
 
-export const useTimeline = () => {
+const TimelineContext = createContext<TimelineContextValue | null>(null);
+
+const useTimelineContext = () => {
   const context = useContext(TimelineContext);
   if (!context) {
     throw new Error("Timeline components must be used within Timeline");
@@ -134,59 +136,60 @@ export const useTimeline = () => {
   return context;
 };
 
-// --- Utilities ---
+// --- Timeline Component ---
 
-const validateTimelineData = (data: TimelineData): boolean => {
-  if (!data.events || !Array.isArray(data.events)) {
-    return false;
-  }
-  if (data.events.length === 0) {
-    return false;
-  }
-  // Check that at least one event has a start_date
-  return data.events.some((event) => event.start_date);
-};
+export interface TimelineProps extends HTMLAttributes<HTMLDivElement> {
+  data: TimelineData;
+  options?: TimelineOptions;
+  children?: ReactNode;
+}
 
-// --- Main Component ---
-
-export const Timeline = memo(
-  ({
-    data,
-    options,
-    title,
-    className,
-    children,
-    ...props
-  }: TimelineProps) => {
-    const [error, setError] = useState<Error | null>(null);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [prevData, setPrevData] = useState(data);
-
-    // Clear error when data changes (derived state pattern)
-    if (data !== prevData) {
-      setPrevData(data);
-      setError(null);
-    }
-
-    const contextValue = useMemo<TimelineContextType>(
-      () => ({
-        data,
-        error,
-        isFullscreen,
-        options,
-        setError,
-        setIsFullscreen,
-        title,
-      }),
-      [data, options, title, error, isFullscreen]
+export const Timeline = forwardRef<TimelineRef, TimelineProps>(
+  ({ data, options, children, className, ...props }, ref) => {
+    const [error, setError] = useState<string | null>(null);
+    const [fullscreen, setFullscreen] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const timelineInstanceRef = useRef<any>(null);
+    const timelineRef = useRef<TimelineRef | null>(null);
+    // Generate ID only on client to avoid hydration mismatch
+    const [timelineId] = useState(() =>
+      typeof window !== 'undefined'
+        ? `timeline-${Math.random().toString(36).substr(2, 9)}`
+        : 'timeline-ssr'
     );
+
+    // Expose ref
+    useImperativeHandle(ref, () => timelineRef.current as TimelineRef, []);
+
+    const copyToClipboard = useCallback(async () => {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy:", err);
+      }
+    }, [data]);
+
+    const contextValue: TimelineContextValue = {
+      data,
+      options,
+      error,
+      setError,
+      fullscreen,
+      setFullscreen,
+      copyToClipboard,
+      timelineRef,
+      timelineInstanceRef,
+      timelineId,
+    };
 
     return (
       <TimelineContext.Provider value={contextValue}>
         <div
           className={cn(
-            "group relative overflow-hidden rounded-md border bg-background",
-            isFullscreen && "fixed inset-0 z-50 rounded-none",
+            "flex flex-col gap-2 rounded-lg border bg-card text-card-foreground shadow-sm",
+            fullscreen && "fixed inset-0 z-50 rounded-none",
             className
           )}
           {...props}
@@ -200,283 +203,305 @@ export const Timeline = memo(
 
 Timeline.displayName = "Timeline";
 
-// --- Header Component ---
+// --- Timeline Header ---
 
-export type TimelineHeaderProps = HTMLAttributes<HTMLDivElement>;
-
-export const TimelineHeader = memo(
-  ({ className, children, ...props }: TimelineHeaderProps) => (
+export const TimelineHeader = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => {
+  return (
     <div
-      className={cn(
-        "flex items-center justify-between border-b bg-muted/80 px-3 py-2 text-muted-foreground text-xs",
-        className
-      )}
+      ref={ref}
+      className={cn("flex items-center justify-between gap-2 p-4 pb-2", className)}
       {...props}
     >
       {children}
     </div>
-  )
-);
+  );
+});
 
 TimelineHeader.displayName = "TimelineHeader";
 
-// --- Title Component ---
+// --- Timeline Title ---
 
-export type TimelineTitleProps = HTMLAttributes<HTMLDivElement>;
+export const TimelineTitle = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => {
+  const { data } = useTimelineContext();
 
-export const TimelineTitle = memo(
-  ({ className, children, ...props }: TimelineTitleProps) => {
-    const { title, data } = useTimeline();
-
-    return (
-      <div className={cn("flex items-center gap-2", className)} {...props}>
-        <span className="font-mono">
-          {children ?? title ?? data.title?.text?.headline ?? "Timeline"}
-        </span>
-      </div>
-    );
-  }
-);
+  return (
+    <div ref={ref} className={cn("flex-1", className)} {...props}>
+      <h3 className="text-lg font-semibold">
+        {children || data.title?.text?.headline || "Timeline"}
+      </h3>
+    </div>
+  );
+});
 
 TimelineTitle.displayName = "TimelineTitle";
 
-// --- Actions Component ---
+// --- Timeline Actions ---
 
-export type TimelineActionsProps = HTMLAttributes<HTMLDivElement>;
-
-export const TimelineActions = memo(
-  ({ className, children, ...props }: TimelineActionsProps) => (
-    <div
-      className={cn("-my-1 -mr-1 flex items-center gap-2", className)}
-      {...props}
-    >
+export const TimelineActions = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => {
+  return (
+    <div ref={ref} className={cn("flex items-center gap-2", className)} {...props}>
       {children}
     </div>
-  )
-);
+  );
+});
 
 TimelineActions.displayName = "TimelineActions";
 
-// --- Copy Button Component ---
+// --- Timeline Copy Button ---
 
-export type TimelineCopyButtonProps = ComponentProps<typeof Button> & {
-  onCopy?: () => void;
-  onError?: (error: Error) => void;
-  timeout?: number;
-};
+export const TimelineCopyButton = forwardRef<
+  HTMLButtonElement,
+  ComponentProps<typeof Button>
+>(({ className, ...props }, ref) => {
+  const { copyToClipboard } = useTimelineContext();
+  const [copied, setCopied] = useState(false);
 
-export const TimelineCopyButton = memo(
-  ({
-    onCopy,
-    onError,
-    timeout = 2000,
-    children,
-    className,
-    ...props
-  }: TimelineCopyButtonProps) => {
-    const [isCopied, setIsCopied] = useState(false);
-    const timeoutRef = useRef<number>(0);
-    const { data } = useTimeline();
+  const handleCopy = async () => {
+    await copyToClipboard();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-    const copyToClipboard = useCallback(async () => {
-      if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-        onError?.(new Error("Clipboard API not available"));
-        return;
-      }
-
-      try {
-        if (!isCopied) {
-          await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-          setIsCopied(true);
-          onCopy?.();
-          timeoutRef.current = window.setTimeout(
-            () => setIsCopied(false),
-            timeout
-          );
-        }
-      } catch (error) {
-        onError?.(error as Error);
-      }
-    }, [data, onCopy, onError, timeout, isCopied]);
-
-    useEffect(
-      () => () => {
-        window.clearTimeout(timeoutRef.current);
-      },
-      []
-    );
-
-    const Icon = isCopied ? CheckIcon : CopyIcon;
-
-    return (
-      <Button
-        className={cn("shrink-0", className)}
-        onClick={copyToClipboard}
-        size="icon"
-        variant="ghost"
-        {...props}
-      >
-        {children ?? <Icon size={14} />}
-      </Button>
-    );
-  }
-);
+  return (
+    <Button
+      ref={ref}
+      variant="ghost"
+      size="icon"
+      className={cn("h-8 w-8", className)}
+      onClick={handleCopy}
+      {...props}
+    >
+      {copied ? (
+        <CheckIcon className="h-4 w-4" />
+      ) : (
+        <CopyIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+});
 
 TimelineCopyButton.displayName = "TimelineCopyButton";
 
-// --- Fullscreen Button Component ---
+// --- Timeline Fullscreen Button ---
 
-export type TimelineFullscreenButtonProps = ComponentProps<typeof Button>;
+export const TimelineFullscreenButton = forwardRef<
+  HTMLButtonElement,
+  ComponentProps<typeof Button>
+>(({ className, ...props }, ref) => {
+  const { fullscreen, setFullscreen } = useTimelineContext();
 
-export const TimelineFullscreenButton = memo(
-  ({ children, className, ...props }: TimelineFullscreenButtonProps) => {
-    const { isFullscreen, setIsFullscreen } = useTimeline();
-
-    const toggleFullscreen = useCallback(() => {
-      setIsFullscreen(!isFullscreen);
-    }, [isFullscreen, setIsFullscreen]);
-
-    const Icon = isFullscreen ? MinimizeIcon : MaximizeIcon;
-
-    return (
-      <Button
-        className={cn("shrink-0", className)}
-        onClick={toggleFullscreen}
-        size="icon"
-        variant="ghost"
-        {...props}
-      >
-        {children ?? <Icon size={14} />}
-      </Button>
-    );
-  }
-);
+  return (
+    <Button
+      ref={ref}
+      variant="ghost"
+      size="icon"
+      className={cn("h-8 w-8", className)}
+      onClick={() => setFullscreen(!fullscreen)}
+      {...props}
+    >
+      {fullscreen ? (
+        <MinimizeIcon className="h-4 w-4" />
+      ) : (
+        <MaximizeIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+});
 
 TimelineFullscreenButton.displayName = "TimelineFullscreenButton";
 
-// --- Content Component ---
-
-export type TimelineContentProps = Omit<
-  HTMLAttributes<HTMLDivElement>,
-  "children"
->;
+// --- Timeline Content ---
 
 export const TimelineContent = memo(
-  ({ className, ...props }: TimelineContentProps) => {
-    const { data, options, setError } = useTimeline();
-    const containerRef = useRef<HTMLDivElement>(null);
-    const timelineInstanceRef = useRef<{ goTo?: (n: number) => void } | null>(
-      null
-    );
+  forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+    ({ className, ...props }, ref) => {
+      const {
+        data,
+        options,
+        error,
+        setError,
+        fullscreen,
+        timelineId,
+        timelineRef,
+        timelineInstanceRef,
+      } = useTimelineContext();
 
-    // Validate timeline data
-    useEffect(() => {
-      if (!validateTimelineData(data)) {
-        setError(
-          new Error(
-            "Invalid timeline data: must have events array with at least one event containing start_date"
-          )
+      const containerRef = useRef<HTMLDivElement>(null);
+      const [isInitialized, setIsInitialized] = useState(false);
+      const [isMounted, setIsMounted] = useState(false);
+
+      // Only render on client to avoid SSR issues
+      useEffect(() => {
+        setIsMounted(true);
+      }, []);
+
+      // Initialize TimelineJS3 when container is mounted
+      useEffect(() => {
+        if (typeof window === "undefined" || !containerRef.current || isInitialized) return;
+
+        const initTimeline = async () => {
+          try {
+            // Ensure container has dimensions before initializing
+            const container = containerRef.current;
+            if (!container) return;
+
+            // Wait for container to have dimensions
+            const checkDimensions = () => {
+              return container.offsetWidth > 0 && container.offsetHeight > 0;
+            };
+
+            if (!checkDimensions()) {
+              console.warn("Container not ready, waiting for dimensions...");
+              // Wait a bit for layout
+              await new Promise(resolve => setTimeout(resolve, 100));
+              if (!checkDimensions()) {
+                setError("Timeline container has no dimensions");
+                return;
+              }
+            }
+
+            // Dynamic import to avoid SSR issues
+            const { Timeline: TLTimeline } = await import("@knight-lab/timelinejs");
+
+            if (!timelineInstanceRef.current && containerRef.current) {
+              console.log("Initializing timeline with ID:", timelineId);
+              console.log("Container dimensions:", container.offsetWidth, "x", container.offsetHeight);
+
+              // Create Timeline instance
+              timelineInstanceRef.current = new (TLTimeline as any)(
+                timelineId,
+                data,
+                options
+              );
+
+              // Create ref API
+              timelineRef.current = {
+                goTo: (slideIndex: number) => timelineInstanceRef.current?.goTo(slideIndex),
+                goToId: (id: string) => timelineInstanceRef.current?.goToId(id),
+                goToNext: () => timelineInstanceRef.current?.goToNext(),
+                goToPrev: () => timelineInstanceRef.current?.goToPrev(),
+                goToStart: () => timelineInstanceRef.current?.goToStart(),
+                goToEnd: () => timelineInstanceRef.current?.goToEnd(),
+                getData: (slideIndex: number) =>
+                  timelineInstanceRef.current?.getData(slideIndex) || null,
+                getDataById: (id: string) =>
+                  timelineInstanceRef.current?.getDataById(id) || null,
+              };
+
+              setIsInitialized(true);
+            }
+          } catch (err) {
+            console.error("Failed to initialize timeline:", err);
+            setError(err instanceof Error ? err.message : "Failed to initialize timeline");
+          }
+        };
+
+        // Small delay to ensure layout is complete
+        const timer = setTimeout(initTimeline, 50);
+
+        // Cleanup
+        return () => {
+          clearTimeout(timer);
+          if (timelineInstanceRef.current) {
+            timelineInstanceRef.current = null;
+            timelineRef.current = null;
+            setIsInitialized(false);
+          }
+        };
+      }, [data, options, timelineId, setError, timelineInstanceRef, timelineRef, isInitialized]);
+
+      if (error) {
+        return <TimelineError error={error} />;
+      }
+
+      const height = options?.height || (fullscreen ? "100%" : 600);
+      const width = options?.width || "100%";
+
+      // Don't render timeline container until mounted on client
+      if (!isMounted) {
+        return (
+          <div
+            ref={ref}
+            className={cn("relative flex-1 p-4", className)}
+            {...props}
+          >
+            <div
+              style={{
+                width: typeof width === "number" ? `${width}px` : width,
+                height: typeof height === "number" ? `${height}px` : height,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              Loading timeline...
+            </div>
+          </div>
         );
       }
-    }, [data, setError]);
 
-    // Initialize TimelineJS
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container || !validateTimelineData(data)) {
-        return;
-      }
-
-      // Dynamically import TimelineJS to avoid SSR issues
-      import("@knight-lab/timelinejs")
-        .then(({ Timeline: TL }) => {
-          // Clean up previous instance
-          if (timelineInstanceRef.current && container) {
-            // TimelineJS doesn't have a proper destroy method, so we clear the container
-            container.innerHTML = "";
-          }
-
-          // Create new timeline instance
-          const defaultOptions: TimelineOptions = {
-            height: options?.height ?? "100%",
-            timenav_position: "bottom",
-            ...options,
-          };
-
-          timelineInstanceRef.current = new TL(container, data, defaultOptions);
-        })
-        .catch((err) => {
-          console.error("Failed to load TimelineJS:", err);
-          setError(new Error("Failed to load timeline library"));
-        });
-
-      // Cleanup function
-      return () => {
-        if (container) {
-          container.innerHTML = "";
-        }
-        timelineInstanceRef.current = null;
-      };
-    }, [data, options, setError]);
-
-    return (
-      <div
-        ref={containerRef}
-        className={cn("timeline-container relative min-h-[400px]", className)}
-        {...props}
-      />
-    );
-  }
+      return (
+        <div
+          ref={ref}
+          className={cn("relative flex-1 p-4", className)}
+          {...props}
+        >
+          <div
+            ref={containerRef}
+            id={timelineId}
+            style={{
+              width: typeof width === "number" ? `${width}px` : width,
+              height: typeof height === "number" ? `${height}px` : height,
+            }}
+          />
+        </div>
+      );
+    }
+  )
 );
 
 TimelineContent.displayName = "TimelineContent";
 
-// --- Error Component ---
+// --- Timeline Error ---
 
-export type TimelineErrorProps = Omit<
-  HTMLAttributes<HTMLDivElement>,
-  "children"
-> & {
-  children?: ReactNode | ((error: Error) => ReactNode);
-};
-
-const renderChildren = (
-  children: ReactNode | ((error: Error) => ReactNode),
-  error: Error
-): ReactNode => {
-  if (typeof children === "function") {
-    return children(error);
-  }
-  return children;
-};
-
-export const TimelineError = memo(
-  ({ className, children, ...props }: TimelineErrorProps) => {
-    const { error } = useTimeline();
-
-    if (!error) {
-      return null;
-    }
-
-    return (
-      <div
-        className={cn(
-          "m-4 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive text-sm",
-          className
-        )}
-        {...props}
-      >
-        {children ? (
-          renderChildren(children, error)
-        ) : (
-          <>
-            <AlertCircle className="size-4 shrink-0" />
-            <span>{error.message}</span>
-          </>
-        )}
-      </div>
-    );
-  }
-);
+export const TimelineError = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement> & { error: string }
+>(({ className, error, ...props }, ref) => {
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "flex items-center justify-center gap-2 rounded-lg border border-destructive bg-destructive/10 p-4 text-destructive",
+        className
+      )}
+      {...props}
+    >
+      <AlertCircle className="h-5 w-5" />
+      <p className="text-sm font-medium">{error}</p>
+    </div>
+  );
+});
 
 TimelineError.displayName = "TimelineError";
+
+// --- Timeline Controls (deprecated, kept for compatibility) ---
+
+export const TimelineControls = forwardRef<
+  HTMLDivElement,
+  HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => {
+  console.warn("TimelineControls is deprecated with TimelineJS3 - controls are built-in");
+  return null;
+});
+
+TimelineControls.displayName = "TimelineControls";

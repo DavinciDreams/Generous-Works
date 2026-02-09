@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@knight-lab/timelinejs/dist/css/timeline.css";
 
 @custom-variant dark (&:is(.dark *));
 

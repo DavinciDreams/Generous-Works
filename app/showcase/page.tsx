@@ -312,7 +312,6 @@ export default function ShowcasePage() {
                       <TimelineFullscreenButton />
                     </TimelineActions>
                   </TimelineHeader>
-                  <TimelineError />
                   <TimelineContent />
                 </Timeline>
               </CardContent>
