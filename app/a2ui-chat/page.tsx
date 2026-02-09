@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,56 @@ interface Message {
   timestamp: Date;
 }
 
+/**
+ * Memoized Message Item Component
+ * Prevents re-rendering when other state (like input) changes
+ */
+const MessageItem = memo(({ message, isLoading }: { message: Message; isLoading: boolean }) => {
+  return (
+    <div
+      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+    >
+      <div
+        className={`max-w-[80%] rounded-lg px-4 py-3 ${
+          message.role === 'user'
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted'
+        }`}
+      >
+        <div className="text-sm font-medium mb-1">
+          {message.role === 'user' ? 'You' : 'AI Assistant'}
+        </div>
+        <div className="text-sm whitespace-pre-wrap">
+          {message.content || (isLoading && message.role === 'assistant' ? 'Thinking...' : '')}
+        </div>
+
+        {/* Render A2UI component if present */}
+        {message.a2uiMessage && (
+          <div className="mt-4 bg-green-100 dark:bg-green-900/20 border-2 border-green-500 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2 text-green-700 dark:text-green-400">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-xs font-bold">A2UI COMPONENT DETECTED</span>
+            </div>
+            <A2UIRenderer message={message.a2uiMessage} />
+
+            {/* Debug: Show raw A2UI data */}
+            <details className="mt-4 text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                Debug: View Raw A2UI JSON
+              </summary>
+              <pre className="mt-2 p-2 bg-black/5 dark:bg-white/5 rounded overflow-auto max-h-48">
+                {JSON.stringify(message.a2uiMessage, null, 2)}
+              </pre>
+            </details>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+MessageItem.displayName = 'MessageItem';
+
 export default function A2UIChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -31,39 +81,42 @@ export default function A2UIChatPage() {
 
   /**
    * Extract A2UI JSON from markdown code blocks
+   * Memoized to prevent infinite loops
    */
-  function extractA2UIFromResponse(text: string): A2UIMessage | null {
-    console.log('[A2UI Chat] Extracting A2UI from text:', text.substring(0, 200));
+  const extractA2UIFromResponse = useCallback((text: string): A2UIMessage | null => {
+    console.log('[A2UI Chat] Extracting A2UI from text (length:', text.length, ')');
 
-    // Look for JSON code blocks
-    const jsonBlockRegex = /```json\s*([\s\S]*?)```/g;
-    const matches = Array.from(text.matchAll(jsonBlockRegex));
+    // Find triple backticks
+    const start = text.indexOf('```');
+    const end = text.indexOf('```', start + 3);
 
-    console.log('[A2UI Chat] Found', matches.length, 'JSON blocks');
+    if (start !== -1 && end !== -1) {
+      // Extract everything between the backticks
+      let content = text.substring(start + 3, end);
 
-    for (const match of matches) {
+      // Skip "json" if it's the first word
+      if (content.startsWith('json')) {
+        content = content.substring(4);
+      }
+
+      content = content.trim();
+
+      console.log('[A2UI Chat] Extracted content length:', content.length);
+
       try {
-        const jsonStr = match[1].trim();
-        console.log('[A2UI Chat] Attempting to parse JSON:', jsonStr.substring(0, 100));
-        const parsed = JSON.parse(jsonStr);
-
-        console.log('[A2UI Chat] Parsed successfully:', parsed);
-
-        // Check if it's a valid A2UI message (has surfaceUpdate)
-        if (parsed.surfaceUpdate && parsed.surfaceUpdate.components) {
-          console.log('[A2UI Chat] Valid A2UI message found!', parsed);
+        const parsed = JSON.parse(content);
+        if (parsed.surfaceUpdate) {
+          console.log('[A2UI Chat] ✅ Valid A2UI found!');
           return parsed as A2UIMessage;
         }
       } catch (e) {
-        console.log('[A2UI Chat] JSON parse error:', e);
-        // Not valid JSON, continue searching
-        continue;
+        console.error('[A2UI Chat] Parse failed:', (e as Error).message);
       }
     }
 
-    console.log('[A2UI Chat] No valid A2UI message found');
+    console.log('[A2UI Chat] ❌ No A2UI found');
     return null;
-  }
+  }, []);
 
   /**
    * Send a message to the A2UI chat API
@@ -106,6 +159,8 @@ export default function A2UIChatPage() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
+      let chunkCount = 0;
+      const MAX_CHUNKS = 1000; // Safety limit to prevent infinite loops
 
       if (!reader) {
         throw new Error('No response reader available');
@@ -121,15 +176,79 @@ export default function A2UIChatPage() {
 
       setMessages(prev => [...prev, assistantMessage]);
 
+      console.log('[A2UI Chat] Starting to read stream...');
+      let extractedA2UI: A2UIMessage | null = null;
+      let sseBuffer = ''; // Buffer for incomplete SSE data
+
       while (true) {
+        chunkCount++;
+
+        if (chunkCount > MAX_CHUNKS) {
+          console.error('[A2UI Chat] ⚠️ Maximum chunk limit reached, stopping stream');
+          break;
+        }
+
         const { done, value } = await reader.read();
-        if (done) break;
 
-        // Decode the chunk - this is raw text from OpenRouter/AI SDK
+        if (done) {
+          console.log('[A2UI Chat] Stream complete. Total chunks:', chunkCount);
+          break;
+        }
+
+        // Decode the chunk and add to buffer
         const chunk = decoder.decode(value, { stream: true });
+        sseBuffer += chunk;
 
-        // Simply accumulate all text (no special parsing needed)
-        assistantContent += chunk;
+        // Debug: Log first chunk to see format
+        if (chunkCount === 1) {
+          console.log('[A2UI Chat] First chunk raw:', chunk.substring(0, 200));
+        }
+
+        // Process complete SSE messages (end with \n\n)
+        const messages = sseBuffer.split('\n\n');
+
+        // Keep the last incomplete message in buffer
+        sseBuffer = messages.pop() || '';
+
+        // Parse each complete message
+        for (const message of messages) {
+          const lines = message.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.slice(6); // Remove "data: " prefix
+                if (jsonStr === '[DONE]') continue; // Skip done marker
+
+                const data = JSON.parse(jsonStr);
+                // ZAI uses "reasoning_content", OpenAI uses "content"
+                const delta = data.choices?.[0]?.delta;
+                const content = delta?.content || delta?.reasoning_content || '';
+
+                if (content) {
+                  assistantContent += content;
+                }
+              } catch (e) {
+                // Skip malformed chunks
+                if (chunkCount < 5) {
+                  console.error('[A2UI Chat] SSE parse error:', e, 'Line:', line.substring(0, 100));
+                }
+                continue;
+              }
+            }
+          }
+        }
+
+        // Only try to extract A2UI every 10 chunks to reduce overhead
+        // OR if we detect a closing code fence (indicating complete JSON block)
+        const shouldExtract = chunkCount % 10 === 0 || chunk.includes('```');
+
+        if (shouldExtract && !extractedA2UI) {
+          extractedA2UI = extractA2UIFromResponse(assistantContent);
+
+          if (extractedA2UI) {
+            console.log('[A2UI Chat] ✅ A2UI message extracted successfully at chunk', chunkCount);
+          }
+        }
 
         // Update the message content in real-time
         setMessages(prev =>
@@ -138,12 +257,42 @@ export default function A2UIChatPage() {
               ? {
                   ...m,
                   content: assistantContent,
-                  a2uiMessage: extractA2UIFromResponse(assistantContent) || undefined
+                  a2uiMessage: extractedA2UI || undefined
                 }
               : m
           )
         );
       }
+
+      // Final extraction after streaming completes (in case we missed it)
+      if (!extractedA2UI) {
+        console.log('[A2UI Chat] Performing final extraction...');
+        console.log('[A2UI Chat] Full assistant content (first 500 chars):', assistantContent.substring(0, 500));
+        console.log('[A2UI Chat] Full assistant content (last 500 chars):', assistantContent.substring(Math.max(0, assistantContent.length - 500)));
+        extractedA2UI = extractA2UIFromResponse(assistantContent);
+
+        if (extractedA2UI) {
+          console.log('[A2UI Chat] ✅ A2UI message extracted in final pass!');
+        } else {
+          console.log('[A2UI Chat] ❌ Failed to extract A2UI from content');
+        }
+
+        // Update with final extraction result
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantMessage.id
+              ? {
+                  ...m,
+                  content: assistantContent,
+                  a2uiMessage: extractedA2UI || undefined
+                }
+              : m
+          )
+        );
+      }
+
+      console.log('[A2UI Chat] Final content length:', assistantContent.length);
+      console.log('[A2UI Chat] Final A2UI extracted:', !!extractedA2UI);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -195,40 +344,7 @@ export default function A2UIChatPage() {
           )}
 
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                }`}
-              >
-                <div className="text-sm font-medium mb-1">
-                  {message.role === 'user' ? 'You' : 'AI Assistant'}
-                </div>
-                <div className="text-sm whitespace-pre-wrap">
-                  {message.content || (isLoading && message.role === 'assistant' ? 'Thinking...' : '')}
-                </div>
-
-                {/* Render A2UI component if present */}
-                {(() => {
-                  console.log('[A2UI Chat] Message has a2uiMessage?', !!message.a2uiMessage, message.a2uiMessage);
-                  if (message.a2uiMessage) {
-                    console.log('[A2UI Chat] Rendering A2UIRenderer with message:', message.a2uiMessage);
-                    return (
-                      <div className="mt-4 bg-background rounded-lg p-4 border-2 border-blue-500">
-                        <div className="text-xs text-blue-500 mb-2">A2UI Component:</div>
-                        <A2UIRenderer message={message.a2uiMessage} />
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-            </div>
+            <MessageItem key={message.id} message={message} isLoading={isLoading} />
           ))}
 
           {/* Error Display */}

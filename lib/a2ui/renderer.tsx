@@ -6,9 +6,34 @@
  * with Zod validation
  */
 
-import { Timeline } from '@/components/ai-elements/timeline';
-import { Maps } from '@/components/ai-elements/maps';
-import { ThreeScene } from '@/components/ai-elements/threescene';
+import {
+  Timeline,
+  TimelineHeader,
+  TimelineTitle,
+  TimelineActions,
+  TimelineCopyButton,
+  TimelineFullscreenButton,
+  TimelineContent
+} from '@/components/ai-elements/timeline';
+import {
+  Maps,
+  MapsHeader,
+  MapsTitle,
+  MapsActions,
+  MapsCopyButton,
+  MapsFullscreenButton,
+  MapsContent
+} from '@/components/ai-elements/maps';
+import {
+  ThreeScene,
+  ThreeSceneHeader,
+  ThreeSceneTitle,
+  ThreeSceneActions,
+  ThreeSceneCopyButton,
+  ThreeSceneFullscreenButton,
+  ThreeSceneResetButton,
+  ThreeSceneContent
+} from '@/components/ai-elements/threescene';
 import { validateProps } from '@/lib/schemas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -106,7 +131,16 @@ export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
         const timelineProps = validation.data as TimelineProps;
         return (
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
-            <Timeline {...timelineProps} />
+            <Timeline {...timelineProps}>
+              <TimelineHeader>
+                <TimelineTitle>Timeline</TimelineTitle>
+                <TimelineActions>
+                  <TimelineCopyButton />
+                  <TimelineFullscreenButton />
+                </TimelineActions>
+              </TimelineHeader>
+              <TimelineContent />
+            </Timeline>
           </div>
         );
       }
@@ -115,7 +149,16 @@ export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
         const mapsProps = validation.data as MapsProps;
         return (
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
-            <Maps {...mapsProps} />
+            <Maps {...mapsProps}>
+              <MapsHeader>
+                <MapsTitle>Map</MapsTitle>
+                <MapsActions>
+                  <MapsCopyButton />
+                  <MapsFullscreenButton />
+                </MapsActions>
+              </MapsHeader>
+              <MapsContent />
+            </Maps>
           </div>
         );
       }
@@ -124,7 +167,17 @@ export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
         const threeSceneProps = validation.data as ThreeSceneProps;
         return (
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
-            <ThreeScene {...threeSceneProps} />
+            <ThreeScene {...threeSceneProps}>
+              <ThreeSceneHeader>
+                <ThreeSceneTitle>3D Scene</ThreeSceneTitle>
+                <ThreeSceneActions>
+                  <ThreeSceneResetButton />
+                  <ThreeSceneCopyButton />
+                  <ThreeSceneFullscreenButton />
+                </ThreeSceneActions>
+              </ThreeSceneHeader>
+              <ThreeSceneContent />
+            </ThreeScene>
           </div>
         );
       }
@@ -168,15 +221,50 @@ export interface A2UIRendererProps {
 export function A2UIRenderer({ message, className }: A2UIRendererProps) {
   const { surfaceUpdate } = message;
 
-  if (!surfaceUpdate || !surfaceUpdate.components) {
-    return null;
+  console.log('[A2UI Renderer] Rendering message:', message);
+
+  if (!surfaceUpdate) {
+    console.warn('[A2UI Renderer] No surfaceUpdate in message');
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>A2UI Rendering Error</AlertTitle>
+        <AlertDescription>
+          Message is missing 'surfaceUpdate' property
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!surfaceUpdate.components) {
+    console.warn('[A2UI Renderer] No components in surfaceUpdate');
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>A2UI Rendering Error</AlertTitle>
+        <AlertDescription>
+          surfaceUpdate is missing 'components' array
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   const components = surfaceUpdate.components;
 
   if (components.length === 0) {
-    return null;
+    console.warn('[A2UI Renderer] Components array is empty');
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>No Components</AlertTitle>
+        <AlertDescription>
+          surfaceUpdate.components is empty
+        </AlertDescription>
+      </Alert>
+    );
   }
+
+  console.log('[A2UI Renderer] Rendering', components.length, 'component(s)');
 
   return (
     <div className={className} data-a2ui-surface>

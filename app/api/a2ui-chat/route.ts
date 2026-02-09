@@ -39,14 +39,44 @@ When generating UIs, you MUST respond with valid A2UI JSON messages in this exac
 }
 \`\`\`
 
-## Important Rules
+## CRITICAL JSON FORMATTING RULES - FOLLOW EXACTLY
 
-1. **Always wrap A2UI JSON in markdown code fences** with the json language tag
-2. Use valid JSON format (no trailing commas, proper quotes)
-3. Each component must have a unique ID
-4. Use exact component names from the catalog (Timeline, Maps, ThreeScene)
-5. Follow the data structures shown in the examples above
-6. Include helpful text explanations before/after the JSON
+1. **ALWAYS wrap JSON in markdown code fences**: \`\`\`json ... \`\`\`
+2. **EVERY key MUST have double quotes**: "key": value
+3. **EVERY string value MUST have double quotes**: "value"
+4. **EVERY property MUST have a colon**: "key": value (NOT "key" value)
+5. **NO missing commas** between properties
+6. **NO trailing commas** after last property
+7. **ALL numbers are unquoted**: {"x": 5} NOT {"x": "5"}
+8. **ALL strings are quoted**: {"type": "box"} NOT {"type": box}
+9. Each component must have a unique ID
+10. Use exact component names from catalog: Timeline, Maps, ThreeScene
+
+**VALID JSON EXAMPLE:**
+\`\`\`json
+{
+  "surfaceUpdate": {
+    "components": [
+      {
+        "id": "my-scene",
+        "component": {
+          "ThreeScene": {
+            "data": {
+              "objects": [
+                {
+                  "type": "sphere",
+                  "color": 0xff0000,
+                  "position": {"x": 0, "y": 0, "z": 0}
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+\`\`\`
 
 ## Example Interactions
 
@@ -183,7 +213,7 @@ Remember: Always generate valid A2UI JSON wrapped in markdown code fences!`;
  */
 export async function POST(req: NextRequest) {
   try {
-    const { messages, temperature = 0.7, maxTokens = 1000 } = await req.json();
+    const { messages, temperature = 0.7, maxTokens = 16000 } = await req.json();
 
     // Validate required fields
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -193,31 +223,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use OpenRouter with free tool-calling model
-    const openrouter = createOpenAI({
-      baseURL: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY,
-    });
-
-    // Use NVIDIA Nemotron 3 Nano (free)
-    const modelName = "nvidia/nemotron-3-nano-30b-a3b:free";
-
-    // Generate A2UI system prompt with catalog
+    // Use ZAI (GLM-4.7) for reliable JSON generation
     const systemPrompt = getA2UISystemPrompt();
 
-    // Stream the response
-    const result = streamText({
-      model: openrouter(modelName),
-      system: systemPrompt,
-      messages,
+    const endpoint = `${process.env.ZHIPU_BASE_URL}/chat/completions`;
+    console.log("[A2UI Chat] Endpoint:", endpoint);
+    console.log("[A2UI Chat] Model:", process.env.ZHIPU_MODEL);
+    console.log("[A2UI Chat] API Key:", process.env.ZHIPU_API_KEY ? "✓ Set" : "✗ Missing");
+
+    const requestBody = {
+      model: process.env.ZHIPU_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages
+      ],
       temperature,
-      maxTokens,
-      onError: ({ error }) => {
-        console.error("[A2UI Chat] Streaming error:", error);
+      max_tokens: maxTokens,
+      stream: true,
+    };
+
+    console.log("[A2UI Chat] Request body:", JSON.stringify(requestBody, null, 2).substring(0, 500));
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.ZHIPU_API_KEY}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify(requestBody),
     });
 
-    return result.toTextStreamResponse();
+    console.log("[A2UI Chat] Response status:", response.status);
+    console.log("[A2UI Chat] Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[A2UI Chat] ZAI error response:", errorText);
+      throw new Error(`ZAI API error: ${response.status} - ${errorText}`);
+    }
+
+    console.log("[A2UI Chat] ZAI stream started successfully, passing through directly");
+
+    // Pass through ZAI's stream directly - it's already in SSE format
+    return new Response(response.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
 
   } catch (error) {
     console.error("[A2UI Chat] API error:", error);

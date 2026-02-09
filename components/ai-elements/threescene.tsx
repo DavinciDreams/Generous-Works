@@ -522,43 +522,84 @@ export const ThreeSceneContent = memo(
               sceneInstanceRef.current.add(axesHelper);
             }
 
+            // Helper function to create Three.js objects from config
+            const createObjectFromConfig = (objConfig: ThreeSceneObject): THREE.Mesh | null => {
+              // Create geometry based on type
+              let geometry: any;
+              switch (objConfig.type) {
+                case 'box':
+                  geometry = new THREE.BoxGeometry(1, 1, 1);
+                  break;
+                case 'sphere':
+                  geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                  break;
+                case 'cylinder':
+                  geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                  break;
+                case 'cone':
+                  geometry = new THREE.ConeGeometry(0.5, 1, 32);
+                  break;
+                case 'torus':
+                  geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 100);
+                  break;
+                case 'plane':
+                  geometry = new THREE.PlaneGeometry(1, 1);
+                  break;
+                default:
+                  console.warn(`Unknown object type: ${objConfig.type}`);
+                  return null;
+              }
+
+              // Create material
+              const material = new THREE.MeshStandardMaterial({
+                color: objConfig.color || 0xffffff,
+                wireframe: objConfig.wireframe || false
+              });
+
+              // Create mesh
+              const obj = new THREE.Mesh(geometry, material);
+
+              // Apply position
+              if (objConfig.position) {
+                obj.position.set(
+                  objConfig.position.x || 0,
+                  objConfig.position.y || 0,
+                  objConfig.position.z || 0
+                );
+              }
+
+              // Apply rotation
+              if (objConfig.rotation) {
+                obj.rotation.set(
+                  objConfig.rotation.x || 0,
+                  objConfig.rotation.y || 0,
+                  objConfig.rotation.z || 0
+                );
+              }
+
+              // Apply scale
+              if (objConfig.scale) {
+                if (typeof objConfig.scale === 'number') {
+                  obj.scale.set(objConfig.scale, objConfig.scale, objConfig.scale);
+                } else {
+                  obj.scale.set(
+                    objConfig.scale.x || 1,
+                    objConfig.scale.y || 1,
+                    objConfig.scale.z || 1
+                  );
+                }
+              }
+
+              return obj;
+            };
+
             // Add objects
             if (data.objects && data.objects.length > 0) {
               data.objects.forEach((objConfig) => {
-                const obj = objConfig.object;
-
-                // Apply position
-                if (objConfig.position) {
-                  obj.position.set(
-                    objConfig.position.x || 0,
-                    objConfig.position.y || 0,
-                    objConfig.position.z || 0
-                  );
+                const obj = createObjectFromConfig(objConfig);
+                if (obj) {
+                  sceneInstanceRef.current.add(obj);
                 }
-
-                // Apply rotation
-                if (objConfig.rotation) {
-                  obj.rotation.set(
-                    objConfig.rotation.x || 0,
-                    objConfig.rotation.y || 0,
-                    objConfig.rotation.z || 0
-                  );
-                }
-
-                // Apply scale
-                if (objConfig.scale) {
-                  if (typeof objConfig.scale === 'number') {
-                    obj.scale.set(objConfig.scale, objConfig.scale, objConfig.scale);
-                  } else {
-                    obj.scale.set(
-                      objConfig.scale.x || 1,
-                      objConfig.scale.y || 1,
-                      objConfig.scale.z || 1
-                    );
-                  }
-                }
-
-                sceneInstanceRef.current.add(obj);
               });
             }
 
@@ -593,33 +634,10 @@ export const ThreeSceneContent = memo(
               addObject: (object: ThreeSceneObject) => {
                 if (!sceneInstanceRef.current) return;
 
-                const obj = object.object;
-                if (object.position) {
-                  obj.position.set(
-                    object.position.x || 0,
-                    object.position.y || 0,
-                    object.position.z || 0
-                  );
+                const obj = createObjectFromConfig(object);
+                if (obj) {
+                  sceneInstanceRef.current.add(obj);
                 }
-                if (object.rotation) {
-                  obj.rotation.set(
-                    object.rotation.x || 0,
-                    object.rotation.y || 0,
-                    object.rotation.z || 0
-                  );
-                }
-                if (object.scale) {
-                  if (typeof object.scale === 'number') {
-                    obj.scale.set(object.scale, object.scale, object.scale);
-                  } else {
-                    obj.scale.set(
-                      object.scale.x || 1,
-                      object.scale.y || 1,
-                      object.scale.z || 1
-                    );
-                  }
-                }
-                sceneInstanceRef.current.add(obj);
               },
               removeObject: (id: string) => {
                 console.warn("removeObject not yet implemented");
