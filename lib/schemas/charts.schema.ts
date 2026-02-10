@@ -19,6 +19,12 @@ export const ChartTypeSchema = z.enum([
   'scatter',
   'area',
   'radar',
+  // Business/Analytics charts
+  'histogram',
+  'heatmap',
+  'funnel',
+  'gauge',
+  'candlestick',
   // Advanced/Miscellaneous charts
   'sankey',
   'chord',
@@ -234,6 +240,97 @@ const VennChartDataSchema = BaseChartSchema.extend({
 });
 
 /**
+ * Histogram data schema
+ */
+const HistogramChartDataSchema = BaseChartSchema.extend({
+  type: z.literal('histogram'),
+  series: z.array(SeriesSchema),
+  xAxis: AxisConfigSchema.optional(),
+  yAxis: AxisConfigSchema.optional(),
+  binCount: z.number().optional(), // Number of bins/buckets
+});
+
+/**
+ * Heatmap data point
+ */
+export const HeatmapDataPointSchema = z.object({
+  x: z.union([z.number(), z.string()]),
+  y: z.union([z.number(), z.string()]),
+  value: z.number(),
+  color: z.string().optional()
+});
+
+/**
+ * Heatmap schema
+ */
+const HeatmapChartDataSchema = BaseChartSchema.extend({
+  type: z.literal('heatmap'),
+  data: z.array(HeatmapDataPointSchema),
+  xAxis: AxisConfigSchema.optional(),
+  yAxis: AxisConfigSchema.optional(),
+});
+
+/**
+ * Funnel stage data
+ */
+export const FunnelStageSchema = z.object({
+  name: z.string(),
+  value: z.number(),
+  color: z.string().optional()
+});
+
+/**
+ * Funnel chart schema
+ */
+const FunnelChartDataSchema = BaseChartSchema.extend({
+  type: z.literal('funnel'),
+  stages: z.array(FunnelStageSchema),
+});
+
+/**
+ * Gauge range/band
+ */
+export const GaugeRangeSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+  color: z.string().optional(),
+  label: z.string().optional()
+});
+
+/**
+ * Gauge chart schema
+ */
+const GaugeChartDataSchema = BaseChartSchema.extend({
+  type: z.literal('gauge'),
+  value: z.number(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  ranges: z.array(GaugeRangeSchema).optional(),
+  target: z.number().optional(), // Target marker
+});
+
+/**
+ * Candlestick/OHLC data point
+ */
+export const CandlestickDataPointSchema = z.object({
+  date: z.union([z.string(), z.number()]), // Date or timestamp
+  open: z.number(),
+  high: z.number(),
+  low: z.number(),
+  close: z.number(),
+  volume: z.number().optional()
+});
+
+/**
+ * Candlestick chart schema
+ */
+const CandlestickChartDataSchema = BaseChartSchema.extend({
+  type: z.literal('candlestick'),
+  data: z.array(CandlestickDataPointSchema),
+  showVolume: z.boolean().optional(),
+});
+
+/**
  * Charts data structure using discriminated union
  *
  * This ensures proper TypeScript type inference for all chart types.
@@ -244,6 +341,11 @@ export const ChartsDataSchema = z.discriminatedUnion('type', [
   BasicChartDataSchema,
   PieChartDataSchema,
   RadarChartDataSchema,
+  HistogramChartDataSchema,
+  HeatmapChartDataSchema,
+  FunnelChartDataSchema,
+  GaugeChartDataSchema,
+  CandlestickChartDataSchema,
   SankeyChartDataSchema,
   ChordChartDataSchema,
   TreeMapChartDataSchema,
@@ -263,6 +365,10 @@ export type GraphLink = z.infer<typeof GraphLinkSchema>;
 export type WordCloudWord = z.infer<typeof WordCloudWordSchema>;
 export type VennSet = z.infer<typeof VennSetSchema>;
 export type VennIntersection = z.infer<typeof VennIntersectionSchema>;
+export type HeatmapDataPoint = z.infer<typeof HeatmapDataPointSchema>;
+export type FunnelStage = z.infer<typeof FunnelStageSchema>;
+export type GaugeRange = z.infer<typeof GaugeRangeSchema>;
+export type CandlestickDataPoint = z.infer<typeof CandlestickDataPointSchema>;
 
 /**
  * Charts options

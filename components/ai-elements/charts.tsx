@@ -664,6 +664,347 @@ export const ChartsContent = memo(
                 }
                 break;
               }
+
+              case 'histogram': {
+                chart = root.container.children.push(
+                  am5xy.XYChart.new(root, {
+                    panX: false,
+                    panY: false,
+                    wheelX: 'none',
+                    wheelY: 'none',
+                  })
+                );
+
+                // Create axes
+                const xAxis = chart.xAxes.push(
+                  am5xy.CategoryAxis.new(root, {
+                    categoryField: 'x',
+                    renderer: am5xy.AxisRendererX.new(root, {}),
+                  })
+                );
+
+                const yAxis = chart.yAxes.push(
+                  am5xy.ValueAxis.new(root, {
+                    renderer: am5xy.AxisRendererY.new(root, {}),
+                  })
+                );
+
+                // Add histogram series
+                if ('series' in data) {
+                  data.series.forEach((seriesData) => {
+                    const series = chart.series.push(
+                      am5xy.ColumnSeries.new(root, {
+                        name: seriesData.name,
+                        xAxis: xAxis,
+                        yAxis: yAxis,
+                        valueYField: 'y',
+                        categoryXField: 'x',
+                        fill: seriesData.color ? am5.color(seriesData.color) : undefined,
+                      })
+                    );
+
+                    series.columns.template.setAll({
+                      strokeOpacity: 0,
+                      cornerRadiusTL: 2,
+                      cornerRadiusTR: 2,
+                    });
+
+                    series.data.setAll(seriesData.data);
+                  });
+
+                  const allXValues = Array.from(
+                    new Set(data.series.flatMap((s) => s.data.map((d) => d.x)))
+                  );
+                  xAxis.data.setAll(allXValues.map((x) => ({ x })));
+                }
+                break;
+              }
+
+              case 'heatmap': {
+                chart = root.container.children.push(
+                  am5xy.XYChart.new(root, {
+                    panX: false,
+                    panY: false,
+                    wheelX: 'none',
+                    wheelY: 'none',
+                  })
+                );
+
+                // Create axes
+                const xAxis = chart.xAxes.push(
+                  am5xy.CategoryAxis.new(root, {
+                    categoryField: 'x',
+                    renderer: am5xy.AxisRendererX.new(root, {
+                      minGridDistance: 30,
+                    }),
+                  })
+                );
+
+                const yAxis = chart.yAxes.push(
+                  am5xy.CategoryAxis.new(root, {
+                    categoryField: 'y',
+                    renderer: am5xy.AxisRendererY.new(root, {
+                      inversed: true,
+                      minGridDistance: 30,
+                    }),
+                  })
+                );
+
+                // Add heatmap series
+                const series = chart.series.push(
+                  am5xy.ColumnSeries.new(root, {
+                    xAxis: xAxis,
+                    yAxis: yAxis,
+                    valueField: 'value',
+                    categoryXField: 'x',
+                    categoryYField: 'y',
+                  })
+                );
+
+                // Configure heat colors
+                series.columns.template.setAll({
+                  strokeOpacity: 0,
+                      width: am5.percent(100),
+                  height: am5.percent(100),
+                });
+
+                series.columns.template.adapters.add('fill', (fill: any, target: any) => {
+                  const dataItem = target.dataItem as any;
+                  if (dataItem) {
+                    const value = dataItem.get('value', 0);
+                    const maxValue = Math.max(...('data' in data ? data.data.map(d => d.value) : [1]));
+                    const intensity = value / maxValue;
+                    return am5.Color.interpolate(
+                      intensity,
+                      am5.color(0x3b82f6), // blue
+                      am5.color(0xef4444)  // red
+                    );
+                  }
+                  return fill;
+                });
+
+                if ('data' in data) {
+                  series.data.setAll(data.data);
+
+                  const allXValues = Array.from(new Set(data.data.map((d) => d.x)));
+                  const allYValues = Array.from(new Set(data.data.map((d) => d.y)));
+                  xAxis.data.setAll(allXValues.map((x) => ({ x })));
+                  yAxis.data.setAll(allYValues.map((y) => ({ y })));
+                }
+                break;
+              }
+
+              case 'funnel': {
+                const am5percent = await import('@amcharts/amcharts5/percent');
+
+                chart = root.container.children.push(
+                  am5percent.SlicedChart.new(root, {
+                    layout: root.verticalLayout,
+                  })
+                );
+
+                const series = chart.series.push(
+                  am5percent.FunnelSeries.new(root, {
+                    categoryField: 'name',
+                    valueField: 'value',
+                    orientation: 'vertical',
+                  })
+                );
+
+                series.labels.template.setAll({
+                  text: '{category}: {value}',
+                  fontSize: 12,
+                });
+
+                series.ticks.template.setAll({
+                  strokeOpacity: 0.5,
+                });
+
+                if ('stages' in data) {
+                  series.data.setAll(data.stages);
+                }
+                break;
+              }
+
+              case 'gauge': {
+                const am5radar = await import('@amcharts/amcharts5/radar');
+
+                chart = root.container.children.push(
+                  am5radar.RadarChart.new(root, {
+                    panX: false,
+                    panY: false,
+                    startAngle: -90,
+                    endAngle: 270,
+                  })
+                );
+
+                const axisRenderer = am5radar.AxisRendererCircular.new(root, {
+                  innerRadius: -20,
+                  strokeOpacity: 0.1,
+                });
+
+                axisRenderer.grid.template.setAll({
+                  stroke: root.interfaceColors.get('background'),
+                  visible: true,
+                  strokeOpacity: 0.3,
+                });
+
+                const min = 'min' in data && data.min !== undefined ? data.min : 0;
+                const max = 'max' in data && data.max !== undefined ? data.max : 100;
+
+                const xAxis = chart.xAxes.push(
+                  am5xy.ValueAxis.new(root, {
+                    maxDeviation: 0,
+                    min: min,
+                    max: max,
+                    strictMinMax: true,
+                    renderer: axisRenderer,
+                  })
+                );
+
+                // Add colored ranges if provided
+                if ('ranges' in data && data.ranges) {
+                  data.ranges.forEach((range) => {
+                    const axisRange = xAxis.createAxisRange(
+                      xAxis.makeDataItem({
+                        value: range.start,
+                        endValue: range.end,
+                      })
+                    );
+
+                    axisRange.get('axisFill')?.setAll({
+                      visible: true,
+                      fill: range.color ? am5.color(range.color) : undefined,
+                      fillOpacity: 0.8,
+                    });
+                  });
+                }
+
+                // Add value hand
+                const axisDataItem = xAxis.makeDataItem({
+                  value: 'value' in data ? data.value : 0,
+                });
+
+                const hand = am5radar.ClockHand.new(root, {
+                  pinRadius: 15,
+                  radius: am5.percent(85),
+                  bottomWidth: 8,
+                  topWidth: 0,
+                });
+
+                hand.pin.setAll({
+                  fillOpacity: 0,
+                  strokeOpacity: 0.5,
+                  stroke: am5.color(0x000000),
+                  strokeWidth: 1,
+                });
+
+                hand.hand.setAll({
+                  fillOpacity: 0,
+                  strokeOpacity: 1,
+                  stroke: am5.color(0x000000),
+                  strokeWidth: 3,
+                });
+
+                xAxis.createAxisRange(axisDataItem);
+                axisDataItem.set('bullet', am5xy.AxisBullet.new(root, {
+                  sprite: hand,
+                }));
+
+                // Add target marker if provided
+                if ('target' in data && data.target !== undefined) {
+                  const targetDataItem = xAxis.makeDataItem({
+                    value: data.target,
+                  });
+
+                  const targetRange = xAxis.createAxisRange(targetDataItem);
+                  targetRange.get('grid')?.setAll({
+                    stroke: am5.color(0xff0000),
+                    strokeWidth: 2,
+                    strokeOpacity: 1,
+                  });
+                }
+                break;
+              }
+
+              case 'candlestick': {
+                chart = root.container.children.push(
+                  am5xy.XYChart.new(root, {
+                    panX: true,
+                    panY: true,
+                    wheelX: 'panX',
+                    wheelY: 'zoomX',
+                    pinchZoomX: true,
+                  })
+                );
+
+                // Add cursor
+                chart.set('cursor', am5xy.XYCursor.new(root, {}));
+
+                // Create axes
+                const xAxis = chart.xAxes.push(
+                  am5xy.DateAxis.new(root, {
+                    baseInterval: { timeUnit: 'day', count: 1 },
+                    renderer: am5xy.AxisRendererX.new(root, {}),
+                  })
+                );
+
+                const yAxis = chart.yAxes.push(
+                  am5xy.ValueAxis.new(root, {
+                    renderer: am5xy.AxisRendererY.new(root, {}),
+                  })
+                );
+
+                // Add candlestick series
+                const series = chart.series.push(
+                  am5xy.CandlestickSeries.new(root, {
+                    name: 'Price',
+                    xAxis: xAxis,
+                    yAxis: yAxis,
+                    valueYField: 'close',
+                    openValueYField: 'open',
+                    lowValueYField: 'low',
+                    highValueYField: 'high',
+                    valueXField: 'date',
+                  })
+                );
+
+                // Add volume series if requested
+                if ('showVolume' in data && data.showVolume && 'data' in data) {
+                  const volumeAxis = chart.yAxes.push(
+                    am5xy.ValueAxis.new(root, {
+                      height: am5.percent(20),
+                      y: am5.percent(100),
+                      centerY: am5.percent(100),
+                      renderer: am5xy.AxisRendererY.new(root, {}),
+                    })
+                  );
+
+                  const volumeSeries = chart.series.push(
+                    am5xy.ColumnSeries.new(root, {
+                      name: 'Volume',
+                      xAxis: xAxis,
+                      yAxis: volumeAxis,
+                      valueYField: 'volume',
+                      valueXField: 'date',
+                    })
+                  );
+
+                  volumeSeries.columns.template.setAll({
+                    strokeOpacity: 0,
+                    fillOpacity: 0.5,
+                  });
+
+                  if ('data' in data) {
+                    volumeSeries.data.setAll(data.data);
+                  }
+                }
+
+                if ('data' in data) {
+                  series.data.setAll(data.data);
+                }
+                break;
+              }
             }
 
             // Add legend if enabled (only for chart types with series)

@@ -545,6 +545,139 @@ const chartsExamples: ComponentExample[] = [
         }
       }
     }
+  },
+  {
+    description: 'Histogram for statistical distribution',
+    spec: {
+      id: 'charts-3',
+      component: {
+        Charts: {
+          data: {
+            type: 'histogram',
+            series: [
+              {
+                name: 'Frequency',
+                data: [
+                  { x: '0-10', y: 5 },
+                  { x: '10-20', y: 15 },
+                  { x: '20-30', y: 25 },
+                  { x: '30-40', y: 20 },
+                  { x: '40-50', y: 10 }
+                ],
+                color: '#8b5cf6'
+              }
+            ],
+            title: 'Age Distribution'
+          },
+          options: {
+            height: 350
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Heatmap for correlation matrix',
+    spec: {
+      id: 'charts-4',
+      component: {
+        Charts: {
+          data: {
+            type: 'heatmap',
+            data: [
+              { x: 'Mon', y: '9am', value: 10 },
+              { x: 'Mon', y: '12pm', value: 25 },
+              { x: 'Mon', y: '3pm', value: 15 },
+              { x: 'Tue', y: '9am', value: 20 },
+              { x: 'Tue', y: '12pm', value: 30 },
+              { x: 'Tue', y: '3pm', value: 18 },
+              { x: 'Wed', y: '9am', value: 15 },
+              { x: 'Wed', y: '12pm', value: 28 },
+              { x: 'Wed', y: '3pm', value: 22 }
+            ],
+            title: 'Activity Heatmap'
+          },
+          options: {
+            height: 300
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Funnel chart for conversion analytics',
+    spec: {
+      id: 'charts-5',
+      component: {
+        Charts: {
+          data: {
+            type: 'funnel',
+            stages: [
+              { name: 'Website Visits', value: 10000 },
+              { name: 'Product Views', value: 5000 },
+              { name: 'Add to Cart', value: 2000 },
+              { name: 'Checkout Started', value: 800 },
+              { name: 'Purchase Completed', value: 500 }
+            ],
+            title: 'Sales Funnel'
+          },
+          options: {
+            height: 400
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Gauge chart for KPI dashboard',
+    spec: {
+      id: 'charts-6',
+      component: {
+        Charts: {
+          data: {
+            type: 'gauge',
+            value: 75,
+            min: 0,
+            max: 100,
+            ranges: [
+              { start: 0, end: 33, color: '#ef4444', label: 'Low' },
+              { start: 33, end: 66, color: '#f59e0b', label: 'Medium' },
+              { start: 66, end: 100, color: '#10b981', label: 'High' }
+            ],
+            target: 80,
+            title: 'Customer Satisfaction Score'
+          },
+          options: {
+            height: 350
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Candlestick chart for financial data',
+    spec: {
+      id: 'charts-7',
+      component: {
+        Charts: {
+          data: {
+            type: 'candlestick',
+            data: [
+              { date: '2026-01-01', open: 100, high: 110, low: 95, close: 105, volume: 1000000 },
+              { date: '2026-01-02', open: 105, high: 115, low: 103, close: 112, volume: 1200000 },
+              { date: '2026-01-03', open: 112, high: 118, low: 108, close: 110, volume: 950000 },
+              { date: '2026-01-04', open: 110, high: 112, low: 102, close: 108, volume: 1100000 },
+              { date: '2026-01-05', open: 108, high: 120, low: 107, close: 118, volume: 1500000 }
+            ],
+            showVolume: true,
+            title: 'Stock Price'
+          },
+          options: {
+            height: 450
+          }
+        }
+      }
+    }
   }
 ];
 
@@ -844,15 +977,18 @@ export const specializedCatalog: ComponentCatalog = {
     type: 'Charts',
     description: `Interactive data visualizations using amCharts 5. Professional-grade
     charts with smooth animations and rich interactions. Supports:
-    - Line, bar, pie, scatter, area, and radar charts
+    - Basic charts: line, bar, pie, scatter, area, radar
+    - Business analytics: histogram, heatmap, funnel, gauge, candlestick
+    - Advanced visualizations: sankey, chord, treemap, force-directed, hierarchy, word cloud, venn
     - Multiple series on same chart
-    - Custom axis configuration (category, value, time)
+    - Custom axis configuration (category, value, time, date)
     - Legend and tooltips
     - Zoom and pan interactions
-    - Custom colors per series
+    - Custom colors and themes
     - Export to image (PNG/SVG)
     - Responsive sizing
-    Note: amCharts 5 provides professional data visualization with extensive customization.`,
+    Note: amCharts 5 provides professional data visualization with extensive customization.
+    Total: 18 chart types covering business analytics, statistical, and specialized visualizations.`,
     props: ['data', 'options'],
     examples: chartsExamples
   },
