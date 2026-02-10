@@ -320,10 +320,10 @@ export default function A2UIChatPage() {
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="w-8 h-8 text-purple-500" />
           <h1 className="text-4xl font-bold">A2UI Chat</h1>
-          <Badge variant="outline" className="text-xs">Phase 3</Badge>
+          <Badge variant="default" className="text-xs bg-purple-600">87 Components</Badge>
         </div>
         <p className="text-muted-foreground text-lg">
-          Chat with AI to generate interactive Timeline, Maps, and 3D Scene components
+          Chat with AI to generate UIs using 87 components - specialized visualizations + standard UI
         </p>
       </div>
 
@@ -338,8 +338,9 @@ export default function A2UIChatPage() {
               <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">Start a conversation</p>
               <p className="text-sm mt-2">Try: "Show me a timeline of space exploration"</p>
-              <p className="text-sm">Or: "Create a map of Paris with markers"</p>
-              <p className="text-sm">Or: "Build a 3D scene with colorful shapes"</p>
+              <p className="text-sm">Or: "Create a login form with email and password"</p>
+              <p className="text-sm">Or: "Build a card with a title, description, and button"</p>
+              <p className="text-sm">Or: "Design a dashboard with stats and charts"</p>
             </div>
           )}
 
@@ -370,7 +371,7 @@ export default function A2UIChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Ask AI to generate a Timeline, Map, or 3D Scene..."
+          placeholder="Ask AI to generate any UI component..."
           disabled={isLoading}
           className="flex-1"
         />
@@ -389,30 +390,44 @@ export default function A2UIChatPage() {
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-accent"
+            onClick={() => setInput('Create a login form with email, password, and a submit button')}
+          >
+            UI: Login Form
+          </Badge>
+          <Badge
+            variant="outline"
+            className="cursor-pointer hover:bg-accent"
+            onClick={() => setInput('Build a pricing card with a title, price, features list, and CTA button')}
+          >
+            UI: Pricing Card
+          </Badge>
+          <Badge
+            variant="outline"
+            className="cursor-pointer hover:bg-accent"
             onClick={() => setInput('Show me a timeline of major world events from 1900 to 2000')}
           >
-            Timeline: World Events
+            Data: Timeline
           </Badge>
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-accent"
             onClick={() => setInput('Create a map of New York City with famous landmarks')}
           >
-            Map: NYC Landmarks
+            Data: Map
           </Badge>
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-accent"
             onClick={() => setInput('Build a 3D scene with a sphere, cube, and torus')}
           >
-            3D: Multiple Shapes
+            Data: 3D Scene
           </Badge>
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-accent"
-            onClick={() => setInput('Show me the history of computing from 1940 to 2020')}
+            onClick={() => setInput('Design a dashboard with stats cards showing metrics')}
           >
-            Timeline: Computing History
+            UI: Dashboard
           </Badge>
         </div>
       )}

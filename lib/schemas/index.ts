@@ -12,6 +12,30 @@ export * from './maps.schema';
 // ThreeScene schemas
 export * from './threescene.schema';
 
+// SVGPreview schemas
+export * from './svgpreview.schema';
+
+// NodeEditor schemas
+export * from './nodeeditor.schema';
+
+// KnowledgeGraph schemas
+export * from './knowledgegraph.schema';
+
+// Latex schemas
+export * from './latex.schema';
+
+// ModelViewer schemas
+export * from './modelviewer.schema';
+
+// Phaser schemas
+export * from './phaser.schema';
+
+// Mermaid schemas
+export * from './mermaid.schema';
+
+// Remotion schemas
+export * from './remotion.schema';
+
 /**
  * Registry of all component schemas
  * Maps component type to its props schema
@@ -19,7 +43,15 @@ export * from './threescene.schema';
 import {
   TimelinePropsSchema,
   MapsPropsSchema,
-  ThreeScenePropsSchema
+  ThreeScenePropsSchema,
+  SVGPreviewPropsSchema,
+  NodeEditorPropsSchema,
+  KnowledgeGraphPropsSchema,
+  LatexPropsSchema,
+  ModelViewerPropsSchema,
+  PhaserPropsSchema,
+  MermaidPropsSchema,
+  RemotionPropsSchema
 } from '.';
 
 import type { ZodSchema } from 'zod';
@@ -27,7 +59,15 @@ import type { ZodSchema } from 'zod';
 export const schemaRegistry: Record<string, ZodSchema> = {
   Timeline: TimelinePropsSchema,
   Maps: MapsPropsSchema,
-  ThreeScene: ThreeScenePropsSchema
+  ThreeScene: ThreeScenePropsSchema,
+  SVGPreview: SVGPreviewPropsSchema,
+  NodeEditor: NodeEditorPropsSchema,
+  KnowledgeGraph: KnowledgeGraphPropsSchema,
+  Latex: LatexPropsSchema,
+  ModelViewer: ModelViewerPropsSchema,
+  Phaser: PhaserPropsSchema,
+  Mermaid: MermaidPropsSchema,
+  Remotion: RemotionPropsSchema
 };
 
 /**
