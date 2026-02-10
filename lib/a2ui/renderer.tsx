@@ -3,9 +3,10 @@
 /**
  * A2UI Renderer
  * Renders AI-generated UI components from A2UI specifications
- * with Zod validation
+ * Supports both specialized components (with Zod validation) and adapter components
  */
 
+import React from 'react';
 import {
   Timeline,
   TimelineHeader,
@@ -34,13 +35,124 @@ import {
   ThreeSceneResetButton,
   ThreeSceneContent
 } from '@/components/ai-elements/threescene';
+import {
+  SVGPreview,
+  SVGPreviewHeader,
+  SVGPreviewTitle,
+  SVGPreviewActions,
+  SVGPreviewCopyButton,
+  SVGPreviewDownloadButton,
+  SVGPreviewModeToggle,
+  SVGPreviewContent
+} from '@/components/ai-elements/svg-preview';
+import {
+  NodeEditor,
+  NodeEditorHeader,
+  NodeEditorTitle,
+  NodeEditorActions,
+  NodeEditorCopyButton,
+  NodeEditorFullscreenButton,
+  NodeEditorContent
+} from '@/components/ai-elements/node-editor';
+import {
+  KnowledgeGraph,
+  KnowledgeGraphHeader,
+  KnowledgeGraphTitle,
+  KnowledgeGraphActions,
+  KnowledgeGraphSearch,
+  KnowledgeGraphCopyButton,
+  KnowledgeGraphFullscreenButton,
+  KnowledgeGraphContent,
+  KnowledgeGraphLegend
+} from '@/components/ai-elements/knowledge-graph';
+import {
+  Latex,
+  LatexHeader,
+  LatexTitle,
+  LatexActions,
+  LatexCopyButton,
+  LatexFullscreenButton,
+  LatexContent
+} from '@/components/ai-elements/latex';
+import {
+  ModelViewer,
+  ModelViewerHeader,
+  ModelViewerTitle,
+  ModelViewerActions,
+  ModelViewerResetButton,
+  ModelViewerCopyButton,
+  ModelViewerFullscreenButton,
+  ModelViewerContent
+} from '@/components/ai-elements/model-viewer';
+import {
+  Phaser,
+  PhaserHeader,
+  PhaserTitle,
+  PhaserActions,
+  PhaserPlayButton,
+  PhaserResetButton,
+  PhaserCopyButton,
+  PhaserFullscreenButton,
+  PhaserContent
+} from '@/components/ai-elements/phaser';
+import {
+  Mermaid,
+  MermaidHeader,
+  MermaidTitle,
+  MermaidActions,
+  MermaidModeToggle,
+  MermaidCopyButton,
+  MermaidDownloadButton,
+  MermaidFullscreenButton,
+  MermaidContent
+} from '@/components/ai-elements/mermaid';
+import {
+  Remotion,
+  RemotionHeader,
+  RemotionTitle,
+  RemotionActions,
+  RemotionPlayButton,
+  RemotionResetButton,
+  RemotionCopyButton,
+  RemotionFullscreenButton,
+  RemotionTimeline,
+  RemotionContent
+} from '@/components/ai-elements/remotion';
 import { validateProps } from '@/lib/schemas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { a2uiComponents } from './components';
+import { extractValue } from './adapter';
 import type { A2UIMessage, A2UIComponent } from './types';
 import type { TimelineProps } from '@/lib/schemas/timeline.schema';
 import type { MapsProps } from '@/lib/schemas/maps.schema';
 import type { ThreeSceneProps } from '@/lib/schemas/threescene.schema';
+import type { SVGPreviewProps } from '@/lib/schemas/svgpreview.schema';
+import type { NodeEditorProps } from '@/lib/schemas/nodeeditor.schema';
+import type { KnowledgeGraphProps } from '@/lib/schemas/knowledgegraph.schema';
+import type { LatexProps } from '@/lib/schemas/latex.schema';
+import type { ModelViewerProps } from '@/lib/schemas/modelviewer.schema';
+import type { PhaserProps } from '@/lib/schemas/phaser.schema';
+import type { MermaidProps } from '@/lib/schemas/mermaid.schema';
+import type { RemotionProps } from '@/lib/schemas/remotion.schema';
+
+/**
+ * List of specialized components that use Zod validation and composable pattern
+ * These require complex internal structure with sub-components
+ */
+const SPECIALIZED_COMPONENTS = new Set([
+  'Timeline',
+  'Maps',
+  'ThreeScene',
+  'SVGPreview',
+  'NodeEditor',
+  'KnowledgeGraph',
+  'Latex',
+  'ModelViewer',
+  'Phaser',
+  'Mermaid',
+  'Remotion',
+]);
 
 /**
  * Error Fallback Component
@@ -90,8 +202,13 @@ export function UnknownComponent({ type, id }: { type: string; id: string }) {
 
 /**
  * Render a single A2UI component with validation
+ * Supports both specialized components (Zod validation) and adapter components
  */
-export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
+export function renderA2UIComponent(
+  component: A2UIComponent,
+  componentsMap?: Map<string, A2UIComponent>,
+  onAction?: (action: any) => void
+): React.ReactNode {
   const componentId = component.id;
 
   // Extract component type and props
@@ -108,25 +225,33 @@ export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
 
   const [componentType, props] = componentEntry;
 
-  // Validate props with Zod
-  const validation = validateProps(componentType, props);
-
-  if (!validation.success) {
-    const errorMessage = validation.error.message;
-    console.error(`[A2UI] Validation failed for ${componentType}:`, errorMessage);
-
-    return (
-      <ComponentError
-        componentType={componentType}
-        error={errorMessage}
-        componentId={componentId}
-      />
-    );
+  // Check if component exists in registry
+  const ComponentAdapter = a2uiComponents[componentType];
+  if (!ComponentAdapter) {
+    return <UnknownComponent type={componentType} id={componentId} />;
   }
 
-  // Render the validated component
-  try {
-    switch (componentType) {
+  // SPECIALIZED COMPONENTS: Use Zod validation and composable pattern
+  if (SPECIALIZED_COMPONENTS.has(componentType)) {
+    // Validate props with Zod
+    const validation = validateProps(componentType, props);
+
+    if (!validation.success) {
+      const errorMessage = validation.error.message;
+      console.error(`[A2UI] Validation failed for ${componentType}:`, errorMessage);
+
+      return (
+        <ComponentError
+          componentType={componentType}
+          error={errorMessage}
+          componentId={componentId}
+        />
+      );
+    }
+
+    // Render the validated specialized component
+    try {
+      switch (componentType) {
       case 'Timeline': {
         const timelineProps = validation.data as TimelineProps;
         return (
@@ -182,11 +307,229 @@ export function renderA2UIComponent(component: A2UIComponent): React.ReactNode {
         );
       }
 
+      case 'SVGPreview': {
+        const svgPreviewProps = validation.data as SVGPreviewProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <SVGPreview {...svgPreviewProps}>
+              <SVGPreviewHeader>
+                <SVGPreviewTitle />
+                <SVGPreviewActions>
+                  <SVGPreviewModeToggle />
+                  <SVGPreviewCopyButton />
+                  <SVGPreviewDownloadButton />
+                </SVGPreviewActions>
+              </SVGPreviewHeader>
+              <SVGPreviewContent />
+            </SVGPreview>
+          </div>
+        );
+      }
+
+      case 'NodeEditor': {
+        const nodeEditorProps = validation.data as NodeEditorProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <NodeEditor {...nodeEditorProps}>
+              <NodeEditorHeader>
+                <NodeEditorTitle />
+                <NodeEditorActions>
+                  <NodeEditorCopyButton />
+                  <NodeEditorFullscreenButton />
+                </NodeEditorActions>
+              </NodeEditorHeader>
+              <NodeEditorContent />
+            </NodeEditor>
+          </div>
+        );
+      }
+
+      case 'KnowledgeGraph': {
+        const knowledgeGraphProps = validation.data as KnowledgeGraphProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <KnowledgeGraph {...knowledgeGraphProps}>
+              <KnowledgeGraphHeader>
+                <KnowledgeGraphTitle />
+                <KnowledgeGraphActions>
+                  <KnowledgeGraphSearch />
+                  <KnowledgeGraphCopyButton />
+                  <KnowledgeGraphFullscreenButton />
+                </KnowledgeGraphActions>
+              </KnowledgeGraphHeader>
+              <KnowledgeGraphContent />
+              <KnowledgeGraphLegend />
+            </KnowledgeGraph>
+          </div>
+        );
+      }
+
+      case 'Latex': {
+        const latexProps = validation.data as LatexProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Latex {...latexProps}>
+              <LatexHeader>
+                <LatexTitle />
+                <LatexActions>
+                  <LatexCopyButton />
+                  <LatexFullscreenButton />
+                </LatexActions>
+              </LatexHeader>
+              <LatexContent />
+            </Latex>
+          </div>
+        );
+      }
+
+      case 'ModelViewer': {
+        const modelViewerProps = validation.data as ModelViewerProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <ModelViewer {...modelViewerProps}>
+              <ModelViewerHeader>
+                <ModelViewerTitle />
+                <ModelViewerActions>
+                  <ModelViewerResetButton />
+                  <ModelViewerCopyButton />
+                  <ModelViewerFullscreenButton />
+                </ModelViewerActions>
+              </ModelViewerHeader>
+              <ModelViewerContent />
+            </ModelViewer>
+          </div>
+        );
+      }
+
+      case 'Phaser': {
+        const phaserProps = validation.data as PhaserProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Phaser {...phaserProps}>
+              <PhaserHeader>
+                <PhaserTitle />
+                <PhaserActions>
+                  <PhaserPlayButton />
+                  <PhaserResetButton />
+                  <PhaserCopyButton />
+                  <PhaserFullscreenButton />
+                </PhaserActions>
+              </PhaserHeader>
+              <PhaserContent />
+            </Phaser>
+          </div>
+        );
+      }
+
+      case 'Mermaid': {
+        const mermaidProps = validation.data as MermaidProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Mermaid {...mermaidProps}>
+              <MermaidHeader>
+                <MermaidTitle />
+                <MermaidActions>
+                  <MermaidModeToggle />
+                  <MermaidCopyButton />
+                  <MermaidDownloadButton />
+                  <MermaidFullscreenButton />
+                </MermaidActions>
+              </MermaidHeader>
+              <MermaidContent />
+            </Mermaid>
+          </div>
+        );
+      }
+
+      case 'Remotion': {
+        const remotionProps = validation.data as RemotionProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Remotion {...remotionProps}>
+              <RemotionHeader>
+                <RemotionTitle />
+                <RemotionActions>
+                  <RemotionPlayButton />
+                  <RemotionResetButton />
+                  <RemotionCopyButton />
+                  <RemotionFullscreenButton />
+                </RemotionActions>
+              </RemotionHeader>
+              <RemotionContent />
+              <RemotionTimeline />
+            </Remotion>
+          </div>
+        );
+      }
+
       default:
         return (
           <UnknownComponent type={componentType} id={componentId} />
         );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[A2UI] Render error for ${componentType}:`, error);
+
+      return (
+        <ComponentError
+          componentType={componentType}
+          error={`Render error: ${errorMessage}`}
+          componentId={componentId}
+        />
+      );
     }
+  }
+
+  // ADAPTER COMPONENTS: Use adapter pattern for standard UI components
+  try {
+    // Build children from component references
+    let children: React.ReactNode = null;
+
+    // Handle single child reference
+    if (props.child && typeof props.child === 'string' && componentsMap) {
+      const childComponent = componentsMap.get(props.child);
+      if (childComponent) {
+        children = renderA2UIComponent(childComponent, componentsMap, onAction);
+      }
+    }
+
+    // Handle multiple children references
+    if (props.children && Array.isArray(props.children) && componentsMap) {
+      children = props.children
+        .map((childId: string) => {
+          if (typeof childId !== 'string') return null;
+          const childComponent = componentsMap.get(childId);
+          if (!childComponent) return null;
+          return (
+            <React.Fragment key={childId}>
+              {renderA2UIComponent(childComponent, componentsMap, onAction)}
+            </React.Fragment>
+          );
+        })
+        .filter(Boolean);
+    }
+
+    // Create A2UI node structure for adapter
+    const a2uiNode = {
+      id: componentId,
+      type: componentType,
+      properties: props,
+    };
+
+    // Render using adapter
+    return (
+      <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+        <ComponentAdapter
+          node={a2uiNode}
+          onAction={onAction ?? (() => {})}
+          components={a2uiComponents}
+          surfaceId="default"
+        >
+          {children}
+        </ComponentAdapter>
+      </div>
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[A2UI] Render error for ${componentType}:`, error);
@@ -266,11 +609,23 @@ export function A2UIRenderer({ message, className }: A2UIRendererProps) {
 
   console.log('[A2UI Renderer] Rendering', components.length, 'component(s)');
 
+  // Build components map for child resolution
+  const componentsMap = new Map<string, A2UIComponent>();
+  components.forEach((component) => {
+    componentsMap.set(component.id, component);
+  });
+
+  // Action handler
+  const handleAction = (action: any) => {
+    console.log('[A2UI] Action:', action);
+    // TODO: Implement action handling (e.g., send to AI, update state, etc.)
+  };
+
   return (
     <div className={className} data-a2ui-surface>
       {components.map((component) => (
         <div key={component.id}>
-          {renderA2UIComponent(component)}
+          {renderA2UIComponent(component, componentsMap, handleAction)}
         </div>
       ))}
     </div>
@@ -297,11 +652,23 @@ export function SimpleA2UIRenderer({ components, className }: SimpleA2UIRenderer
     return null;
   }
 
+  // Build components map for child resolution
+  const componentsMap = new Map<string, A2UIComponent>();
+  components.forEach((component) => {
+    componentsMap.set(component.id, component);
+  });
+
+  // Action handler
+  const handleAction = (action: any) => {
+    console.log('[A2UI] Action:', action);
+    // TODO: Implement action handling (e.g., send to AI, update state, etc.)
+  };
+
   return (
     <div className={className} data-a2ui-surface>
       {components.map((component) => (
         <div key={component.id}>
-          {renderA2UIComponent(component)}
+          {renderA2UIComponent(component, componentsMap, handleAction)}
         </div>
       ))}
     </div>

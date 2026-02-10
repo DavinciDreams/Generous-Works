@@ -17,10 +17,10 @@ export default function A2UIDemoPage() {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <h1 className="text-4xl font-bold">A2UI Demo</h1>
-          <Badge variant="outline" className="text-xs">Phase 1 Complete</Badge>
+          <Badge variant="default" className="text-xs bg-green-600">87 Components</Badge>
         </div>
         <p className="text-muted-foreground text-lg">
-          Testing AI-generated UI components with A2UI + Zod validation
+          Testing AI-generated UI with A2UI - 11 specialized + 76 standard UI components
         </p>
       </div>
 
@@ -57,13 +57,92 @@ export default function A2UIDemoPage() {
       </div>
 
       <Tabs value={activeDemo} onValueChange={setActiveDemo} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="adapters">Adapters</TabsTrigger>
+          <TabsTrigger value="nested">Nested</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="maps">Maps</TabsTrigger>
           <TabsTrigger value="threescene">3D Scene</TabsTrigger>
           <TabsTrigger value="validation">Validation</TabsTrigger>
-          <TabsTrigger value="unknown">Unknown</TabsTrigger>
         </TabsList>
+
+        {/* Adapter Components Demo */}
+        <TabsContent value="adapters" className="space-y-4">
+          <DemoSection
+            title="Standard UI Adapters (76 Components)"
+            description="Testing Button, Input, Card, Text, Badge, and other standard UI components via adapters"
+            status="valid"
+          >
+            <A2UIRenderer message={adapterComponentsMessage} />
+          </DemoSection>
+
+          <CodePreview
+            title="A2UI Specification"
+            code={JSON.stringify(adapterComponentsMessage, null, 2)}
+          />
+
+          <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Adapter Pattern Success
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p>
+                All 76 standard UI components (Button, Input, Card, Badge, etc.) are now available through the adapter pattern.
+              </p>
+              <p className="text-muted-foreground">
+                ✅ Dynamic component rendering
+                <br />
+                ✅ No duplication - wraps existing shadcn components
+                <br />
+                ✅ Type-safe with TypeScript
+                <br />
+                ✅ Action handling for interactive components
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Nested Components Demo */}
+        <TabsContent value="nested" className="space-y-4">
+          <DemoSection
+            title="Nested Component Structure"
+            description="Testing child component resolution and recursive rendering"
+            status="valid"
+          >
+            <A2UIRenderer message={nestedComponentsMessage} />
+          </DemoSection>
+
+          <CodePreview
+            title="A2UI Specification"
+            code={JSON.stringify(nestedComponentsMessage, null, 2)}
+          />
+
+          <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Recursive Rendering
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p>
+                Components can reference other components as children, creating complex UI hierarchies.
+              </p>
+              <p className="text-muted-foreground">
+                ✅ Card contains Text and Button children
+                <br />
+                ✅ Components resolved by ID reference
+                <br />
+                ✅ Full component tree rendering
+                <br />
+                ✅ Actions propagate correctly
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Timeline Demo */}
         <TabsContent value="timeline" className="space-y-4">
@@ -153,57 +232,23 @@ export default function A2UIDemoPage() {
           </Card>
         </TabsContent>
 
-        {/* Unknown Component Demo */}
-        <TabsContent value="unknown" className="space-y-4">
-          <DemoSection
-            title="Unknown Component Handling"
-            description="Demonstrates fallback for unregistered component types"
-            status="warning"
-          >
-            <A2UIRenderer message={unknownMessage} />
-          </DemoSection>
-
-          <CodePreview
-            title="A2UI Specification (Unknown Type)"
-            code={JSON.stringify(unknownMessage, null, 2)}
-          />
-
-          <Card className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                Expected Behavior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <p>
-                The component type <code className="px-1 py-0.5 bg-muted rounded">BarChart</code> is not
-                registered in the component catalog.
-              </p>
-              <p>
-                The renderer displays a fallback component instead of crashing.
-              </p>
-              <p className="text-muted-foreground">
-                ✅ Graceful degradation
-                <br />
-                ✅ User sees component is missing
-                <br />
-                ✅ App continues to function
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       <div className="mt-8 p-6 bg-muted rounded-lg">
-        <h3 className="font-semibold mb-2">Next Steps</h3>
+        <h3 className="font-semibold mb-2">Implementation Status</h3>
         <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
           <li>✅ Phase 1: A2UI foundation + Zod validation (Complete)</li>
-          <li>⏳ Phase 2: Demo page (You are here)</li>
-          <li>⏳ Phase 3: AG-UI streaming integration</li>
-          <li>⏳ Phase 4: AI agent endpoint</li>
-          <li>⏳ Phase 5: End-to-end AI → UI generation</li>
+          <li>✅ Phase 2: 76 Standard UI Adapters (Complete)</li>
+          <li>✅ Phase 3: Hybrid Renderer - 87 total components (Complete)</li>
+          <li>✅ Phase 4: Demo page with adapter tests (You are here)</li>
+          <li>⏳ Phase 5: AI agent endpoint integration</li>
+          <li>⏳ Phase 6: End-to-end AI → UI generation</li>
         </ul>
+        <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+          <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+            🎉 Total Generative UI System: 87 components ready (11 specialized + 76 standard UI)
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -508,6 +553,310 @@ const unknownMessage: A2UIMessage = {
             data: {
               values: [10, 20, 30]
             }
+          }
+        }
+      }
+    ]
+  }
+};
+
+/**
+ * Adapter Components Message - Tests standard UI adapters
+ */
+const adapterComponentsMessage: A2UIMessage = {
+  surfaceUpdate: {
+    components: [
+      {
+        id: 'container-1',
+        component: {
+          VStack: {
+            gap: { literalString: '4' },
+            children: ['heading-1', 'text-1', 'button-1', 'badge-group', 'input-1', 'alert-1']
+          }
+        }
+      },
+      {
+        id: 'heading-1',
+        component: {
+          H2: {
+            text: { literalString: 'Standard UI Components' }
+          }
+        }
+      },
+      {
+        id: 'text-1',
+        component: {
+          Text: {
+            text: { literalString: 'Testing adapter-based rendering for 76 standard UI components including buttons, inputs, cards, and more.' }
+          }
+        }
+      },
+      {
+        id: 'button-1',
+        component: {
+          Button: {
+            child: 'button-text',
+            variant: { literalString: 'default' },
+            action: { name: 'onClick' }
+          }
+        }
+      },
+      {
+        id: 'button-text',
+        component: {
+          Text: {
+            text: { literalString: 'Click Me!' }
+          }
+        }
+      },
+      {
+        id: 'badge-group',
+        component: {
+          HStack: {
+            gap: { literalString: '2' },
+            children: ['badge-1', 'badge-2', 'badge-3']
+          }
+        }
+      },
+      {
+        id: 'badge-1',
+        component: {
+          Badge: {
+            child: 'badge-text-1',
+            variant: { literalString: 'default' }
+          }
+        }
+      },
+      {
+        id: 'badge-text-1',
+        component: {
+          Text: {
+            text: { literalString: 'Adapters' }
+          }
+        }
+      },
+      {
+        id: 'badge-2',
+        component: {
+          Badge: {
+            child: 'badge-text-2',
+            variant: { literalString: 'secondary' }
+          }
+        }
+      },
+      {
+        id: 'badge-text-2',
+        component: {
+          Text: {
+            text: { literalString: 'Type Safe' }
+          }
+        }
+      },
+      {
+        id: 'badge-3',
+        component: {
+          Badge: {
+            child: 'badge-text-3',
+            variant: { literalString: 'outline' }
+          }
+        }
+      },
+      {
+        id: 'badge-text-3',
+        component: {
+          Text: {
+            text: { literalString: 'AI Ready' }
+          }
+        }
+      },
+      {
+        id: 'input-1',
+        component: {
+          Input: {
+            placeholder: { literalString: 'Enter your name...' },
+            type: { literalString: 'text' }
+          }
+        }
+      },
+      {
+        id: 'alert-1',
+        component: {
+          Alert: {
+            title: { literalString: 'Success!' },
+            description: { literalString: 'All adapter components are rendering correctly.' },
+            variant: { literalString: 'default' }
+          }
+        }
+      }
+    ]
+  }
+};
+
+/**
+ * Nested Components Message - Tests child resolution
+ */
+const nestedComponentsMessage: A2UIMessage = {
+  surfaceUpdate: {
+    components: [
+      {
+        id: 'card-1',
+        component: {
+          Card: {
+            children: ['card-title', 'card-content', 'card-actions']
+          }
+        }
+      },
+      {
+        id: 'card-title',
+        component: {
+          H3: {
+            text: { literalString: 'Nested Component Demo' }
+          }
+        }
+      },
+      {
+        id: 'card-content',
+        component: {
+          VStack: {
+            gap: { literalString: '2' },
+            children: ['description', 'feature-list']
+          }
+        }
+      },
+      {
+        id: 'description',
+        component: {
+          Text: {
+            text: { literalString: 'This card demonstrates recursive child component rendering with multiple nesting levels.' }
+          }
+        }
+      },
+      {
+        id: 'feature-list',
+        component: {
+          VStack: {
+            gap: { literalString: '1' },
+            children: ['feature-1', 'feature-2', 'feature-3']
+          }
+        }
+      },
+      {
+        id: 'feature-1',
+        component: {
+          HStack: {
+            gap: { literalString: '2' },
+            children: ['checkmark-1', 'feature-text-1']
+          }
+        }
+      },
+      {
+        id: 'checkmark-1',
+        component: {
+          Text: {
+            text: { literalString: '✓' }
+          }
+        }
+      },
+      {
+        id: 'feature-text-1',
+        component: {
+          Text: {
+            text: { literalString: 'Component references resolved by ID' }
+          }
+        }
+      },
+      {
+        id: 'feature-2',
+        component: {
+          HStack: {
+            gap: { literalString: '2' },
+            children: ['checkmark-2', 'feature-text-2']
+          }
+        }
+      },
+      {
+        id: 'checkmark-2',
+        component: {
+          Text: {
+            text: { literalString: '✓' }
+          }
+        }
+      },
+      {
+        id: 'feature-text-2',
+        component: {
+          Text: {
+            text: { literalString: 'Recursive rendering works perfectly' }
+          }
+        }
+      },
+      {
+        id: 'feature-3',
+        component: {
+          HStack: {
+            gap: { literalString: '2' },
+            children: ['checkmark-3', 'feature-text-3']
+          }
+        }
+      },
+      {
+        id: 'checkmark-3',
+        component: {
+          Text: {
+            text: { literalString: '✓' }
+          }
+        }
+      },
+      {
+        id: 'feature-text-3',
+        component: {
+          Text: {
+            text: { literalString: 'Actions propagate through the tree' }
+          }
+        }
+      },
+      {
+        id: 'card-actions',
+        component: {
+          HStack: {
+            gap: { literalString: '2' },
+            children: ['action-button-1', 'action-button-2']
+          }
+        }
+      },
+      {
+        id: 'action-button-1',
+        component: {
+          Button: {
+            child: 'action-text-1',
+            variant: { literalString: 'default' },
+            action: { name: 'onAccept' }
+          }
+        }
+      },
+      {
+        id: 'action-text-1',
+        component: {
+          Text: {
+            text: { literalString: 'Accept' }
+          }
+        }
+      },
+      {
+        id: 'action-button-2',
+        component: {
+          Button: {
+            child: 'action-text-2',
+            variant: { literalString: 'outline' },
+            action: { name: 'onCancel' }
+          }
+        }
+      },
+      {
+        id: 'action-text-2',
+        component: {
+          Text: {
+            text: { literalString: 'Cancel' }
           }
         }
       }
