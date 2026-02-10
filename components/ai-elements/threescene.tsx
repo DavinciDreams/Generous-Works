@@ -27,7 +27,10 @@ import {
 
 export interface ThreeSceneObject {
   id?: string;
-  object: any; // THREE.Object3D
+  object?: any; // THREE.Object3D (for pre-built objects)
+  type?: string; // Object type: 'box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'
+  color?: number; // Hex color
+  wireframe?: boolean; // Wireframe mode
   position?: { x?: number; y?: number; z?: number };
   rotation?: { x?: number; y?: number; z?: number };
   scale?: number | { x?: number; y?: number; z?: number };
@@ -523,7 +526,7 @@ export const ThreeSceneContent = memo(
             }
 
             // Helper function to create Three.js objects from config
-            const createObjectFromConfig = (objConfig: ThreeSceneObject): THREE.Mesh | null => {
+            const createObjectFromConfig = (objConfig: ThreeSceneObject): any => {
               // Create geometry based on type
               let geometry: any;
               switch (objConfig.type) {
