@@ -5,7 +5,7 @@
  * to React component props. Based on a2ui-bridge adapter pattern.
  */
 
-import { createElement, type ComponentType, type ReactNode } from 'react';
+import React, { createElement, type ComponentType, type ReactNode } from 'react';
 
 /**
  * User action event sent from client to server.
@@ -111,7 +111,7 @@ export interface AdapterOptions<TTargetProps> {
  * ```
  */
 export function createAdapter<TTargetProps extends Record<string, any>>(
-  Component: ComponentType<TTargetProps> | keyof JSX.IntrinsicElements,
+  Component: ComponentType<TTargetProps> | keyof React.JSX.IntrinsicElements,
   options: AdapterOptions<TTargetProps>
 ): ComponentType<A2UIComponentProps<A2UINode>> {
   const { mapProps, childrenProp = 'children', displayName } = options;
@@ -251,7 +251,7 @@ export function mapVariant<T extends string>(
  * ```
  */
 export function createPassthroughAdapter<TTargetProps extends Record<string, any> = any>(
-  Component: ComponentType<TTargetProps> | keyof JSX.IntrinsicElements,
+  Component: ComponentType<TTargetProps> | keyof React.JSX.IntrinsicElements,
   defaultProps?: Partial<TTargetProps>
 ): ComponentType<A2UIComponentProps<A2UINode>> {
   return createAdapter(Component as any, {
