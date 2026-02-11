@@ -928,6 +928,68 @@ const jsonViewerExamples: ComponentExample[] = [
 ];
 
 /**
+ * CodeEditor Examples
+ */
+const codeEditorExamples: ComponentExample[] = [
+  {
+    description: 'JavaScript code editor with syntax highlighting',
+    spec: {
+      id: 'codeeditor-1',
+      component: {
+        CodeEditor: {
+          data: {
+            code: `function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+console.log(fibonacci(10)); // 55`,
+            language: "javascript",
+            filename: "fibonacci.js"
+          },
+          options: {
+            height: 400,
+            theme: "dark",
+            lineNumbers: true,
+            highlightActiveLine: true
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Python code with read-only mode',
+    spec: {
+      id: 'codeeditor-2',
+      component: {
+        CodeEditor: {
+          data: {
+            code: `import numpy as np
+
+def calculate_mean(data):
+    """Calculate the arithmetic mean of a list of numbers."""
+    return np.mean(data)
+
+# Example usage
+numbers = [10, 20, 30, 40, 50]
+result = calculate_mean(numbers)
+print(f"Mean: {result}")`,
+            language: "python",
+            filename: "stats.py",
+            readOnly: true
+          },
+          options: {
+            height: 400,
+            theme: "light",
+            lineNumbers: true
+          }
+        }
+      }
+    }
+  }
+];
+
+/**
  * Specialized Component Catalog
  *
  * Advanced data visualization and interactive components
@@ -1231,6 +1293,32 @@ export const specializedCatalog: ComponentCatalog = {
     Uses @uiw/react-json-view library.`,
     props: ['data', 'options'],
     examples: jsonViewerExamples
+  },
+
+  CodeEditor: {
+    type: 'CodeEditor',
+    description: `Syntax-highlighted code editor powered by CodeMirror 6. Supports multiple programming
+    languages with features for reading and editing code. Supports:
+    - 20+ programming languages (JavaScript, TypeScript, Python, Java, C#, Go, Rust, PHP, Ruby, HTML, CSS, JSON, Markdown, SQL, Bash, and more)
+    - Syntax highlighting for all supported languages
+    - Line numbers and active line highlighting
+    - Copy to clipboard functionality
+    - Download code as file
+    - Multiple themes (light, dark, GitHub, VSCode, Sublime, Material, Dracula, Nord)
+    - Line wrapping toggle
+    - Read-only mode for displaying code
+    - Editable mode for code editing
+    - Customizable tab size and indentation
+    - Autocomplete and code completion
+    - Bracket matching and auto-closing
+    - Search and replace (Ctrl+F)
+    - Multiple cursors and selections
+    - Fullscreen mode
+    - Placeholder text for empty editor
+    Note: Perfect for code snippets, documentation, tutorials, and interactive coding examples.
+    Uses @uiw/react-codemirror and CodeMirror 6.`,
+    props: ['data', 'options', 'onChange'],
+    examples: codeEditorExamples
   }
 };
 

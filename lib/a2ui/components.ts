@@ -29,6 +29,7 @@ import { VRM } from '@/components/ai-elements/vrm';
 import { ToolUI } from '@/components/ai-elements/toolui';
 import { Calendar } from '@/components/ai-elements/calendar';
 import { JSONViewer } from '@/components/ai-elements/jsonviewer';
+import { CodeEditor } from '@/components/ai-elements/codeeditor';
 
 /**
  * Specialized components that use the composable pattern
@@ -53,6 +54,7 @@ export const specializedComponents = {
   ToolUI,
   Calendar,
   JSONViewer,
+  CodeEditor,
 } as const;
 
 /**
@@ -103,7 +105,7 @@ export const componentCategories = {
   specialized: [
     'Timeline', 'Maps', 'ThreeScene', 'SVGPreview', 'NodeEditor',
     'KnowledgeGraph', 'Latex', 'ModelViewer', 'Phaser', 'Mermaid', 'Remotion',
-    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer'
+    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer', 'CodeEditor'
   ],
   layout: [
     'Row', 'Column', 'HStack', 'VStack', 'Stack',
