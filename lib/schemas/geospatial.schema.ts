@@ -12,21 +12,37 @@ export const GeospatialCoordinatesSchema = z.object({
   lat: z.number().min(-90).max(90),
 });
 
+// Path point schema for trips layer
+const PathPointSchema = z.object({
+  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90),
+  timestamp: z.union([z.number(), z.string()]).optional(),
+});
+
+// Standard data point schema (for point, line, polygon, heatmap, hexagon, arc)
+const StandardDataPointSchema = z.object({
+  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90),
+  value: z.number().optional(),
+  properties: z.record(z.string(), z.unknown()).optional(),
+  // Arc layer fields
+  targetLng: z.number().min(-180).max(180).optional(),
+  targetLat: z.number().min(-90).max(90).optional(),
+  // Temporal fields (for time-series)
+  timestamp: z.union([z.number(), z.string()]).optional(),
+});
+
+// Trips data point schema (has path array instead of lng/lat)
+const TripsDataPointSchema = z.object({
+  path: z.array(PathPointSchema),
+  properties: z.record(z.string(), z.unknown()).optional(),
+});
+
 // Layer schema
 export const GeospatialLayerSchema = z.object({
   id: z.string(),
   type: z.enum(['point', 'line', 'polygon', 'heatmap', 'hexagon', 'arc', 'trips']),
-  data: z.array(z.object({
-    lng: z.number().min(-180).max(180),
-    lat: z.number().min(-90).max(90),
-    value: z.number().optional(),
-    properties: z.record(z.string(), z.unknown()).optional(),
-    // Arc layer fields
-    targetLng: z.number().min(-180).max(180).optional(),
-    targetLat: z.number().min(-90).max(90).optional(),
-    // Temporal fields (for trips and time-series)
-    timestamp: z.union([z.number(), z.string()]).optional(),
-  })),
+  data: z.array(z.union([StandardDataPointSchema, TripsDataPointSchema])),
   style: z.object({
     color: z.union([z.string(), z.array(z.string())]),
     size: z.number().positive().optional(),
@@ -34,6 +50,8 @@ export const GeospatialLayerSchema = z.object({
     // 3D fields
     extruded: z.boolean().optional(),
     elevation: z.number().optional(),
+    // Trips layer fields
+    trailLength: z.number().optional(),
   }),
   visible: z.boolean().optional(),
   // Temporal configuration
@@ -76,6 +94,10 @@ export const GeospatialPropsSchema = z.object({
 
 // TypeScript types
 export type GeospatialCoordinates = z.infer<typeof GeospatialCoordinatesSchema>;
+export type PathPoint = z.infer<typeof PathPointSchema>;
+export type StandardDataPoint = z.infer<typeof StandardDataPointSchema>;
+export type TripsDataPoint = z.infer<typeof TripsDataPointSchema>;
+export type GeospatialDataPoint = StandardDataPoint | TripsDataPoint;
 export type GeospatialLayer = z.infer<typeof GeospatialLayerSchema>;
 export type GeospatialData = z.infer<typeof GeospatialDataSchema>;
 export type GeospatialOptions = z.infer<typeof GeospatialOptionsSchema>;
