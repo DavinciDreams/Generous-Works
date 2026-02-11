@@ -2,15 +2,25 @@
 
 import type { HTMLAttributes } from "react";
 import type { TProps as JsxParserProps } from "react-jsx-parser";
+import type { A2UIMessage } from "@/lib/a2ui/types";
 
 import { JSXPreview, JSXPreviewContent, JSXPreviewError } from "@/components/ai-elements/jsx-preview";
-import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { HybridRenderer } from "@/components/ai-elements/hybrid-renderer";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { cn } from "@/lib/utils";
 import { memo, useMemo } from "react";
 
 // ============================================================================
 // Type Definitions
 // ============================================================================
+
+/**
+ * Content block types for unified parsing
+ */
+export type ContentBlock =
+  | { type: 'text'; content: string; id: string }
+  | { type: 'jsx'; code: string; id: string }
+  | { type: 'a2ui'; spec: A2UIMessage; id: string };
 
 /**
  * Message interface for generative messages
@@ -38,20 +48,8 @@ export interface GenerativeMessageProps extends HTMLAttributes<HTMLDivElement> {
   bindings?: JsxParserProps["bindings"];
 }
 
-/**
- * Parsed content with text and JSX parts
- */
-interface ParsedContent {
-  textContent: string;
-  jsxBlocks: Array<{
-    id: string;
-    code: string;
-    language: "jsx" | "tsx";
-  }>;
-}
-
 // ============================================================================
-// JSX Extraction Utilities
+// Code Block Extraction Utilities
 // ============================================================================
 
 /**
@@ -60,33 +58,123 @@ interface ParsedContent {
 const JSX_CODE_BLOCK_REGEX = /```(?:jsx|tsx)\s*\n([\s\S]*?)```/gi;
 
 /**
- * Extract JSX code blocks from markdown content
+ * Regex to match JSON code blocks (for A2UI)
  */
-const extractJSXFromMarkdown = (content: string): ParsedContent => {
-  const jsxBlocks: Array<{ id: string; code: string; language: "jsx" | "tsx" }> = [];
-  let textContent = content;
-  let matchIndex = 0;
+const JSON_CODE_BLOCK_REGEX = /```json\s*\n([\s\S]*?)```/gi;
 
-  // Find all JSX/TSX code blocks
-  let match: RegExpExecArray | null;
-  while ((match = JSX_CODE_BLOCK_REGEX.exec(content)) !== null) {
-    const [fullMatch, code] = match;
-    const language: "jsx" | "tsx" = fullMatch.includes("```jsx") ? "jsx" : "tsx";
+/**
+ * Parse message content into unified ContentBlock array
+ * Extracts JSX (```tsx), A2UI (```json with surfaceUpdate), and text
+ * Preserves original message order
+ */
+export const parseMessageContent = (content: string): ContentBlock[] => {
+  const blocks: ContentBlock[] = [];
+  let blockIndex = 0;
 
-    jsxBlocks.push({
-      id: `jsx-block-${matchIndex++}`,
-      code: code.trim(),
-      language,
-    });
-
-    // Remove the code block from text content
-    textContent = textContent.replace(fullMatch, "");
+  // Find all code blocks with their positions
+  interface CodeBlockMatch {
+    type: 'jsx' | 'a2ui' | 'text';
+    start: number;
+    end: number;
+    content: string;
+    data?: A2UIMessage;
   }
 
-  return {
-    textContent: textContent.trim(),
-    jsxBlocks,
-  };
+  const matches: CodeBlockMatch[] = [];
+
+  // Find JSX blocks
+  const jsxRegex = new RegExp(JSX_CODE_BLOCK_REGEX.source, JSX_CODE_BLOCK_REGEX.flags);
+  let jsxMatch: RegExpExecArray | null;
+  while ((jsxMatch = jsxRegex.exec(content)) !== null) {
+    matches.push({
+      type: 'jsx',
+      start: jsxMatch.index,
+      end: jsxMatch.index + jsxMatch[0].length,
+      content: jsxMatch[1].trim(),
+    });
+  }
+
+  // Find A2UI JSON blocks
+  const jsonRegex = new RegExp(JSON_CODE_BLOCK_REGEX.source, JSON_CODE_BLOCK_REGEX.flags);
+  let jsonMatch: RegExpExecArray | null;
+  while ((jsonMatch = jsonRegex.exec(content)) !== null) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1].trim());
+
+      // Only include if it's a valid A2UI message
+      if (parsed && typeof parsed === 'object' && 'surfaceUpdate' in parsed) {
+        matches.push({
+          type: 'a2ui',
+          start: jsonMatch.index,
+          end: jsonMatch.index + jsonMatch[0].length,
+          content: jsonMatch[1].trim(),
+          data: parsed as A2UIMessage,
+        });
+      }
+    } catch {
+      // Invalid JSON - will be treated as text
+      console.debug('[parseMessageContent] Invalid JSON block, treating as text');
+    }
+  }
+
+  // Sort matches by position
+  matches.sort((a, b) => a.start - b.start);
+
+  // Extract text blocks between code blocks
+  let lastEnd = 0;
+  for (const match of matches) {
+    // Add text before this match
+    if (match.start > lastEnd) {
+      const textContent = content.substring(lastEnd, match.start).trim();
+      if (textContent) {
+        blocks.push({
+          type: 'text',
+          content: textContent,
+          id: `text-block-${blockIndex++}`,
+        });
+      }
+    }
+
+    // Add the code block
+    if (match.type === 'jsx') {
+      blocks.push({
+        type: 'jsx',
+        code: match.content,
+        id: `jsx-block-${blockIndex++}`,
+      });
+    } else if (match.type === 'a2ui' && match.data) {
+      blocks.push({
+        type: 'a2ui',
+        spec: match.data,
+        id: `a2ui-block-${blockIndex++}`,
+      });
+    }
+
+    lastEnd = match.end;
+  }
+
+  // Add remaining text after last match
+  if (lastEnd < content.length) {
+    const textContent = content.substring(lastEnd).trim();
+    if (textContent) {
+      blocks.push({
+        type: 'text',
+        content: textContent,
+        id: `text-block-${blockIndex++}`,
+      });
+    }
+  }
+
+  // If no blocks were found, treat entire content as text
+  if (blocks.length === 0 && content.trim()) {
+    blocks.push({
+      type: 'text',
+      content: content.trim(),
+      id: 'text-block-0',
+    });
+  }
+
+  return blocks;
 };
 
 // ============================================================================
@@ -104,65 +192,46 @@ export const GenerativeMessage = memo(
   }: GenerativeMessageProps) => {
     const { id, role, content, jsx } = message;
 
-    // Parse content to extract JSX blocks
-    const parsedContent = useMemo(() => {
-      // If explicit jsx prop is provided, use it
+    // Parse content to extract ALL blocks (text, JSX, A2UI)
+    const contentBlocks = useMemo(() => {
+      // If explicit jsx prop is provided, use legacy format
       if (jsx) {
-        return {
-          textContent: content,
-          jsxBlocks: [
-            {
-              id: `jsx-block-${id}`,
-              code: jsx,
-              language: "tsx" as const,
-            },
-          ],
-        };
+        return [
+          {
+            type: 'text' as const,
+            content,
+            id: `text-${id}`,
+          },
+          {
+            type: 'jsx' as const,
+            code: jsx,
+            id: `jsx-${id}`,
+          },
+        ];
       }
 
-      // Otherwise, extract JSX from markdown code blocks
-      return extractJSXFromMarkdown(content);
+      // Otherwise, parse content for mixed blocks
+      return parseMessageContent(content);
     }, [content, jsx, id]);
-
-    const { textContent, jsxBlocks } = parsedContent;
 
     // Don't render for system messages
     if (role === "system") {
       return null;
     }
 
-    // BYPASS Message/MessageContent - render directly
+    // Render using HybridRenderer
     return (
       <div className={cn("my-4", className)} {...props}>
-        {/* Render text content with markdown */}
-        {textContent && (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <MessageResponse>{textContent}</MessageResponse>
-          </div>
-        )}
-
-        {/* Render JSX blocks */}
-        {jsxBlocks.length > 0 && (
-          <div className="mt-4 space-y-4">
-            {jsxBlocks.map((jsxBlock) => (
-              <JSXPreview
-                key={jsxBlock.id}
-                jsx={jsxBlock.code}
-                isStreaming={isStreaming}
-                components={components}
-                bindings={bindings}
-                className="border rounded-lg bg-background p-4"
-              >
-                <JSXPreviewError />
-                <JSXPreviewContent />
-              </JSXPreview>
-            ))}
-          </div>
-        )}
+        <HybridRenderer
+          blocks={contentBlocks}
+          jsxComponents={components}
+          jsxBindings={bindings}
+          isStreaming={isStreaming}
+        />
 
         {/* Show streaming indicator */}
         {isStreaming && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mt-4">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>

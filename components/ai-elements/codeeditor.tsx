@@ -357,7 +357,7 @@ export const CodeEditorContent = memo(
             theme={theme}
             extensions={languageExtension ? [languageExtension] : []}
             onChange={setCode}
-            editable={options?.editable !== undefined ? options.editable : !data.readOnly}
+            editable={options?.editable ?? !data.readOnly}
             readOnly={data.readOnly}
             placeholder={options?.placeholder}
             basicSetup={{
