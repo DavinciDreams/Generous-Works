@@ -1146,6 +1146,65 @@ const dataTableExamples: ComponentExample[] = [
 ];
 
 /**
+ * ImageGallery Examples
+ */
+const imageGalleryExamples: ComponentExample[] = [
+  {
+    description: 'Nature photo gallery with justified rows layout',
+    spec: {
+      id: 'imagegallery-1',
+      component: {
+        ImageGallery: {
+          data: {
+            title: "Nature Photography",
+            images: [
+              { src: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4", alt: "Mountain landscape", title: "Mountain Peak", width: 1200, height: 800 },
+              { src: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e", alt: "Forest trail", title: "Forest Path", width: 1200, height: 800 },
+              { src: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e", alt: "Ocean waves", title: "Ocean Sunset", width: 1200, height: 800 }
+            ]
+          },
+          options: {
+            height: 600,
+            layout: "rows",
+            targetRowHeight: 200,
+            enableLightbox: true,
+            enableZoom: true
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Architecture gallery with masonry layout',
+    spec: {
+      id: 'imagegallery-2',
+      component: {
+        ImageGallery: {
+          data: {
+            title: "Modern Architecture",
+            images: [
+              { src: "https://images.unsplash.com/photo-1486718448742-163732cd1544", alt: "Modern building", title: "Contemporary Design", width: 1000, height: 1000 },
+              { src: "https://images.unsplash.com/photo-1487958449943-2429e8be8625", alt: "Glass facade", title: "Reflections", width: 1000, height: 1000 },
+              { src: "https://images.unsplash.com/photo-1511818966892-d7d671e672a2", alt: "Spiral staircase", title: "Geometric Forms", width: 1000, height: 1000 },
+              { src: "https://images.unsplash.com/photo-1479839672679-a46483c0e7c8", alt: "Brutalist architecture", title: "Concrete Poetry", width: 1000, height: 1000 }
+            ]
+          },
+          options: {
+            height: 500,
+            layout: "masonry",
+            columns: 2,
+            spacing: 8,
+            enableLightbox: true,
+            enableCaptions: true,
+            enableFullscreen: true
+          }
+        }
+      }
+    }
+  }
+];
+
+/**
  * Specialized Component Catalog
  *
  * Advanced data visualization and interactive components
@@ -1522,6 +1581,30 @@ export const specializedCatalog: ComponentCatalog = {
     Uses @tanstack/react-table v8 for headless table functionality.`,
     props: ['data', 'options', 'onRowSelect'],
     examples: dataTableExamples
+  },
+
+  ImageGallery: {
+    type: 'ImageGallery',
+    description: `Responsive image gallery with lightbox viewer. Display collections of images with multiple
+    layout options and interactive viewing. Supports:
+    - Three layout modes: Rows (justified), Columns (grid), Masonry (Pinterest-style)
+    - Lightbox viewer with click to expand
+    - Image zoom with mouse wheel or pinch gestures
+    - Captions and descriptions in lightbox
+    - Keyboard navigation (arrow keys, Escape, Enter)
+    - Touch gestures (swipe, pinch-to-zoom)
+    - Download individual images
+    - Fullscreen viewing mode
+    - Slideshow with auto-play
+    - Customizable spacing and row height
+    - Configurable number of columns
+    - Responsive design adapts to screen size
+    - Image count display
+    - Accessible with ARIA labels and keyboard support
+    Note: Perfect for portfolios, product showcases, photo albums, galleries, and any image-heavy applications.
+    Uses react-photo-album for grid layouts and yet-another-react-lightbox for image viewing.`,
+    props: ['data', 'options', 'onImageClick'],
+    examples: imageGalleryExamples
   }
 };
 

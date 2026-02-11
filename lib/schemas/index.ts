@@ -66,6 +66,9 @@ export * from './markdown.schema';
 // DataTable schemas
 export * from './datatable.schema';
 
+// ImageGallery schemas
+export * from './imagegallery.schema';
+
 /**
  * Registry of all component schemas
  * Maps component type to its props schema
@@ -91,7 +94,8 @@ import {
   JSONViewerPropsSchema,
   CodeEditorPropsSchema,
   MarkdownPropsSchema,
-  DataTablePropsSchema
+  DataTablePropsSchema,
+  ImageGalleryPropsSchema
 } from '.';
 
 import type { ZodSchema } from 'zod';
@@ -117,7 +121,8 @@ export const schemaRegistry: Record<string, ZodSchema> = {
   JSONViewer: JSONViewerPropsSchema,
   CodeEditor: CodeEditorPropsSchema,
   Markdown: MarkdownPropsSchema,
-  DataTable: DataTablePropsSchema
+  DataTable: DataTablePropsSchema,
+  ImageGallery: ImageGalleryPropsSchema
 };
 
 /**
