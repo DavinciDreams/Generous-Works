@@ -1077,6 +1077,75 @@ For more information, visit our [documentation](https://docs.example.com).`
 ];
 
 /**
+ * DataTable Examples
+ */
+const dataTableExamples: ComponentExample[] = [
+  {
+    description: 'User management table with sorting and pagination',
+    spec: {
+      id: 'datatable-1',
+      component: {
+        DataTable: {
+          data: {
+            title: "Users",
+            columns: [
+              { id: "id", header: "ID", accessorKey: "id", width: 80 },
+              { id: "name", header: "Name", accessorKey: "name", width: 200 },
+              { id: "email", header: "Email", accessorKey: "email", width: 250 },
+              { id: "role", header: "Role", accessorKey: "role", width: 120 },
+              { id: "status", header: "Status", accessorKey: "status", width: 120 }
+            ],
+            rows: [
+              { id: "1", name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active" },
+              { id: "2", name: "Bob Smith", email: "bob@example.com", role: "User", status: "Active" },
+              { id: "3", name: "Carol Williams", email: "carol@example.com", role: "Editor", status: "Active" }
+            ]
+          },
+          options: {
+            height: 600,
+            enableSorting: true,
+            pageSize: 10,
+            striped: true
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Product inventory table with custom styling',
+    spec: {
+      id: 'datatable-2',
+      component: {
+        DataTable: {
+          data: {
+            title: "Product Inventory",
+            columns: [
+              { id: "sku", header: "SKU", accessorKey: "sku", width: 100 },
+              { id: "name", header: "Product Name", accessorKey: "name", width: 250 },
+              { id: "category", header: "Category", accessorKey: "category", width: 150 },
+              { id: "price", header: "Price", accessorKey: "price", width: 100, align: "right" },
+              { id: "stock", header: "Stock", accessorKey: "stock", width: 100, align: "right" }
+            ],
+            rows: [
+              { sku: "LAP-001", name: "ThinkPad X1 Carbon", category: "Laptops", price: "$1,299", stock: "45" },
+              { sku: "LAP-002", name: "MacBook Pro 14\"", category: "Laptops", price: "$1,999", stock: "23" },
+              { sku: "MON-001", name: "Dell UltraSharp 27\"", category: "Monitors", price: "$449", stock: "67" }
+            ]
+          },
+          options: {
+            height: 500,
+            enableSorting: true,
+            pageSize: 5,
+            striped: true,
+            bordered: true
+          }
+        }
+      }
+    }
+  }
+];
+
+/**
  * Specialized Component Catalog
  *
  * Advanced data visualization and interactive components
@@ -1429,6 +1498,30 @@ export const specializedCatalog: ComponentCatalog = {
     Uses @uiw/react-md-editor with full MDX support.`,
     props: ['data', 'options', 'onChange'],
     examples: markdownExamples
+  },
+
+  DataTable: {
+    type: 'DataTable',
+    description: `Powerful data table component with sorting, filtering, and pagination. Display tabular data
+    with advanced features using TanStack Table. Supports:
+    - Column sorting (click headers to sort ascending/descending)
+    - Pagination with customizable page size
+    - Row selection (single or multiple)
+    - Striped rows for better readability
+    - Bordered table styling
+    - Compact mode for dense data
+    - Sticky header that stays visible on scroll
+    - Copy to clipboard (CSV format)
+    - Download as CSV file
+    - Fullscreen mode for detailed viewing
+    - Column width customization
+    - Text alignment per column (left, center, right)
+    - Row count display
+    - Responsive horizontal scrolling for wide tables
+    Note: Perfect for dashboards, admin panels, data analysis, reports, and any data-heavy applications.
+    Uses @tanstack/react-table v8 for headless table functionality.`,
+    props: ['data', 'options', 'onRowSelect'],
+    examples: dataTableExamples
   }
 };
 

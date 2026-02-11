@@ -5,7 +5,87 @@
 
 ---
 
-## Latest Session (2026-02-10) - AI Component Awareness Fix
+## Latest Session (2026-02-10) - Phase 2: Hybrid Renderer System Prompt Enhancement
+
+### ✅ **COMPLETED - Enhanced System Prompt with Format Selection Guide**
+
+**Session Focus:** Implement Phase 2 of Hybrid Renderer - teach AI when to use JSX vs A2UI JSON
+
+**Task:** Task 2.1 - Enhanced System Prompt (from HYBRID-RENDERER-IMPLEMENTATION-PLAN.md)
+
+**Problem:**
+- AI currently only generates JSX (wrapped in ```tsx blocks)
+- Need to teach AI about A2UI JSON format for specialized components
+- Need clear decision rules for format selection
+
+**Solution Implemented:**
+- Added comprehensive "Component Rendering Formats" section to system prompt
+- Includes 3 format types: JSX (simple UI), A2UI JSON (specialized), Mixed (both)
+- Provides 6 concrete A2UI JSON examples:
+  1. Line Chart - basic chart example
+  2. Candlestick Chart - financial data visualization
+  3. Calendar - events with date/time
+  4. Timeline - company milestones
+  5. Maps - geographic markers
+  6. Phaser - game initialization
+- Added Quick Reference table for format selection
+- Includes mixed format example (dashboard with button + chart)
+
+**Files Changed:**
+
+1. **app/api/chat/route.ts** (MODIFIED)
+   - **Added:** Complete "Component Rendering Formats" section after basic component library
+   - **Location:** Lines 86-428 (new content inserted)
+   - **Preserved:** Existing `getCatalogPrompt()` call at line 18
+   - **Total addition:** ~340 lines of documentation and examples
+
+**New System Prompt Structure:**
+```
+1. Role description
+2. A2UI catalog (from getCatalogPrompt())
+3. Additional basic component library
+4. [NEW] Component Rendering Formats
+   - Format 1: JSX (Simple UI)
+   - Format 2: A2UI JSON (Specialized)
+   - Format 3: Mixed (Both)
+   - Quick Reference Table
+5. Styling Guidelines
+6. Response Format
+7. Error Handling
+```
+
+**Format Selection Rules:**
+| Component Type | Format | Reason |
+|----------------|--------|--------|
+| Button, Input, Card, Select | JSX | Simple props, no complex data |
+| Charts (18 types) | A2UI JSON | Complex `data` + `options` props |
+| Calendar | A2UI JSON | Events array, view config |
+| Phaser games | A2UI JSON | Scene setup, physics config |
+| 3D (ThreeScene, VRM, ModelViewer) | A2UI JSON | Camera, lights, models |
+| Maps, Geospatial | A2UI JSON | Markers, layers, coordinates |
+| Timeline | A2UI JSON | Events with dates |
+
+**Acceptance Criteria:**
+- ✅ System prompt includes format selection rules
+- ✅ 6 concrete A2UI JSON examples provided (Charts x2, Calendar, Timeline, Maps, Phaser)
+- ✅ Quick reference table included
+- ✅ Mixed format example shown
+- ✅ Existing `getCatalogPrompt()` call preserved
+- ⏳ AI correctly chooses format >90% of the time (requires manual testing)
+
+**Next Steps:**
+- Manual testing with prompts:
+  1. "Create a blue button" → Should generate JSX
+  2. "Show me a line chart of sales" → Should generate A2UI JSON
+  3. "Create a dashboard with a button and a chart" → Should generate BOTH
+- Consider adding more examples if AI struggles with specific components
+- Monitor AI format selection accuracy over time
+
+**Status:** ✅ Backend implementation complete, ready for frontend integration (Phase 1)
+
+---
+
+## Previous Session (2026-02-10) - AI Component Awareness Fix
 
 ### ✅ **COMPLETED - Integrated A2UI Catalog into Main Chat Endpoint**
 
