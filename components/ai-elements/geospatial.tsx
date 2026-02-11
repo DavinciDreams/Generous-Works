@@ -2,6 +2,7 @@
 
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { TimelineControl } from "@/components/ui/timeline-control";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -19,12 +20,10 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
-
-// Import Leaflet styles
-import "leaflet/dist/leaflet.css";
 
 // --- Types ---
 
@@ -35,26 +34,47 @@ export interface GeospatialCoordinates {
 
 export interface GeospatialLayer {
   id: string;
-  type: 'point' | 'line' | 'polygon' | 'heatmap' | 'hexagon' | 'arc';
+  type: 'point' | 'line' | 'polygon' | 'heatmap' | 'hexagon' | 'arc' | 'trips';
   data: Array<{
     lng: number;
     lat: number;
     value?: number;
     properties?: Record<string, unknown>;
+    // For arc layers: target coordinates
+    targetLng?: number;
+    targetLat?: number;
+    // For trips layers: timestamp
+    timestamp?: number | string;
+    // For trips layers: path (array of coordinates with timestamps)
+    path?: Array<{ lng: number; lat: number; timestamp: number | string }>;
   }>;
   style: {
     color: string | Array<string>;
     size?: number;
     opacity?: number;
+    extruded?: boolean;
+    elevation?: number;
+    trailLength?: number; // For trips layer
   };
   visible?: boolean;
+  temporal?: boolean; // Indicates time-dependent data
 }
 
 export interface GeospatialData {
   center: GeospatialCoordinates;
   zoom: number;
+  pitch?: number;
+  bearing?: number;
   layers: GeospatialLayer[];
-  basemap?: 'light' | 'dark' | 'satellite';
+  basemap?: 'light' | 'dark' | 'satellite' | 'voyager';
+  timeline?: {
+    enabled: boolean;
+    startTime: number | string;
+    endTime: number | string;
+    step?: number;
+    autoPlay?: boolean;
+    speed?: number;
+  };
 }
 
 export interface GeospatialOptions {
@@ -84,7 +104,6 @@ interface GeospatialContextValue {
   setFullscreen: (fullscreen: boolean) => void;
   copyToClipboard: () => Promise<void>;
   geospatialRef: React.RefObject<GeospatialRef | null>;
-  sceneRef: React.RefObject<any>;
   layerVisibility: Map<string, boolean>;
   toggleLayerVisibility: (layerId: string) => void;
 }
@@ -99,6 +118,43 @@ const useGeospatialContext = () => {
   return context;
 };
 
+// --- CARTO Basemap Styles (free, no API key) ---
+
+const BASEMAP_STYLES: Record<string, string> = {
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  voyager: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  satellite: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json', // fallback to voyager (satellite requires paid tiles)
+};
+
+// --- Color utilities ---
+
+function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return [r, g, b, alpha];
+}
+
+function buildColorRange(colors: string[]): Array<[number, number, number]> {
+  if (colors.length >= 2) {
+    return colors.map(c => {
+      const rgba = hexToRgba(c);
+      return [rgba[0], rgba[1], rgba[2]] as [number, number, number];
+    });
+  }
+  // Default color range
+  return [
+    [1, 152, 189],
+    [73, 227, 206],
+    [216, 254, 181],
+    [254, 237, 177],
+    [254, 173, 84],
+    [209, 55, 78],
+  ];
+}
+
 // --- Geospatial Component ---
 
 export interface GeospatialProps extends HTMLAttributes<HTMLDivElement> {
@@ -111,7 +167,6 @@ export const Geospatial = forwardRef<GeospatialRef, GeospatialProps>(
   ({ data, options, children, className, ...props }, ref) => {
     const [error, setError] = useState<string | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
-    const sceneRef = useRef<any>(null);
     const geospatialRef = useRef<GeospatialRef | null>(null);
     const [layerVisibility, setLayerVisibility] = useState<Map<string, boolean>>(() => {
       const map = new Map<string, boolean>();
@@ -121,7 +176,6 @@ export const Geospatial = forwardRef<GeospatialRef, GeospatialProps>(
       return map;
     });
 
-    // Expose ref
     useImperativeHandle(ref, () => geospatialRef.current as GeospatialRef, []);
 
     const copyToClipboard = useCallback(async () => {
@@ -149,7 +203,6 @@ export const Geospatial = forwardRef<GeospatialRef, GeospatialProps>(
       setFullscreen,
       copyToClipboard,
       geospatialRef,
-      sceneRef,
       layerVisibility,
       toggleLayerVisibility,
     };
@@ -331,21 +384,7 @@ export const GeospatialFullscreenButton = forwardRef<
 
 GeospatialFullscreenButton.displayName = "GeospatialFullscreenButton";
 
-// --- Tile URLs for basemaps ---
-
-const TILE_URLS: Record<string, string> = {
-  light: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-};
-
-const TILE_ATTRIBUTIONS: Record<string, string> = {
-  light: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  dark: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-  satellite: '&copy; <a href="https://www.esri.com/">Esri</a>',
-};
-
-// --- Geospatial Content ---
+// --- Geospatial Content (deck.gl + MapLibre) ---
 
 export const GeospatialContent = memo(
   forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
@@ -356,177 +395,361 @@ export const GeospatialContent = memo(
         error,
         fullscreen,
         geospatialRef,
-        sceneRef,
         layerVisibility,
       } = useGeospatialContext();
 
       const [isMounted, setIsMounted] = useState(false);
-      const containerRef = useRef<HTMLDivElement>(null);
+      const [MapComponent, setMapComponent] = useState<React.ComponentType<any> | null>(null);
 
-      // Only render on client to avoid SSR issues
       useEffect(() => {
         setIsMounted(true);
       }, []);
 
-      // Initialize Leaflet map with geospatial layers
+      // Dynamically import deck.gl + MapLibre (SSR-safe)
       useEffect(() => {
-        if (!isMounted || !containerRef.current) return;
+        if (!isMounted) return;
 
-        const initMap = async () => {
+        let cancelled = false;
+
+        const loadMap = async () => {
           try {
-            const L = (await import("leaflet")).default;
-            // Import leaflet.heat - it attaches to L automatically
-            await import("leaflet.heat");
+            const [
+              reactMapGl,
+              deckMapbox,
+              deckLayers,
+              deckAggLayers,
+              deckGeoLayers,
+            ] = await Promise.all([
+              import("react-map-gl/maplibre"),
+              import("@deck.gl/mapbox"),
+              import("@deck.gl/layers"),
+              import("@deck.gl/aggregation-layers"),
+              import("@deck.gl/geo-layers"),
+            ]);
 
-            // Fix default marker icons
-            delete (L.Icon.Default.prototype as any)._getIconUrl;
-            L.Icon.Default.mergeOptions({
-              iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-              iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            });
+            // Also import MapLibre CSS
+            await import("maplibre-gl/dist/maplibre-gl.css");
 
-            const map = L.map(containerRef.current!, {
-              center: [data.center.lat, data.center.lng],
-              zoom: data.zoom,
-              zoomControl: options?.showControls !== false,
-            });
+            if (cancelled) return;
 
-            // Add tile layer based on basemap setting
-            const basemap = data.basemap || 'light';
-            L.tileLayer(TILE_URLS[basemap] || TILE_URLS.light, {
-              attribution: TILE_ATTRIBUTIONS[basemap] || TILE_ATTRIBUTIONS.light,
-              maxZoom: 19,
-            }).addTo(map);
+            const { Map: MapGl, useControl, NavigationControl } = reactMapGl;
+            const { MapboxOverlay } = deckMapbox;
+            const { ScatterplotLayer, ArcLayer, PathLayer, PolygonLayer } = deckLayers;
+            const { HeatmapLayer, HexagonLayer } = deckAggLayers;
+            const { TripsLayer } = deckGeoLayers;
 
-            // Track Leaflet layers for toggling
-            const leafletLayers = new Map<string, L.Layer>();
+            // Create DeckGL overlay component using useControl
+            function DeckOverlay({ layers }: { layers: any[] }) {
+              const overlay = useControl<InstanceType<typeof MapboxOverlay>>(
+                () => new MapboxOverlay({ interleaved: true, layers: [] })
+              );
+              overlay.setProps({ layers });
+              return null;
+            }
 
-            // Add data layers
-            data.layers.forEach((layer) => {
-              const isVisible = layerVisibility.get(layer.id) ?? true;
+            // Create the actual map component
+            function InnerMap({
+              mapData,
+              mapOptions,
+              mapLayerVisibility,
+              mapGeospatialRef,
+            }: {
+              mapData: GeospatialData;
+              mapOptions?: GeospatialOptions;
+              mapLayerVisibility: Map<string, boolean>;
+              mapGeospatialRef: React.RefObject<GeospatialRef | null>;
+            }) {
+              const mapRef = useRef<any>(null);
 
-              if (layer.type === 'heatmap') {
-                // Use leaflet.heat for heatmap layers
-                const heatData: Array<[number, number, number]> = layer.data.map((point) => [
-                  point.lat,
-                  point.lng,
-                  point.value || 1,
-                ]);
-
-                const heatLayer = (L as any).heatLayer(heatData, {
-                  radius: layer.style.size || 25,
-                  blur: 15,
-                  maxZoom: 17,
-                  max: Math.max(...layer.data.map(p => p.value || 1)),
-                  gradient: Array.isArray(layer.style.color)
-                    ? layer.style.color.reduce((acc: Record<number, string>, color: string, i: number, arr: string[]) => {
-                        acc[i / (arr.length - 1)] = color;
-                        return acc;
-                      }, {} as Record<number, string>)
-                    : undefined,
-                });
-
-                leafletLayers.set(layer.id, heatLayer);
-                if (isVisible) heatLayer.addTo(map);
-
-              } else if (layer.type === 'point' || layer.type === 'hexagon') {
-                // Point layers as circle markers
-                const layerGroup = L.layerGroup();
-                layer.data.forEach((point) => {
-                  const color = Array.isArray(layer.style.color) ? layer.style.color[0] : layer.style.color;
-                  L.circleMarker([point.lat, point.lng], {
-                    radius: layer.style.size || 6,
-                    fillColor: color,
-                    color: color,
-                    weight: 1,
-                    opacity: layer.style.opacity || 0.9,
-                    fillOpacity: layer.style.opacity || 0.7,
-                  })
-                    .bindPopup(
-                      point.properties
-                        ? Object.entries(point.properties).map(([k, v]) => `<b>${k}:</b> ${v}`).join('<br/>')
-                        : `${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`
-                    )
-                    .addTo(layerGroup);
-                });
-
-                leafletLayers.set(layer.id, layerGroup);
-                if (isVisible) layerGroup.addTo(map);
-
-              } else if (layer.type === 'line' || layer.type === 'arc') {
-                // Line/arc layers as polylines
-                const color = Array.isArray(layer.style.color) ? layer.style.color[0] : layer.style.color;
-                const coords = layer.data.map(p => [p.lat, p.lng] as [number, number]);
-                const polyline = L.polyline(coords, {
-                  color,
-                  weight: layer.style.size || 2,
-                  opacity: layer.style.opacity || 0.8,
-                });
-
-                leafletLayers.set(layer.id, polyline);
-                if (isVisible) polyline.addTo(map);
-
-              } else if (layer.type === 'polygon') {
-                // Polygon layers
-                const color = Array.isArray(layer.style.color) ? layer.style.color[0] : layer.style.color;
-                const coords = layer.data.map(p => [p.lat, p.lng] as [number, number]);
-                const polygon = L.polygon(coords, {
-                  color,
-                  fillColor: color,
-                  weight: 2,
-                  opacity: layer.style.opacity || 0.8,
-                  fillOpacity: (layer.style.opacity || 0.8) * 0.3,
-                });
-
-                leafletLayers.set(layer.id, polygon);
-                if (isVisible) polygon.addTo(map);
-              }
-            });
-
-            sceneRef.current = { map, leafletLayers };
-
-            // Set up ref methods
-            geospatialRef.current = {
-              flyTo: (coords: GeospatialCoordinates, zoom?: number) => {
-                map.flyTo([coords.lat, coords.lng], zoom || map.getZoom());
-              },
-              setZoom: (zoom: number) => {
-                map.setZoom(zoom);
-              },
-              toggleLayer: (layerId: string) => {
-                const layer = leafletLayers.get(layerId);
-                if (layer) {
-                  if (map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                  } else {
-                    layer.addTo(map);
-                  }
+              // Timeline state for temporal visualizations
+              const [currentTime, setCurrentTime] = useState<number>(() => {
+                if (mapData.timeline?.enabled && mapData.timeline.startTime) {
+                  return typeof mapData.timeline.startTime === 'number'
+                    ? mapData.timeline.startTime
+                    : new Date(mapData.timeline.startTime).getFullYear();
                 }
-              },
-              getCenter: () => {
-                const center = map.getCenter();
-                return { lng: center.lng, lat: center.lat };
-              },
-              getZoom: () => {
-                return map.getZoom();
-              },
-            };
+                return 0;
+              });
+
+              // Build deck.gl layers from data
+              const deckLayers = useMemo(() => {
+                const result: any[] = [];
+
+                mapData.layers.forEach((layer) => {
+                  const isVisible = mapLayerVisibility.get(layer.id) ?? true;
+                  if (!isVisible) return;
+
+                  // Filter data by time if layer is temporal
+                  let filteredData = layer.data;
+                  if (layer.temporal && currentTime !== undefined) {
+                    filteredData = layer.data.filter((d: any) => {
+                      const itemTime = typeof d.timestamp === 'number'
+                        ? d.timestamp
+                        : d.timestamp
+                          ? new Date(d.timestamp).getFullYear()
+                          : 0;
+                      return itemTime <= currentTime;
+                    });
+                  }
+
+                  const baseColor = Array.isArray(layer.style.color) ? layer.style.color[0] : layer.style.color;
+                  const rgba = hexToRgba(baseColor, Math.round((layer.style.opacity ?? 0.8) * 255));
+
+                  switch (layer.type) {
+                    case 'heatmap': {
+                      result.push(
+                        new HeatmapLayer({
+                          id: layer.id,
+                          data: filteredData,
+                          getPosition: (d: any) => [d.lng, d.lat],
+                          getWeight: (d: any) => d.value || 1,
+                          aggregation: 'SUM',
+                          radiusPixels: layer.style.size || 30,
+                          intensity: 1,
+                          threshold: 0.05,
+                          colorRange: Array.isArray(layer.style.color)
+                            ? buildColorRange(layer.style.color)
+                            : [
+                                [1, 152, 189],
+                                [73, 227, 206],
+                                [216, 254, 181],
+                                [254, 237, 177],
+                                [254, 173, 84],
+                                [209, 55, 78],
+                              ],
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'hexagon': {
+                      result.push(
+                        new HexagonLayer({
+                          id: layer.id,
+                          data: filteredData,
+                          getPosition: (d: any) => [d.lng, d.lat],
+                          getColorWeight: (d: any) => d.value || 1,
+                          getElevationWeight: (d: any) => d.value || 1,
+                          radius: layer.style.size || 500,
+                          elevationScale: layer.style.elevation || 4,
+                          extruded: layer.style.extruded !== false,
+                          pickable: true,
+                          colorRange: Array.isArray(layer.style.color)
+                            ? buildColorRange(layer.style.color)
+                            : [
+                                [1, 152, 189],
+                                [73, 227, 206],
+                                [216, 254, 181],
+                                [254, 237, 177],
+                                [254, 173, 84],
+                                [209, 55, 78],
+                              ],
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'point': {
+                      result.push(
+                        new ScatterplotLayer({
+                          id: layer.id,
+                          data: filteredData,
+                          getPosition: (d: any) => [d.lng, d.lat],
+                          getFillColor: rgba,
+                          getRadius: layer.style.size || 100,
+                          radiusMinPixels: 4,
+                          radiusMaxPixels: 30,
+                          pickable: true,
+                          opacity: layer.style.opacity ?? 0.8,
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'arc': {
+                      result.push(
+                        new ArcLayer({
+                          id: layer.id,
+                          data: filteredData,
+                          getSourcePosition: (d: any) => [d.lng, d.lat],
+                          getTargetPosition: (d: any) => [d.targetLng ?? d.lng, d.targetLat ?? d.lat],
+                          getSourceColor: hexToRgba(
+                            Array.isArray(layer.style.color) ? layer.style.color[0] : layer.style.color
+                          ),
+                          getTargetColor: hexToRgba(
+                            Array.isArray(layer.style.color)
+                              ? (layer.style.color[1] || layer.style.color[0])
+                              : layer.style.color
+                          ),
+                          getWidth: layer.style.size || 2,
+                          pickable: true,
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'line': {
+                      // Group all points into a single path
+                      const path = filteredData.map((p: any) => [p.lng, p.lat]);
+                      result.push(
+                        new PathLayer({
+                          id: layer.id,
+                          data: [{ path }],
+                          getPath: (d: any) => d.path,
+                          getColor: rgba,
+                          getWidth: layer.style.size || 2,
+                          widthMinPixels: 1,
+                          pickable: true,
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'polygon': {
+                      const polygon = filteredData.map((p: any) => [p.lng, p.lat]);
+                      result.push(
+                        new PolygonLayer({
+                          id: layer.id,
+                          data: [{ polygon }],
+                          getPolygon: (d: any) => d.polygon,
+                          getFillColor: hexToRgba(baseColor, Math.round((layer.style.opacity ?? 0.3) * 255)),
+                          getLineColor: rgba,
+                          getLineWidth: 2,
+                          lineWidthMinPixels: 1,
+                          filled: true,
+                          stroked: true,
+                          pickable: true,
+                          extruded: layer.style.extruded || false,
+                          getElevation: layer.style.elevation || 0,
+                        })
+                      );
+                      break;
+                    }
+
+                    case 'trips': {
+                      result.push(
+                        new TripsLayer({
+                          id: layer.id,
+                          data: layer.data,
+                          getPath: (d: any) =>
+                            d.path
+                              ? d.path.map((p: any) => [p.lng, p.lat])
+                              : [[d.lng, d.lat]],
+                          getTimestamps: (d: any) =>
+                            d.path ? d.path.map((p: any) => Number(p.timestamp || 0)) : [0],
+                          getColor: rgba,
+                          opacity: layer.style.opacity ?? 0.8,
+                          widthMinPixels: layer.style.size || 2,
+                          trailLength: layer.style.trailLength || 180,
+                          currentTime: currentTime,
+                          pickable: true,
+                        })
+                      );
+                      break;
+                    }
+                  }
+                });
+
+                return result;
+              }, [mapData.layers, mapLayerVisibility, currentTime]);
+
+              // Set up ref methods
+              useEffect(() => {
+                mapGeospatialRef.current = {
+                  flyTo: (coords: GeospatialCoordinates, zoom?: number) => {
+                    mapRef.current?.flyTo({
+                      center: [coords.lng, coords.lat],
+                      zoom: zoom || mapRef.current.getZoom(),
+                    });
+                  },
+                  setZoom: (zoom: number) => {
+                    mapRef.current?.setZoom(zoom);
+                  },
+                  toggleLayer: (layerId: string) => {
+                    // Layer toggling is handled via layerVisibility state
+                  },
+                  getCenter: () => {
+                    const center = mapRef.current?.getCenter();
+                    return center ? { lng: center.lng, lat: center.lat } : null;
+                  },
+                  getZoom: () => {
+                    return mapRef.current?.getZoom() ?? null;
+                  },
+                };
+              }, [mapGeospatialRef]);
+
+              const basemapStyle = BASEMAP_STYLES[mapData.basemap || 'light'] || BASEMAP_STYLES.light;
+
+              // Timeline configuration
+              const timelineEnabled = mapData.timeline?.enabled ?? false;
+              const startTime = typeof mapData.timeline?.startTime === 'number'
+                ? mapData.timeline.startTime
+                : mapData.timeline?.startTime
+                  ? new Date(mapData.timeline.startTime).getFullYear()
+                  : 0;
+              const endTime = typeof mapData.timeline?.endTime === 'number'
+                ? mapData.timeline.endTime
+                : mapData.timeline?.endTime
+                  ? new Date(mapData.timeline.endTime).getFullYear()
+                  : 100;
+              const formatTime = (time: number) => {
+                // Format as year if it looks like a year, otherwise just return the number
+                return time > 1000 && time < 3000 ? `${Math.round(time)} CE` : time.toString();
+              };
+
+              return (
+                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <MapGl
+                      ref={mapRef}
+                      initialViewState={{
+                        longitude: mapData.center.lng,
+                        latitude: mapData.center.lat,
+                        zoom: mapData.zoom,
+                        pitch: mapData.pitch || 0,
+                        bearing: mapData.bearing || 0,
+                      }}
+                      mapStyle={basemapStyle}
+                      style={{ width: '100%', height: '100%' }}
+                      interactive={mapOptions?.interactive !== false}
+                    >
+                      <DeckOverlay layers={deckLayers} />
+                      {mapOptions?.showControls !== false && <NavigationControl position="top-right" />}
+                    </MapGl>
+                  </div>
+                  {timelineEnabled && (
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1rem' }}>
+                      <TimelineControl
+                        startTime={startTime}
+                        endTime={endTime}
+                        currentTime={currentTime}
+                        onTimeChange={setCurrentTime}
+                        step={mapData.timeline?.step ?? 1}
+                        autoPlay={mapData.timeline?.autoPlay ?? false}
+                        speed={mapData.timeline?.speed ?? 1000}
+                        formatTime={formatTime}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (!cancelled) {
+              // Wrap InnerMap to accept our specific props
+              setMapComponent(() => InnerMap);
+            }
           } catch (err) {
-            console.error("Failed to initialize geospatial map:", err);
+            console.error("Failed to load geospatial libraries:", err);
           }
         };
 
-        initMap();
+        loadMap();
 
         return () => {
-          if (sceneRef.current?.map) {
-            sceneRef.current.map.remove();
-            sceneRef.current = null;
-            geospatialRef.current = null;
-          }
+          cancelled = true;
         };
-      }, [isMounted, data, layerVisibility, sceneRef, geospatialRef, options]);
+      }, [isMounted]);
 
       if (error) {
         return <GeospatialError error={error} />;
@@ -535,8 +758,7 @@ export const GeospatialContent = memo(
       const height = options?.height || (fullscreen ? "100%" : 600);
       const width = options?.width || "100%";
 
-      // Don't render map container until mounted on client
-      if (!isMounted) {
+      if (!isMounted || !MapComponent) {
         return (
           <div
             ref={ref}
@@ -565,12 +787,18 @@ export const GeospatialContent = memo(
           {...props}
         >
           <div
-            ref={containerRef}
             style={{
               width: typeof width === "number" ? `${width}px` : width,
               height: typeof height === "number" ? `${height}px` : height,
             }}
-          />
+          >
+            <MapComponent
+              mapData={data}
+              mapOptions={options}
+              mapLayerVisibility={layerVisibility}
+              mapGeospatialRef={geospatialRef}
+            />
+          </div>
         </div>
       );
     }
