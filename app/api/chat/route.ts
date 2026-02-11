@@ -192,15 +192,11 @@ Remotion, WYSIWYG, VRM, ToolUI
         "Charts": {
           "data": {
             "type": "candlestick",
-            "series": [{
-              "name": "Bitcoin (BTC/USD)",
-              "data": [
-                { "x": "2024-01-15", "y": [42000, 43500, 41800, 43200] },
-                { "x": "2024-01-16", "y": [43200, 44100, 42800, 43900] },
-                { "x": "2024-01-17", "y": [43900, 44500, 43500, 44200] }
-              ],
-              "color": "#f7931a"
-            }],
+            "data": [
+              { "date": "2024-01-15", "open": 42000, "high": 43500, "low": 41800, "close": 43200 },
+              { "date": "2024-01-16", "open": 43200, "high": 44100, "low": 42800, "close": 43900 },
+              { "date": "2024-01-17", "open": 43900, "high": 44500, "low": 43500, "close": 44200 }
+            ],
             "title": "Bitcoin Price Chart"
           },
           "options": {
