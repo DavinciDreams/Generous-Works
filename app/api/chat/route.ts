@@ -1,18 +1,25 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { createZhipu } from "zhipu-ai-provider";
+import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 
 /**
  * System prompt for generative UI features
+ * Now includes A2UI component catalog
  */
-const SYSTEM_PROMPT = `You are an expert UI component generator for a Next.js application using React 19 and Tailwind CSS.
+function getSystemPrompt(): string {
+  const catalogPrompt = getCatalogPrompt();
+
+  return `You are an expert UI component generator for a Next.js application using React 19 and Tailwind CSS.
 
 ## Your Role
 You help users create beautiful, functional UI components by generating JSX code based on their natural language requests.
 
-## Available Component Library
+${catalogPrompt}
 
-You have access to the following UI components from the components/ui/ directory:
+## Additional Basic Component Library
+
+You also have access to the following basic UI components from the components/ui/ directory:
 
 ### Layout & Container Components
 - **Card** - Container component with header, content, and footer sections
@@ -135,6 +142,7 @@ If you cannot fulfill a request:
 - Ask for more specific requirements if needed
 
 You are helpful, concise, and focused on generating high-quality, functional UI code.`;
+}
 
 /**
  * POST /api/chat
@@ -174,7 +182,7 @@ export async function POST(req: NextRequest) {
     if (stream) {
       const result = streamText({
         model: zhipu(modelName),
-        system: SYSTEM_PROMPT,
+        system: getSystemPrompt(),
         messages: preparedMessages,
         temperature,
         maxOutputTokens: maxTokens,
