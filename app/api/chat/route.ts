@@ -294,7 +294,7 @@ Remotion, WYSIWYG, VRM, ToolUI
 }
 \`\`\`
 
-**Example - Maps:**
+**Example - Maps (simple markers):**
 \`\`\`json
 {
   "surfaceUpdate": {
@@ -317,6 +317,82 @@ Remotion, WYSIWYG, VRM, ToolUI
           "options": {
             "height": 500
           }
+        }
+      }
+    }]
+  }
+}
+\`\`\`
+
+**Example - Geospatial with Arc Routes (for voyages, flights, connections):**
+\`\`\`json
+{
+  "surfaceUpdate": {
+    "components": [{
+      "id": "voyage-map",
+      "component": {
+        "Geospatial": {
+          "data": {
+            "center": { "lng": -40, "lat": 35 },
+            "zoom": 3,
+            "pitch": 30,
+            "layers": [
+              {
+                "id": "routes",
+                "type": "arc",
+                "data": [
+                  { "lng": -6.0, "lat": 36.7, "targetLng": -75.5, "targetLat": 24.0, "properties": { "route": "Spain to Caribbean" } },
+                  { "lng": -6.0, "lat": 36.7, "targetLng": -61.5, "targetLat": 15.4, "properties": { "route": "Spain to Dominica" } }
+                ],
+                "style": { "color": ["#ff6600", "#ffcc00"], "size": 3, "opacity": 0.8 }
+              },
+              {
+                "id": "ports",
+                "type": "point",
+                "data": [
+                  { "lng": -6.0, "lat": 36.7, "properties": { "name": "Cadiz, Spain" } },
+                  { "lng": -75.5, "lat": 24.0, "properties": { "name": "Bahamas" } },
+                  { "lng": -61.5, "lat": 15.4, "properties": { "name": "Dominica" } }
+                ],
+                "style": { "color": "#ffffff", "size": 300, "opacity": 1 }
+              }
+            ],
+            "basemap": "dark"
+          },
+          "options": { "height": 500 }
+        }
+      }
+    }]
+  }
+}
+\`\`\`
+
+**Example - Geospatial Heatmap:**
+\`\`\`json
+{
+  "surfaceUpdate": {
+    "components": [{
+      "id": "density-map",
+      "component": {
+        "Geospatial": {
+          "data": {
+            "center": { "lng": -122.4194, "lat": 37.7749 },
+            "zoom": 12,
+            "layers": [
+              {
+                "id": "density",
+                "type": "heatmap",
+                "data": [
+                  { "lng": -122.4194, "lat": 37.7749, "value": 100 },
+                  { "lng": -122.4084, "lat": 37.7849, "value": 80 },
+                  { "lng": -122.4294, "lat": 37.7649, "value": 120 }
+                ],
+                "style": { "color": ["#ffffb2", "#fd8d3c", "#bd0026"], "size": 40, "opacity": 0.8 }
+              }
+            ],
+            "basemap": "dark"
+          },
+          "options": { "height": 500 }
         }
       }
     }]
@@ -416,7 +492,8 @@ Here's the revenue chart:
 | Calendar | A2UI JSON | Events array, view config |
 | Phaser games | A2UI JSON | Scene setup, physics config |
 | 3D (ThreeScene, VRM, ModelViewer) | A2UI JSON | Camera, lights, models |
-| Maps, Geospatial | A2UI JSON | Markers, layers, coordinates |
+| Maps (simple markers) | A2UI JSON | Markers on a map |
+| Geospatial (heatmaps, arcs, routes, hex bins) | A2UI JSON | Advanced data viz with layers, routes, density |
 | Timeline | A2UI JSON | Events with dates |
 | Forms, Layouts, Typography | JSX | Simple composition |
 

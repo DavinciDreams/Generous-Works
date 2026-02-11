@@ -350,33 +350,49 @@ const remotionExamples: ComponentExample[] = [
  */
 const geospatialExamples: ComponentExample[] = [
   {
-    description: 'Heatmap of population density',
+    description: 'Heatmap of population density with point markers',
     spec: {
       id: 'geospatial-1',
       component: {
         Geospatial: {
           data: {
             center: { lng: -122.4194, lat: 37.7749 },
-            zoom: 10,
+            zoom: 12,
             layers: [
               {
-                id: 'population-heatmap',
+                id: 'density-heatmap',
                 type: 'heatmap',
                 data: [
                   { lng: -122.4194, lat: 37.7749, value: 100 },
                   { lng: -122.4084, lat: 37.7849, value: 80 },
-                  { lng: -122.4294, lat: 37.7649, value: 120 }
+                  { lng: -122.4294, lat: 37.7649, value: 120 },
+                  { lng: -122.3994, lat: 37.7549, value: 95 },
+                  { lng: -122.4394, lat: 37.7949, value: 110 }
                 ],
                 style: {
-                  color: ['#blue', '#red'],
-                  opacity: 0.6
+                  color: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#f03b20', '#bd0026'],
+                  size: 40,
+                  opacity: 0.8
+                }
+              },
+              {
+                id: 'landmarks',
+                type: 'point',
+                data: [
+                  { lng: -122.4194, lat: 37.7749, value: 1, properties: { name: 'Downtown' } },
+                  { lng: -122.4083, lat: 37.7858, value: 1, properties: { name: 'North Beach' } }
+                ],
+                style: {
+                  color: '#3b82f6',
+                  size: 200,
+                  opacity: 0.9
                 }
               }
             ],
             basemap: 'dark'
           },
           options: {
-            height: 600,
+            height: 500,
             showControls: true
           }
         }
@@ -384,28 +400,88 @@ const geospatialExamples: ComponentExample[] = [
     }
   },
   {
-    description: 'Hexagon binning visualization',
+    description: 'Arc layer showing routes/connections between locations',
     spec: {
       id: 'geospatial-2',
       component: {
         Geospatial: {
           data: {
-            center: { lng: -73.9857, lat: 40.7484 },
-            zoom: 11,
+            center: { lng: -40, lat: 35 },
+            zoom: 3,
+            pitch: 30,
             layers: [
               {
-                id: 'hexagon-layer',
+                id: 'voyage-routes',
+                type: 'arc',
+                data: [
+                  { lng: -6.0, lat: 36.7, targetLng: -75.5, targetLat: 24.0, value: 1, properties: { route: 'Spain to Caribbean' } },
+                  { lng: -6.0, lat: 36.7, targetLng: -61.5, targetLat: 15.4, value: 1, properties: { route: 'Spain to Dominica' } }
+                ],
+                style: {
+                  color: ['#ff6600', '#ffcc00'],
+                  size: 3,
+                  opacity: 0.8
+                }
+              },
+              {
+                id: 'ports',
+                type: 'point',
+                data: [
+                  { lng: -6.0, lat: 36.7, value: 1, properties: { name: 'Cadiz, Spain' } },
+                  { lng: -75.5, lat: 24.0, value: 1, properties: { name: 'Bahamas' } },
+                  { lng: -61.5, lat: 15.4, value: 1, properties: { name: 'Dominica' } }
+                ],
+                style: {
+                  color: '#ffffff',
+                  size: 300,
+                  opacity: 1
+                }
+              }
+            ],
+            basemap: 'dark'
+          },
+          options: {
+            height: 500,
+            showControls: true
+          }
+        }
+      }
+    }
+  },
+  {
+    description: '3D hexagon bins with elevation',
+    spec: {
+      id: 'geospatial-3',
+      component: {
+        Geospatial: {
+          data: {
+            center: { lng: -73.9857, lat: 40.7484 },
+            zoom: 12,
+            pitch: 45,
+            bearing: -17,
+            layers: [
+              {
+                id: 'hex-density',
                 type: 'hexagon',
                 data: [
                   { lng: -73.9857, lat: 40.7484, value: 50 },
-                  { lng: -73.9757, lat: 40.7584, value: 75 }
+                  { lng: -73.9757, lat: 40.7584, value: 75 },
+                  { lng: -73.9657, lat: 40.7384, value: 100 },
+                  { lng: -73.9957, lat: 40.7684, value: 60 }
                 ],
                 style: {
-                  color: '#3b82f6',
+                  color: ['#0198bd', '#49e3ce', '#d8feb5', '#feecb1', '#fead54', '#d1364e'],
+                  size: 300,
+                  extruded: true,
+                  elevation: 8,
                   opacity: 0.8
                 }
               }
-            ]
+            ],
+            basemap: 'dark'
+          },
+          options: {
+            height: 500
           }
         }
       }
@@ -1383,17 +1459,25 @@ export const specializedCatalog: ComponentCatalog = {
 
   Geospatial: {
     type: 'Geospatial',
-    description: `Advanced geospatial visualization using AntV L7. Supports large-scale
-    point data (100k+ points) and complex visualizations. Supports:
-    - Heatmaps for density visualization
-    - Hexagon binning for spatial aggregation
-    - Point, line, polygon, and arc layers
-    - Multiple simultaneous layers
-    - Layer visibility toggling
-    - Custom color scales and styling
-    - Different basemaps (light, dark, satellite)
-    Note: Different from Maps component - L7 is for advanced geospatial analytics,
-    while Maps is for simple 2D marker visualization.`,
+    description: `Advanced geospatial visualization using deck.gl + MapLibre GL. GPU-accelerated
+    rendering for large-scale data (100k+ points). Supports:
+    - Heatmaps (type: 'heatmap') for density visualization with color gradients
+    - 3D Hexagon bins (type: 'hexagon') with extrusion for spatial aggregation (set pitch: 45 to see 3D)
+    - Arc layers (type: 'arc') for routes, flights, connections between locations.
+      Arc data uses targetLng/targetLat for destination: { lng, lat, targetLng, targetLat }
+    - Point layers (type: 'point') as scatter plots with configurable radius
+    - Line layers (type: 'line') as paths connecting points
+    - Polygon layers (type: 'polygon') for area fills
+    - Multiple simultaneous layers with layer visibility toggling
+    - Custom color scales: pass array of hex colors for gradients, single hex for solid
+    - Basemaps: 'light' (Positron), 'dark' (Dark Matter), 'voyager' (CARTO Voyager)
+    - 3D perspective: set pitch (0-60) and bearing for tilted/rotated views
+    - Style props: size, opacity, extruded (boolean), elevation (number)
+    IMPORTANT: For showing routes/voyages/flights between locations, use type: 'arc' with
+    targetLng and targetLat fields. Do NOT use type: 'point' for route visualization.
+    Note: Different from Maps component - Geospatial is for advanced data visualization
+    (heatmaps, hex bins, arcs, flows), while Maps is for simple 2D marker display.
+    Coordinates use { lng, lat } format (NOT longitude/latitude).`,
     props: ['data', 'options'],
     examples: geospatialExamples
   },

@@ -1,11 +1,73 @@
 # Project State Log - v0-clone AI Elements Library
 
 **Last Updated:** 2026-02-11
-**Status:** ✅ Production Ready - Build Passing, JSX Rendering Fixed, Geospatial Migrated to Leaflet
+**Status:** ✅ Production Ready - Build Passing, Geospatial Upgraded to deck.gl + MapLibre
 
 ---
 
-## Latest Session (2026-02-11) - JSX Rendering Fixes & Geospatial Migration
+## Session 2 (2026-02-11) - Geospatial Upgrade to deck.gl + MapLibre & Vulnerability Fixes
+
+### ✅ **COMPLETED - Resolved All npm Vulnerabilities**
+
+**Problem:** 21 npm audit vulnerabilities (8 moderate, 13 high)
+- `lodash-es@4.17.21` prototype pollution (moderate) in chevrotain sub-packages via mermaid
+- `d3-color` ReDoS (high) in `@antv/l7` packages (no longer used after Leaflet migration)
+
+**Fix Applied:**
+1. Removed `@antv/l7` and `@antv/l7-maps` from package.json (unused since geospatial migrated away)
+2. Added `overrides: { "lodash-es": "^4.17.23" }` to force patched version in all transitive deps
+3. Removed `leaflet.heat` and `@types/leaflet.heat` (no longer needed)
+
+**Result:** `npm audit` → 0 vulnerabilities. 125 unused packages removed.
+
+### ✅ **COMPLETED - Geospatial Rewritten with deck.gl + MapLibre**
+
+**Problem:** Leaflet geospatial had broken layer toggle (full map re-init on toggle) and heatmap not rendering.
+
+**Solution:** Complete rewrite using deck.gl v9 + MapLibre GL JS + CARTO basemaps.
+
+**Stack:**
+- **deck.gl v9** - GPU-accelerated geospatial visualization layers
+- **MapLibre GL JS** - Open-source base map renderer (no API key)
+- **react-map-gl** - React wrapper (maplibre endpoint)
+- **CARTO basemaps** - Free vector tile styles (Positron, Dark Matter, Voyager)
+
+**Layer Types Supported:**
+- `HeatmapLayer` - GPU-accelerated density heatmaps
+- `HexagonLayer` - 3D hexagonal binning with extrusion
+- `ScatterplotLayer` - Point markers with configurable radius
+- `ArcLayer` - Origin-destination arcs (flights, routes, connections)
+- `PathLayer` - Line/path rendering
+- `PolygonLayer` - Filled/stroked polygon areas
+
+**New Features:**
+- `pitch` and `bearing` support for 3D perspective views
+- `extruded` and `elevation` style props for 3D hex bins/polygons
+- `targetLng`/`targetLat` data fields for arc layers
+- `voyager` basemap option added
+- Layer toggle now works correctly (deck.gl layers are rebuilt from visibility state, no map re-init)
+- Navigation controls from MapLibre
+
+**Files Changed:**
+- `components/ai-elements/geospatial.tsx` - Full rewrite (Leaflet → deck.gl + MapLibre)
+- `app/geospatial-test/page.tsx` - Updated with 4 examples: heatmap+points, 3D hexagons, arcs, multi-layer
+- `package.json` - Added deck.gl/maplibre/react-map-gl deps, removed @antv/l7 + leaflet.heat, added overrides
+
+**Dependencies Added:**
+- `deck.gl`, `@deck.gl/react`, `@deck.gl/core`, `@deck.gl/layers`
+- `@deck.gl/aggregation-layers`, `@deck.gl/geo-layers`, `@deck.gl/mapbox`
+- `maplibre-gl`, `react-map-gl`
+
+**Dependencies Removed:**
+- `@antv/l7`, `@antv/l7-maps`, `leaflet.heat`, `@types/leaflet.heat`
+
+**Verification:**
+- TypeScript: 0 errors
+- npm audit: 0 vulnerabilities
+
+---
+
+## Session 1 (2026-02-11) - JSX Rendering Fixes & Geospatial Migration
 
 ### ✅ **COMPLETED - Fixed JSX/Component Rendering Pipeline**
 
