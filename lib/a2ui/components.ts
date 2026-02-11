@@ -27,6 +27,7 @@ import { Geospatial } from '@/components/ai-elements/geospatial';
 import { WYSIWYG } from '@/components/ai-elements/wysiwyg';
 import { VRM } from '@/components/ai-elements/vrm';
 import { ToolUI } from '@/components/ai-elements/toolui';
+import { Calendar } from '@/components/ai-elements/calendar';
 
 /**
  * Specialized components that use the composable pattern
@@ -49,6 +50,7 @@ export const specializedComponents = {
   WYSIWYG,
   VRM,
   ToolUI,
+  Calendar,
 } as const;
 
 /**
@@ -99,7 +101,7 @@ export const componentCategories = {
   specialized: [
     'Timeline', 'Maps', 'ThreeScene', 'SVGPreview', 'NodeEditor',
     'KnowledgeGraph', 'Latex', 'ModelViewer', 'Phaser', 'Mermaid', 'Remotion',
-    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI'
+    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar'
   ],
   layout: [
     'Row', 'Column', 'HStack', 'VStack', 'Stack',

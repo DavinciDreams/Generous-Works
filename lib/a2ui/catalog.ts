@@ -764,6 +764,100 @@ const vrmExamples: ComponentExample[] = [
 ];
 
 /**
+ * Calendar Examples
+ */
+const calendarExamples: ComponentExample[] = [
+  {
+    description: 'Monthly calendar with events',
+    spec: {
+      id: 'calendar-1',
+      component: {
+        Calendar: {
+          data: {
+            title: 'Team Schedule',
+            defaultView: 'month-grid',
+            views: ['day', 'week', 'month-grid'],
+            events: [
+              {
+                id: '1',
+                title: 'Team Meeting',
+                start: '2026-02-15T10:00:00',
+                end: '2026-02-15T11:00:00',
+                description: 'Weekly team sync',
+                location: 'Conference Room A'
+              },
+              {
+                id: '2',
+                title: 'Project Deadline',
+                start: '2026-02-20',
+                end: '2026-02-20',
+                description: 'Final deliverables due',
+                color: '#ef4444'
+              },
+              {
+                id: '3',
+                title: 'Workshop',
+                start: '2026-02-25T14:00:00',
+                end: '2026-02-25T17:00:00',
+                description: 'Technical training session',
+                location: 'Training Center',
+                people: ['Alice', 'Bob', 'Charlie']
+              }
+            ],
+            selectedDate: '2026-02-15'
+          },
+          options: {
+            height: 600,
+            isDraggable: true,
+            isResizable: true
+          }
+        }
+      }
+    }
+  },
+  {
+    description: 'Week view calendar',
+    spec: {
+      id: 'calendar-2',
+      component: {
+        Calendar: {
+          data: {
+            title: 'Weekly Schedule',
+            defaultView: 'week',
+            views: ['week'],
+            events: [
+              {
+                id: '1',
+                title: 'Daily Standup',
+                start: '2026-02-17T09:00:00',
+                end: '2026-02-17T09:15:00'
+              },
+              {
+                id: '2',
+                title: 'Client Call',
+                start: '2026-02-18T14:00:00',
+                end: '2026-02-18T15:00:00',
+                color: '#10b981'
+              }
+            ],
+            config: {
+              firstDayOfWeek: 1,
+              dayBoundaries: {
+                start: '08:00',
+                end: '18:00'
+              }
+            }
+          },
+          options: {
+            height: 500
+          }
+        }
+      }
+    }
+  }
+];
+
+/**
  * Specialized Component Catalog
  *
  * Advanced data visualization and interactive components
@@ -1023,6 +1117,27 @@ export const specializedCatalog: ComponentCatalog = {
     Note: VRM is a 3D avatar file format for VR applications. Models must be in .vrm format.`,
     props: ['data', 'options'],
     examples: vrmExamples
+  },
+
+  Calendar: {
+    type: 'Calendar',
+    description: `Modern calendar and scheduling component using schedule-x. Interactive
+    event calendar with drag-and-drop, multiple views, and event management. Supports:
+    - Multiple view types (day, week, month grid, month agenda)
+    - Drag-and-drop event rescheduling
+    - Event resizing
+    - Event creation, editing, and deletion
+    - Multi-day and all-day events
+    - Event details (title, description, location, attendees)
+    - Custom event colors
+    - Time zone support (via ISO date strings)
+    - Configurable day boundaries (working hours)
+    - First day of week customization
+    - Responsive design
+    - Light and dark themes
+    Note: Perfect for scheduling apps, booking systems, and event management. Uses schedule-x library.`,
+    props: ['data', 'options'],
+    examples: calendarExamples
   }
 };
 

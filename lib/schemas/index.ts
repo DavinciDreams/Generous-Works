@@ -51,6 +51,9 @@ export * from './wysiwyg.schema';
 // VRM schemas
 export * from './vrm.schema';
 
+// Calendar schemas
+export * from './calendar.schema';
+
 /**
  * Registry of all component schemas
  * Maps component type to its props schema
@@ -71,7 +74,8 @@ import {
   ToolUIPropsSchema,
   ChartsPropsSchema,
   WYSIWYGPropsSchema,
-  VRMPropsSchema
+  VRMPropsSchema,
+  CalendarPropsSchema
 } from '.';
 
 import type { ZodSchema } from 'zod';
@@ -92,7 +96,8 @@ export const schemaRegistry: Record<string, ZodSchema> = {
   ToolUI: ToolUIPropsSchema,
   Charts: ChartsPropsSchema,
   WYSIWYG: WYSIWYGPropsSchema,
-  VRM: VRMPropsSchema
+  VRM: VRMPropsSchema,
+  Calendar: CalendarPropsSchema
 };
 
 /**
