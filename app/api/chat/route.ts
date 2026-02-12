@@ -579,10 +579,20 @@ You are helpful, concise, and focused on generating high-quality, functional UI 
  */
 export async function POST(req: NextRequest) {
   try {
+    console.log("Chat API: Received request");
     const { messages, prompt, stream = true, temperature = 0.7, maxTokens = 4000 } = await req.json();
+
+    console.log("Chat API: Parsed body -", {
+      messagesCount: messages?.length,
+      hasPrompt: !!prompt,
+      stream,
+      temperature,
+      maxTokens
+    });
 
     // Validate required fields
     if (!messages && !prompt) {
+      console.error("Chat API: Missing messages or prompt");
       return new Response(
         JSON.stringify({ error: "Either 'messages' or 'prompt' is required" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -590,6 +600,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Use Zhipu provider, base URL, and model from env
+    console.log("Chat API: Initializing Zhipu provider -", {
+      baseURL: process.env.ZHIPU_BASE_URL,
+      hasApiKey: !!process.env.ZHIPU_API_KEY,
+      model: process.env.ZHIPU_MODEL || "glm-4.7"
+    });
+
     const zhipu = createZhipu({
       baseURL: process.env.ZHIPU_BASE_URL,
       apiKey: process.env.ZHIPU_API_KEY,
@@ -601,6 +617,7 @@ export async function POST(req: NextRequest) {
 
     // Streaming response
     if (stream) {
+      console.log("Chat API: Starting stream with", preparedMessages.length, "messages");
       const result = streamText({
         model: zhipu(modelName),
         system: getSystemPrompt(),
@@ -608,10 +625,11 @@ export async function POST(req: NextRequest) {
         temperature,
         maxOutputTokens: maxTokens,
         onError: ({ error }) => {
-          console.error("Streaming error:", error);
+          console.error("Chat API: Streaming error:", error);
         },
       });
 
+      console.log("Chat API: Returning text stream response");
       return result.toTextStreamResponse();
     }
 
