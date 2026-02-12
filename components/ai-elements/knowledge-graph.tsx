@@ -38,14 +38,9 @@ import "@xyflow/react/dist/style.css";
 
 // --- Types ---
 
-export type EntityType =
-  | "person"
-  | "organization"
-  | "concept"
-  | "location"
-  | "event"
-  | "document"
-  | "custom";
+// EntityType accepts any string for extensibility
+// Common types: person, organization, concept, location, event, document, custom
+export type EntityType = string;
 
 export interface KnowledgeGraphEntity {
   id: string;
