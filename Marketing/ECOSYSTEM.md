@@ -39,7 +39,7 @@ The name itself holds a deeper etymology. *Logos* is Greek for word, reason, and
               │                    │                     │
     ┌─────────▼─────────┐ ┌───────▼────────┐ ┌─────────▼─────────┐
     │    GALAXY BRAIN    │ │   GENEROUS     │ │ AGENTS OF EMPIRE  │
-    │  galaxybrain.info  │ │generous.works  │ │                   │
+    │  galaxybrain.info  │ │generous.works  │ │agentsofempires.org│
     │                    │ │                │ │                   │
     │  "The universal    │ │ "Ask for       │ │ "See your agents. │
     │   mind"            │ │  anything."    │ │  Command your     │
@@ -100,7 +100,7 @@ Galaxy Brain is the knowledge layer — a universal data store, parser, and know
 ---
 
 ### AGENTS OF EMPIRE — The Command Layer
-*"See your agents. Command your empire."*
+**agentsofempires.org** | *"See your agents. Command your empire."*
 
 Agents of Empire is the agent management layer — a game-inspired GUI where you can see and interact with AI agents directly. Agents execute anonymous workflows, and the game interface makes the invisible visible: you watch your agents work, direct their priorities, and orchestrate complex multi-agent operations through an intuitive visual command structure.
 
@@ -222,6 +222,7 @@ The default is to give, not to gate. The interface is generous — it gives you 
 | **logosliber.org** | Logos Liber — ecosystem hub | Open-source ecosystem home (.org = open-source standard) |
 | **decentralizedintelligence.agency** | DIA — nonprofit | 501(c)(3) mission & research |
 | **galaxybrain.info** | Galaxy Brain — knowledge layer | Universal knowledge management |
+| **agentsofempires.org** | Agents of Empire — command layer | Agent management game GUI |
 | **generous.rocks** | Generous — origin story | Hackathon archive, brand lore |
 
 ### Reserve Domains
@@ -242,7 +243,7 @@ The default is to give, not to gate. The interface is generous — it gives you 
 | **Ecosystem** | Logos Liber | logosliber.org | *"The word, freely rendered"* | Open-source ecosystem umbrella |
 | **Knowledge** | Galaxy Brain | galaxybrain.info | *"The universal mind"* | Data store, parser, KMS |
 | **Canvas** | Generous | generous.works | *"Ask for anything"* | Universal rendering layer |
-| **Agents** | Agents of Empire | — | *"See your agents. Command your empire"* | Agent management GUI |
+| **Agents** | Agents of Empire | agentsofempires.org | *"See your agents. Command your empire"* | Agent management GUI |
 | **Infrastructure** | Monumental Systems | — | *(company)* | Orleans actor framework |
 
 ---

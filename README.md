@@ -8,8 +8,6 @@ Built with Next.js 16, React 19, and the Vercel AI SDK. **114+ composable compon
 
 **[generous.works](https://generous.works)** | **[Live Demo](https://v0-cloned-kappa.vercel.app/)** | **[Component Showcase](https://v0-cloned-kappa.vercel.app/showcase)** | **[Tool UI Showcase](https://v0-cloned-kappa.vercel.app/tool-ui-showcase)**
 
-Generous is part of the **[Logos Liber](https://logosliber.org)** open-source ecosystem — a suite of tools for collective intelligence, built under the **[Decentralized Intelligence Agency](https://decentralizedintelligence.agency)**, a 501(c)(3) scientific nonprofit.
-
 <!-- Screenshot: Main chat interface -->
 ![Chat Interface](docs/images/chat-interface.png)
 
@@ -28,7 +26,6 @@ Generous is part of the **[Logos Liber](https://logosliber.org)** open-source ec
   - [AI Elements](#ai-elements)
   - [Tool UI Components](#tool-ui-components)
 - [Architecture](#architecture)
-- [The Logos Liber Ecosystem](#the-logos-liber-ecosystem)
 - [Pages & Routes](#pages--routes)
 - [API](#api)
 - [Testing](#testing)
@@ -54,7 +51,7 @@ Generous was born from a hackathon project built on a simple belief: AI shouldn'
 - **Type-Safe** - 100% TypeScript with Zod schema validation for data-driven components
 - **Dark Mode** - Full dark mode support via CSS variables and Tailwind
 - **Responsive** - Mobile-first responsive design throughout
-- **Open Source** - Built in the open, part of the Logos Liber ecosystem
+- **Open Source** - Built in the open
 
 ---
 
@@ -590,29 +587,6 @@ Global state is managed via Zustand (`lib/store.ts`):
 
 ---
 
-## The Logos Liber Ecosystem
-
-Generous is one part of a larger open-source ecosystem for collective intelligence:
-
-| Project | Domain | Role |
-|---------|--------|------|
-| **[Decentralized Intelligence Agency](https://decentralizedintelligence.agency)** | decentralizedintelligence.agency | 501(c)(3) nonprofit — the mission |
-| **[Logos Liber](https://logosliber.org)** | logosliber.org | Open-source ecosystem umbrella |
-| **[Galaxy Brain](https://galaxybrain.info)** | galaxybrain.info | Universal knowledge management — the data layer |
-| **Generous** | generous.works | Universal canvas — the rendering layer |
-| **Agents of Empire** | — | AI agent management — the command layer |
-| **Monumental Systems** | — | Orleans actor framework — the execution layer |
-
-```
-Galaxy Brain (knowledge) → Monumental Systems (execution) → Generous (rendering)
-                                                       ↕
-                                               Agents of Empire (command)
-```
-
-Read the full ecosystem story in [ECOSYSTEM.md](./ECOSYSTEM.md).
-
----
-
 ## Pages & Routes
 
 All routes are available on the [live deployment](https://v0-cloned-kappa.vercel.app/).
@@ -809,8 +783,4 @@ See the comprehensive QA report for details on:
 
 ## License
 
-Open source. Part of the [Logos Liber](https://logosliber.org) ecosystem.
-
----
-
-*Built with generosity by the [Decentralized Intelligence Agency](https://decentralizedintelligence.agency).*
+Open source.
