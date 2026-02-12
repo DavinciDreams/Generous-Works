@@ -77,5 +77,5 @@ export function MessageDraft({ data, options = {}, onSend, onUndo, onCancel, ...
     onCancel,
   };
 
-  return <ToolUIMessageDraft {...toolUIProps} {...props} />;
+  return <ToolUIMessageDraft {...toolUIProps} />;
 }

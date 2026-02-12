@@ -96,5 +96,5 @@ export function OrderSummary({ data, options = {}, onResponseAction, ...props }:
     onResponseAction,
   };
 
-  return <ToolUIOrderSummary {...toolUIProps} {...props} />;
+  return <ToolUIOrderSummary {...toolUIProps} />;
 }

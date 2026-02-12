@@ -60,18 +60,24 @@ export type OptionListProps = ComponentProps<"div"> & {
 
 export function OptionList({ data, options = {}, onSelect, ...props }: OptionListProps) {
   // Map A2UI data to tool-ui props
+  // Note: A2UI interface is richer (includes title, description, searchable, layout, compact)
+  // but tool-ui only supports: id, options, selectionMode, defaultValue/value/choice
   const toolUIProps: ToolUIOptionListProps = {
-    options: data.options,
-    selected: data.selected,
-    title: data.title,
-    description: data.description,
-    multiple: options.multiple,
-    searchable: options.searchable,
-    layout: options.layout || "list",
-    compact: options.compact,
+    id: "option-list",
+    options: data.options.map(opt => ({
+      id: opt.id,
+      label: opt.label,
+      description: opt.description,
+      disabled: opt.disabled,
+    })),
+    selectionMode: options.multiple ? "multi" : "single",
+    defaultValue: data.selected,
+    onChange: onSelect ? (value) => {
+      const ids = Array.isArray(value) ? value : value ? [value] : [];
+      onSelect(ids);
+    } : undefined,
     className: options.className,
-    onSelect,
   };
 
-  return <ToolUIOptionList {...toolUIProps} {...props} />;
+  return <ToolUIOptionList {...toolUIProps} />;
 }

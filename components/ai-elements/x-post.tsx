@@ -113,5 +113,5 @@ export function XPost({ data, options = {}, ...props }: XPostProps) {
     onAction: options.onAction,
   };
 
-  return <ToolUIXPost {...toolUIProps} {...props} />;
+  return <ToolUIXPost {...toolUIProps} />;
 }

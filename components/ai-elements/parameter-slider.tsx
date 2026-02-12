@@ -92,7 +92,7 @@ export function ParameterSlider({
     handleClassName: options.handleClassName,
   };
 
-  return <ToolUIParameterSlider {...toolUIProps} {...props} />;
+  return <ToolUIParameterSlider {...toolUIProps} />;
 }
 
 export type { SliderValue };

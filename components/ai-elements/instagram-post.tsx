@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from "react";
 import { InstagramPost as ToolUIInstagramPost } from "@/components/tool-ui/instagram-post";
-import type { InstagramPostProps as ToolUIInstagramPostProps } from "@/components/tool-ui/instagram-post/schema";
+import type { InstagramPostProps as ToolUIInstagramPostProps } from "@/components/tool-ui/instagram-post";
 
 /**
  * InstagramPost AI Element
@@ -53,21 +53,32 @@ export type InstagramPostProps = ComponentProps<"div"> & {
 
 export function InstagramPost({ data, options = {}, ...props }: InstagramPostProps) {
   // Map A2UI data to tool-ui props
+  // Convert A2UI format to tool-ui InstagramPostData format
+  const post = {
+    id: "instagram-post",
+    author: {
+      name: data.author.displayName || data.author.username,
+      handle: data.author.username,
+      avatarUrl: data.author.avatar || "https://i.pravatar.cc/150?u=default",
+      verified: data.author.verified,
+    },
+    text: data.caption,
+    media: data.images?.map((url, index) => ({
+      type: "image" as const,
+      url,
+      alt: `Image ${index + 1}`,
+    })),
+    stats: {
+      likes: data.likes,
+      isLiked: false,
+    },
+    createdAt: data.timestamp ? new Date(data.timestamp).toISOString() : undefined,
+  };
+
   const toolUIProps: ToolUIInstagramPostProps = {
-    author: data.author,
-    caption: data.caption,
-    images: data.images,
-    video: data.video,
-    likes: data.likes,
-    comments: data.comments,
-    timestamp: data.timestamp ? new Date(data.timestamp) : undefined,
-    location: data.location,
-    hashtags: data.hashtags,
-    showEngagement: options.showEngagement ?? true,
-    showTimestamp: options.showTimestamp ?? true,
-    compact: options.compact,
+    post,
     className: options.className,
   };
 
-  return <ToolUIInstagramPost {...toolUIProps} {...props} />;
+  return <ToolUIInstagramPost {...toolUIProps} />;
 }

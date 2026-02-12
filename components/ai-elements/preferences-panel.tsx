@@ -107,7 +107,7 @@ export function PreferencesPanel({
     onBeforeResponseAction,
   };
 
-  return <ToolUIPreferencesPanel {...toolUIProps} {...props} />;
+  return <ToolUIPreferencesPanel {...toolUIProps} />;
 }
 
 export type { PreferencesValue };

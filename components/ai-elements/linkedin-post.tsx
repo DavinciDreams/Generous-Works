@@ -85,5 +85,5 @@ export function LinkedInPost({
     onAction: options.onAction,
   };
 
-  return <ToolUILinkedInPost {...toolUIProps} {...props} />;
+  return <ToolUILinkedInPost {...toolUIProps} />;
 }

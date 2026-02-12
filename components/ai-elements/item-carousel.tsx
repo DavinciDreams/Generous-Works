@@ -64,5 +64,5 @@ export function ItemCarousel({ data, options = {}, onItemClick, onItemAction, ..
     onItemAction,
   };
 
-  return <ToolUIItemCarousel {...toolUIProps} {...props} />;
+  return <ToolUIItemCarousel {...toolUIProps} />;
 }

@@ -53,20 +53,18 @@ export type ProgressTrackerProps = ComponentProps<"div"> & {
 
 export function ProgressTracker({ data, options = {}, ...props }: ProgressTrackerProps) {
   // Map A2UI data to tool-ui props
+  // Note: A2UI interface is richer (includes currentStep, status, title, orientation, etc.)
+  // but tool-ui only supports: id, steps, elapsedTime, choice, responseActions
   const toolUIProps: ToolUIProgressTrackerProps = {
+    id: "progress-tracker",
     steps: data.steps.map(step => ({
-      ...step,
-      timestamp: step.timestamp ? new Date(step.timestamp) : undefined,
+      id: step.id,
+      label: step.title,
+      description: step.description,
+      status: step.status === "error" ? "failed" : step.status,
     })),
-    currentStep: data.currentStep,
-    status: data.status,
-    title: data.title,
-    orientation: options.orientation || "vertical",
-    showNumbers: options.showNumbers ?? true,
-    showTimestamps: options.showTimestamps,
-    compact: options.compact,
     className: options.className,
   };
 
-  return <ToolUIProgressTracker {...toolUIProps} {...props} />;
+  return <ToolUIProgressTracker {...toolUIProps} />;
 }

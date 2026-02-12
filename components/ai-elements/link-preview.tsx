@@ -32,9 +32,9 @@ export interface LinkPreviewData {
 
 export interface LinkPreviewOptions {
   /** Aspect ratio for image */
-  ratio?: "16:9" | "4:3" | "1:1" | "21:9" | "9:16";
+  ratio?: "16:9" | "4:3" | "1:1" | "9:16" | "auto";
   /** Image fit mode */
-  fit?: "cover" | "contain" | "fill";
+  fit?: "cover" | "contain";
   /** Custom class name */
   className?: string;
   /** Response actions */
@@ -73,5 +73,5 @@ export function LinkPreview({ data, options = {}, onNavigate, onResponseAction, 
     onResponseAction,
   };
 
-  return <ToolUILinkPreview {...toolUIProps} {...props} />;
+  return <ToolUILinkPreview {...toolUIProps} />;
 }

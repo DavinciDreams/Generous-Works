@@ -383,7 +383,6 @@ export default function ToolUIShowcasePage() {
           data={{
             id: "1",
             step: 1,
-            totalSteps: 3,
             title: "What's your primary goal?",
             description: "This helps us personalize your experience",
             options: [
