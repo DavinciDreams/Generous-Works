@@ -151,7 +151,7 @@ export const componentCategories = {
     'ThreeScene', 'Phaser', 'ModelViewer', 'VRM'
   ],
   productivity: [
-    'WYSIWYG', 'Calendar', 'Markdown', 'KnowledgeGraph',
+    'WYSIWYG', 'Calendar', 'KnowledgeGraph',
     'DataTable', 'OrderSummary', 'MessageDraft', 'Latex'
   ],
   'maps-geospatial': [
