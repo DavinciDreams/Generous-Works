@@ -276,7 +276,7 @@ export default function ToolUIShowcasePage() {
               src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
               poster: "https://picsum.photos/800/450?random=3",
               title: "Product Demo",
-              duration: 120,
+              durationMs: 120000,
             }}
             options={{ ratio: "16:9" }}
           />
