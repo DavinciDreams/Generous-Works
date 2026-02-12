@@ -27,7 +27,7 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <SignedOut>
-              <SignInButton mode="redirect" redirectUrl="/canvas">
+              <SignInButton mode="modal">
                 <Button size="lg" className="text-lg px-8 py-6">
                   Get Started
                 </Button>
