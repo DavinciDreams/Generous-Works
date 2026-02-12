@@ -4,8 +4,8 @@ export default function SignInPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <SignIn
-        afterSignInUrl="/"
-        afterSignUpUrl="/"
+        afterSignInUrl="/canvas"
+        afterSignUpUrl="/canvas"
         appearance={{
           elements: {
             rootBox: "mx-auto",
