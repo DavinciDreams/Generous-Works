@@ -1,0 +1,7 @@
+# Generous — generous.works
+# Part of the Logos Liber ecosystem (logosliber.org)
+
+User-agent: *
+Allow: /
+
+Sitemap: https://generous.works/sitemap.xml

@@ -45,7 +45,7 @@ Use surfaceUpdate to modify or create components.`;
 export function getCatalogByCategory(category: UseCaseCategory): string {
   const categoryComponents = componentCategories[category] || [];
 
-  if (categoryComponents.length === 0) {
+  if ((categoryComponents.length as number) === 0) {
     return `No components found for category: ${category}`;
   }
 
