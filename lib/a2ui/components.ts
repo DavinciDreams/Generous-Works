@@ -33,6 +33,22 @@ import { CodeEditor } from '@/components/ai-elements/codeeditor';
 import { Markdown } from '@/components/ai-elements/markdown';
 import { DataTable } from '@/components/ai-elements/datatable';
 import { ImageGallery } from '@/components/ai-elements/imagegallery';
+import { ApprovalCard } from '@/components/ai-elements/approval-card';
+import { WeatherWidget } from '@/components/ai-elements/weather-widget';
+import { StatsDisplay } from '@/components/ai-elements/stats-display';
+import { ProgressTracker } from '@/components/ai-elements/progress-tracker';
+import { OptionList } from '@/components/ai-elements/option-list';
+import { InstagramPost } from '@/components/ai-elements/instagram-post';
+import { LinkedInPost } from '@/components/ai-elements/linkedin-post';
+import { XPost } from '@/components/ai-elements/x-post';
+import { LinkPreview } from '@/components/ai-elements/link-preview';
+import { Video } from '@/components/ai-elements/video';
+import { MessageDraft } from '@/components/ai-elements/message-draft';
+import { ItemCarousel } from '@/components/ai-elements/item-carousel';
+import { OrderSummary } from '@/components/ai-elements/order-summary';
+import { ParameterSlider } from '@/components/ai-elements/parameter-slider';
+import { PreferencesPanel } from '@/components/ai-elements/preferences-panel';
+import { QuestionFlow } from '@/components/ai-elements/question-flow';
 
 /**
  * Specialized components that use the composable pattern
@@ -61,6 +77,22 @@ export const specializedComponents = {
   Markdown,
   DataTable,
   ImageGallery,
+  ApprovalCard,
+  WeatherWidget,
+  StatsDisplay,
+  ProgressTracker,
+  OptionList,
+  InstagramPost,
+  LinkedInPost,
+  XPost,
+  LinkPreview,
+  Video,
+  MessageDraft,
+  ItemCarousel,
+  OrderSummary,
+  ParameterSlider,
+  PreferencesPanel,
+  QuestionFlow,
 } as const;
 
 /**
@@ -111,7 +143,13 @@ export const componentCategories = {
   specialized: [
     'Timeline', 'Maps', 'ThreeScene', 'SVGPreview', 'NodeEditor',
     'KnowledgeGraph', 'Latex', 'ModelViewer', 'Phaser', 'Mermaid', 'Remotion',
-    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer', 'CodeEditor', 'Markdown', 'DataTable', 'ImageGallery'
+    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer', 'CodeEditor', 'Markdown'
+  ],
+  toolui: [
+    'DataTable', 'ImageGallery', 'ApprovalCard', 'WeatherWidget', 'StatsDisplay',
+    'ProgressTracker', 'OptionList', 'InstagramPost', 'LinkedInPost', 'XPost',
+    'LinkPreview', 'Video', 'MessageDraft', 'ItemCarousel', 'OrderSummary',
+    'ParameterSlider', 'PreferencesPanel', 'QuestionFlow'
   ],
   layout: [
     'Row', 'Column', 'HStack', 'VStack', 'Stack',
