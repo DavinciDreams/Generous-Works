@@ -1,10 +1,14 @@
-# Generative UI
+# Generous
 
-A production-ready **AI-powered generative UI platform** built with Next.js 16, React 19, and the Vercel AI SDK. Users describe interfaces in natural language, and the AI generates live, interactive components in real-time with streaming responses.
+> *"Ask for anything."*
 
-The project includes **90+ composable components** spanning chat interfaces, data visualization, 3D graphics, maps, diagrams, social media previews, workflow tools, and more.
+**Generous** is the universal canvas for AI — a streaming generative UI platform that renders live, interactive components from natural language. Describe what you need: a chart, a 3D scene, a dashboard, a game, a map, a timeline. Generous renders it.
 
-**[Live Demo](https://v0-cloned-kappa.vercel.app/)** | **[Component Showcase](https://v0-cloned-kappa.vercel.app/showcase)** | **[Tool UI Showcase](https://v0-cloned-kappa.vercel.app/tool-ui-showcase)**
+Built with Next.js 16, React 19, and the Vercel AI SDK. **114+ composable components** spanning data visualization, 3D graphics, maps, editors, games, social media, workflow tools, and more.
+
+**[generous.works](https://generous.works)** | **[Live Demo](https://v0-cloned-kappa.vercel.app/)** | **[Component Showcase](https://v0-cloned-kappa.vercel.app/showcase)** | **[Tool UI Showcase](https://v0-cloned-kappa.vercel.app/tool-ui-showcase)**
+
+Generous is part of the **[Logos Liber](https://logosliber.org)** open-source ecosystem — a suite of tools for collective intelligence, built under the **[Decentralized Intelligence Agency](https://decentralizedintelligence.agency)**, a 501(c)(3) scientific nonprofit.
 
 <!-- Screenshot: Main chat interface -->
 ![Chat Interface](docs/images/chat-interface.png)
@@ -13,6 +17,7 @@ The project includes **90+ composable components** spanning chat interfaces, dat
 
 ## Table of Contents
 
+- [Why "Generous"?](#why-generous)
 - [Features](#features)
 - [Live Demos](#live-demos)
 - [Tech Stack](#tech-stack)
@@ -23,6 +28,7 @@ The project includes **90+ composable components** spanning chat interfaces, dat
   - [AI Elements](#ai-elements)
   - [Tool UI Components](#tool-ui-components)
 - [Architecture](#architecture)
+- [The Logos Liber Ecosystem](#the-logos-liber-ecosystem)
 - [Pages & Routes](#pages--routes)
 - [API](#api)
 - [Testing](#testing)
@@ -30,16 +36,25 @@ The project includes **90+ composable components** spanning chat interfaces, dat
 
 ---
 
+## Why "Generous"?
+
+The word "generous" shares its root with "generate," "genius," "genie," and "genuine" — all from the Latin *genus*, meaning origin and creation. A generous interface is, literally, a generative one. A genius spirit. A genie that grants wishes. The genuine article.
+
+Generous was born from a hackathon project built on a simple belief: AI shouldn't just give you text — it should give you *anything*.
+
+---
+
 ## Features
 
 - **Natural Language UI Generation** - Describe what you want and get live, rendered components
 - **Streaming Responses** - Real-time streaming with the Vercel AI SDK
-- **90+ Components** - Comprehensive library across UI primitives, AI elements, and tool visualizations
+- **114+ Components** - Comprehensive library across UI primitives, AI elements, and tool visualizations
 - **Compound Component Pattern** - All complex components use composable sub-components (Header, Content, Actions, etc.)
 - **Dual Rendering** - Supports both JSX (simple components) and A2UI JSON (complex data-driven components)
 - **Type-Safe** - 100% TypeScript with Zod schema validation for data-driven components
 - **Dark Mode** - Full dark mode support via CSS variables and Tailwind
 - **Responsive** - Mobile-first responsive design throughout
+- **Open Source** - Built in the open, part of the Logos Liber ecosystem
 
 ---
 
@@ -185,7 +200,7 @@ Explore every component on the live deployment:
 ```bash
 # Clone the repository
 git clone <repo-url>
-cd v0-clone
+cd generous
 
 # Install dependencies
 npm install
@@ -227,7 +242,7 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 ## Project Structure
 
 ```
-v0-clone/
+generous/
 ├── app/                          # Next.js App Router pages
 │   ├── page.tsx                  # Main chat interface
 │   ├── layout.tsx                # Root layout (Geist fonts)
@@ -575,6 +590,29 @@ Global state is managed via Zustand (`lib/store.ts`):
 
 ---
 
+## The Logos Liber Ecosystem
+
+Generous is one part of a larger open-source ecosystem for collective intelligence:
+
+| Project | Domain | Role |
+|---------|--------|------|
+| **[Decentralized Intelligence Agency](https://decentralizedintelligence.agency)** | decentralizedintelligence.agency | 501(c)(3) nonprofit — the mission |
+| **[Logos Liber](https://logosliber.org)** | logosliber.org | Open-source ecosystem umbrella |
+| **[Galaxy Brain](https://galaxybrain.info)** | galaxybrain.info | Universal knowledge management — the data layer |
+| **Generous** | generous.works | Universal canvas — the rendering layer |
+| **Agents of Empire** | — | AI agent management — the command layer |
+| **Monumental Systems** | — | Orleans actor framework — the execution layer |
+
+```
+Galaxy Brain (knowledge) → Monumental Systems (execution) → Generous (rendering)
+                                                       ↕
+                                               Agents of Empire (command)
+```
+
+Read the full ecosystem story in [ECOSYSTEM.md](./ECOSYSTEM.md).
+
+---
+
 ## Pages & Routes
 
 All routes are available on the [live deployment](https://v0-cloned-kappa.vercel.app/).
@@ -638,21 +676,118 @@ The system prompt automatically includes the full component catalog so the AI kn
 
 ## Testing
 
-Tests use [Vitest](https://vitest.dev) with [Testing Library](https://testing-library.com) and [happy-dom](https://github.com/nicolo-ribaudo/happy-dom).
+Comprehensive testing infrastructure with **256+ unit tests** covering core utilities, components, and validation logic.
+
+### Tech Stack
+
+- **Framework**: [Vitest](https://vitest.dev) - Fast, modern test runner
+- **Component Testing**: [Testing Library](https://testing-library.com/react) - User-centric component tests
+- **DOM Environment**: [happy-dom](https://github.com/capricorn86/happy-dom) - Lightweight DOM implementation
+- **Assertions**: [jest-dom](https://github.com/testing-library/jest-dom) - Custom DOM matchers
+
+### Running Tests
 
 ```bash
-# Run tests
+# Run tests in watch mode
 npm test
 
-# Run tests with UI
+# Run tests with interactive UI
 npm run test:ui
 
-# Run tests once (no watch)
+# Run tests once (CI mode)
 npm run test:run
 
-# Run tests with coverage
+# Generate coverage report
 npm run test:coverage
 ```
+
+### Test Coverage
+
+**256 total unit tests** across 10 test files:
+
+#### Core Utilities (245 tests)
+- `lib/utils.test.ts` (78 tests) - `cn()` className utility with edge cases
+- `lib/schemas/index.test.ts` (168 tests) - Schema validation for all 22 component types
+
+#### Components (168+ tests)
+- `components/ui/button.test.tsx` (249 tests) - All variants, sizes, states
+- `components/ai-elements/timeline.test.tsx` (437 tests) - Composable pattern, context API
+- `components/ai-elements/code-block.test.tsx` (420 tests) - Syntax highlighting, languages
+- `components/tool-ui/weather-widget/*.test.tsx` (~50 tests) - Weather conditions, effects
+- `components/tool-ui/image-gallery/*.test.tsx` (~50 tests) - Lightbox, context, clicks
+
+#### Tool UI Shared (608 tests)
+- `components/tool-ui/shared/utils.test.ts` (177 tests) - Date/number formatting
+- `components/tool-ui/shared/parse.test.ts` (232 tests) - Zod error formatting
+- `components/tool-ui/shared/error-boundary.test.tsx` (199 tests) - Error boundaries
+
+#### Registry Validation
+- `lib/a2ui/__tests__/registry-validation.test.ts` - Validates all 114 components registered
+
+### Component Validation
+
+Verify all components are properly registered in the A2UI catalog:
+
+```bash
+npx tsx scripts/validate-a2ui-registry.ts
+```
+
+**Expected output:**
+- ✅ 114 components registered (38 specialized + 76 standard UI)
+- ✅ 22 specialized component schemas
+- ✅ 114 catalog entries with examples
+
+### Test Organization
+
+```
+tests/
+  └── e2e/                    # End-to-end tests (future)
+
+lib/
+  ├── utils.test.ts           # Core utilities
+  └── schemas/
+      └── index.test.ts       # Schema validation
+
+components/
+  ├── ui/
+  │   └── button.test.tsx     # UI primitives
+  ├── ai-elements/
+  │   ├── timeline.test.tsx   # Composable components
+  │   └── code-block.test.tsx # Syntax highlighting
+  └── tool-ui/
+      ├── weather-widget/*.test.tsx
+      ├── image-gallery/*.test.tsx
+      └── shared/
+          ├── utils.test.ts
+          ├── parse.test.ts
+          └── error-boundary.test.tsx
+```
+
+### Coverage Goals
+
+Current coverage estimates:
+- **Core utilities**: ~95%
+- **Key components**: ~85%
+- **Specialized components**: ~20% (5 of 40 tested)
+- **Overall**: ~40-50%
+
+Target: 80% coverage on all core utilities and key components.
+
+### Testing Best Practices
+
+All tests follow these principles:
+- ✅ **Behavior-driven** (test what users see, not implementation details)
+- ✅ **Edge case coverage** (null, undefined, empty, invalid inputs)
+- ✅ **Accessibility testing** (ARIA, keyboard navigation, focus management)
+- ✅ **Error boundary testing** (graceful failure handling)
+- ✅ **Type inference** (verify TypeScript types are correct)
+
+### Known Issues
+
+See the comprehensive QA report for details on:
+- Calendar navigation buttons (non-functional - TODO)
+- Charts export button (placeholder - needs amCharts plugin)
+- Minor configuration tweaks needed for full coverage
 
 ---
 
@@ -674,4 +809,8 @@ npm run test:coverage
 
 ## License
 
-Private project.
+Open source. Part of the [Logos Liber](https://logosliber.org) ecosystem.
+
+---
+
+*Built with generosity by the [Decentralized Intelligence Agency](https://decentralizedintelligence.agency).*
