@@ -32,22 +32,29 @@ export interface GeospatialCoordinates {
   lat: number;
 }
 
+// Standard data point for most layer types
+export interface StandardDataPoint {
+  lng: number;
+  lat: number;
+  value?: number;
+  properties?: Record<string, unknown>;
+  // For arc layers: target coordinates
+  targetLng?: number;
+  targetLat?: number;
+  // For time-series: timestamp
+  timestamp?: number | string;
+}
+
+// Trips data point (has path array instead of lng/lat)
+export interface TripsDataPoint {
+  path: Array<{ lng: number; lat: number; timestamp?: number | string }>;
+  properties?: Record<string, unknown>;
+}
+
 export interface GeospatialLayer {
   id: string;
   type: 'point' | 'line' | 'polygon' | 'heatmap' | 'hexagon' | 'arc' | 'trips';
-  data: Array<{
-    lng: number;
-    lat: number;
-    value?: number;
-    properties?: Record<string, unknown>;
-    // For arc layers: target coordinates
-    targetLng?: number;
-    targetLat?: number;
-    // For trips layers: timestamp
-    timestamp?: number | string;
-    // For trips layers: path (array of coordinates with timestamps)
-    path?: Array<{ lng: number; lat: number; timestamp: number | string }>;
-  }>;
+  data: Array<StandardDataPoint | TripsDataPoint>;
   style: {
     color: string | Array<string>;
     size?: number;

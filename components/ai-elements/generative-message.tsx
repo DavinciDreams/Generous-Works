@@ -63,6 +63,24 @@ const JSX_CODE_BLOCK_REGEX = /```(?:jsx|tsx)\s*\n([\s\S]*?)```/gi;
 const JSON_CODE_BLOCK_REGEX = /```json\s*\n([\s\S]*?)```/gi;
 
 /**
+ * Normalize JSX code for react-jsx-parser
+ * Collapses whitespace while preserving structure
+ */
+const normalizeJSX = (jsx: string): string => {
+  return jsx
+    .trim()
+    // Replace newlines and multiple spaces with single space
+    .replace(/\s+/g, ' ')
+    // Clean up whitespace around JSX tags
+    .replace(/\s*(<\/?[^>]+>)\s*/g, '$1')
+    // Add space between closing tags and text
+    .replace(/>([^<\s])/g, '> $1')
+    // Add space between text and opening tags
+    .replace(/([^>\s])<(?!\/)/g, '$1 <')
+    .trim();
+};
+
+/**
  * Parse message content into unified ContentBlock array
  * Extracts JSX (```tsx), A2UI (```json with surfaceUpdate), and text
  * Preserves original message order
@@ -86,11 +104,14 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
   const jsxRegex = new RegExp(JSX_CODE_BLOCK_REGEX.source, JSX_CODE_BLOCK_REGEX.flags);
   let jsxMatch: RegExpExecArray | null;
   while ((jsxMatch = jsxRegex.exec(content)) !== null) {
+    const normalized = normalizeJSX(jsxMatch[1]);
+    console.log('[DEBUG] Extracted JSX:', jsxMatch[1].trim());
+    console.log('[DEBUG] Normalized JSX:', normalized);
     matches.push({
       type: 'jsx',
       start: jsxMatch.index,
       end: jsxMatch.index + jsxMatch[0].length,
-      content: jsxMatch[1].trim(),
+      content: normalized,
     });
   }
 
@@ -194,10 +215,27 @@ export const GenerativeMessage = memo(
 
     // Parse content to extract ALL blocks (text, JSX, A2UI)
     const contentBlocks = useMemo(() => {
-      // Always use parseMessageContent to correctly split text/JSX/A2UI blocks.
-      // This avoids the legacy path where jsx prop + full content caused double rendering.
-      return parseMessageContent(content);
-    }, [content, id]);
+      // If explicit jsx prop is provided, use legacy format
+      if (jsx) {
+        return [
+          {
+            type: 'text' as const,
+            content,
+            id: `text-${id}`,
+          },
+          {
+            type: 'jsx' as const,
+            code: jsx,
+            id: `jsx-${id}`,
+          },
+        ];
+      }
+
+      // Otherwise, parse content for mixed blocks
+      const blocks = parseMessageContent(content);
+      console.log('[GenerativeMessage] Parsed blocks:', blocks.length, blocks.map(b => b.type));
+      return blocks;
+    }, [content, jsx, id]);
 
     // Don't render for system messages
     if (role === "system") {
