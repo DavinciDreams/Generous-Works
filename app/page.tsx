@@ -159,6 +159,7 @@ const navGroups = [
   {
     label: "🎬 Multimedia",
     links: [
+      { href: "/toolui-test", name: "Images & Video" },
       { href: "/imagegallery-test", name: "Image Gallery" },
       { href: "/svg-preview-test", name: "SVG Preview" },
       { href: "/remotion-test", name: "Remotion" },
@@ -200,7 +201,7 @@ const navGroups = [
   {
     label: "📱 Social",
     links: [
-      { href: "/toolui-test", name: "Social Posts" },
+      { href: "/toolui-test", name: "Social Media Posts" },
     ],
   },
   {
@@ -341,7 +342,7 @@ export default function Page() {
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex items-center justify-between h-10">
             <Link href="/" className="text-sm font-semibold text-foreground whitespace-nowrap">
-              Generative UI
+              Generous
             </Link>
             <button
               type="button"
@@ -383,10 +384,10 @@ export default function Page() {
                 <div className="flex h-full items-center justify-center">
                   <div className="text-center">
                     <h2 className="text-2xl font-semibold text-foreground">
-                      Welcome to Generative UI
+                      Ask for anything.
                     </h2>
                     <p className="mt-2 text-muted-foreground">
-                      Ask me to create UI components for you!
+                      The universal canvas for AI.
                     </p>
                   </div>
                 </div>
