@@ -37,14 +37,13 @@ export const TimelineControl = ({
   useEffect(() => {
     if (isPlaying) {
       intervalRef.current = setInterval(() => {
-        onTimeChange((prevTime) => {
-          const nextTime = prevTime + step;
-          if (nextTime > endTime) {
-            setIsPlaying(false);
-            return endTime;
-          }
-          return nextTime;
-        });
+        const nextTime = currentTime + step;
+        if (nextTime > endTime) {
+          setIsPlaying(false);
+          onTimeChange(endTime);
+        } else {
+          onTimeChange(nextTime);
+        }
       }, playbackSpeed);
     } else {
       if (intervalRef.current) {
@@ -58,7 +57,7 @@ export const TimelineControl = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, playbackSpeed, step, endTime, onTimeChange]);
+  }, [isPlaying, playbackSpeed, step, endTime, currentTime, onTimeChange]);
 
   const handlePlayPause = useCallback(() => {
     if (currentTime >= endTime) {
