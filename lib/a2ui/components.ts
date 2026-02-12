@@ -137,20 +137,43 @@ export function getComponent(type: string) {
 }
 
 /**
- * Component categories for documentation
+ * Component categories organized by use case
  */
 export const componentCategories = {
-  specialized: [
-    'Timeline', 'Maps', 'ThreeScene', 'SVGPreview', 'NodeEditor',
-    'KnowledgeGraph', 'Latex', 'ModelViewer', 'Phaser', 'Mermaid', 'Remotion',
-    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer', 'CodeEditor', 'Markdown'
+  // Use case categories
+  development: [
+    'CodeEditor', 'JSONViewer', 'Mermaid', 'NodeEditor', 'SVGPreview', 'Markdown'
   ],
+  multimedia: [
+    'ImageGallery', 'Video', 'ItemCarousel', 'ModelViewer',
+    'VRM', 'Remotion'
+  ],
+  '3d-games': [
+    'ThreeScene', 'Phaser', 'ModelViewer', 'VRM'
+  ],
+  productivity: [
+    'WYSIWYG', 'Calendar', 'Markdown', 'KnowledgeGraph',
+    'DataTable', 'OrderSummary', 'MessageDraft', 'Latex'
+  ],
+  'maps-geospatial': [
+    'Maps', 'Geospatial'
+  ],
+  charts: [
+    'Charts', 'StatsDisplay', 'Timeline'
+  ],
+  social: [
+    'InstagramPost', 'LinkedInPost', 'XPost', 'LinkPreview'
+  ],
+
+  // Tool UI components (AI interaction patterns)
   toolui: [
-    'DataTable', 'ImageGallery', 'ApprovalCard', 'WeatherWidget', 'StatsDisplay',
-    'ProgressTracker', 'OptionList', 'InstagramPost', 'LinkedInPost', 'XPost',
-    'LinkPreview', 'Video', 'MessageDraft', 'ItemCarousel', 'OrderSummary',
-    'ParameterSlider', 'PreferencesPanel', 'QuestionFlow'
+    'ApprovalCard', 'WeatherWidget', 'StatsDisplay', 'ProgressTracker',
+    'OptionList', 'ParameterSlider', 'PreferencesPanel', 'QuestionFlow',
+    'DataTable', 'ImageGallery', 'Video', 'MessageDraft', 'ItemCarousel',
+    'OrderSummary', 'LinkPreview', 'InstagramPost', 'LinkedInPost', 'XPost'
   ],
+
+  // Standard UI components
   layout: [
     'Row', 'Column', 'HStack', 'VStack', 'Stack',
     'Flex', 'Grid', 'Box', 'Container', 'Center', 'Card'
@@ -162,5 +185,12 @@ export const componentCategories = {
   forms: [
     'Button', 'Input', 'TextField', 'Textarea', 'Checkbox',
     'Switch', 'Slider', 'NumberInput'
+  ],
+
+  // Legacy (for backward compatibility)
+  specialized: [
+    'Timeline', 'Maps', 'ThreeScene', 'SVGPreview', 'NodeEditor',
+    'KnowledgeGraph', 'Latex', 'ModelViewer', 'Phaser', 'Mermaid', 'Remotion',
+    'Charts', 'Geospatial', 'WYSIWYG', 'VRM', 'ToolUI', 'Calendar', 'JSONViewer', 'CodeEditor', 'Markdown'
   ],
 } as const;
