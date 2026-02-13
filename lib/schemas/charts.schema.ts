@@ -231,8 +231,8 @@ export const ChartsDataSchema = z.object({
   vennSets: z.array(VennSetSchema).optional(),
   vennIntersections: z.array(VennIntersectionSchema).optional(),
 
-  // Heatmap
-  data: z.array(HeatmapDataPointSchema).optional(),
+  // Heatmap (data field can also be used for candlestick and other charts)
+  data: z.array(z.any()).optional(),
 
   // Funnel chart
   stages: z.array(FunnelStageSchema).optional(),
@@ -319,8 +319,8 @@ export type TreeMapChartData = ChartsData & { type?: 'treemap'; treeMapData: Tre
 export type ForceDirectedChartData = ChartsData & { type?: 'forceDirected'; graphNodes: GraphNode[]; graphLinks: GraphLink[] };
 export type HierarchyChartData = ChartsData & { type?: 'hierarchy'; hierarchyData: TreeMapNode };
 export type WordCloudChartData = ChartsData & { type?: 'wordCloud'; words: WordCloudWord[] };
-export type VennChartData = ChartsData & { type?: 'venn'; vennSets: VennSet[]; vennIntersections: VennIntersectionSchema[] };
+export type VennChartData = ChartsData & { type?: 'venn'; vennSets: VennSet[]; vennIntersections: VennIntersection[] };
 export type HeatmapChartData = ChartsData & { type?: 'heatmap'; data: HeatmapDataPoint[] };
 export type FunnelChartData = ChartsData & { type?: 'funnel'; stages: FunnelStage[] };
 export type GaugeChartData = ChartsData & { type?: 'gauge'; value: number };
-export type CandlestickChartData = ChartsData & { type?: 'candlestick'; data: CandlestickDataPointSchema[] };
+export type CandlestickChartData = ChartsData & { type?: 'candlestick'; data: CandlestickDataPoint[] };
