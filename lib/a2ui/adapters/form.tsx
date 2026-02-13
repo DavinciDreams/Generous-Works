@@ -21,14 +21,14 @@ export const CheckboxAdapter = createAdapter(Checkbox, {
       onCheckedChange: (value: boolean) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { checked: value },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(Checkbox)',
 });
@@ -48,14 +48,14 @@ export const SwitchAdapter = createAdapter(Switch, {
       onCheckedChange: (value: boolean) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { checked: value },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(Switch)',
 });
@@ -79,14 +79,14 @@ export const TextareaAdapter = createAdapter(Textarea, {
       onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { value: e.target.value },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(Textarea)',
 });
@@ -112,14 +112,14 @@ export const SliderAdapter = createAdapter(Slider, {
       onValueChange: (values: number[]) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { value: values[0], values },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(Slider)',
 });
@@ -146,14 +146,14 @@ export const NumberInputAdapter = createAdapter('input', {
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { value: parseFloat(e.target.value) },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(NumberInput)',
 });

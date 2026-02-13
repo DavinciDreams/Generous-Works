@@ -16,7 +16,7 @@ export const ButtonAdapter = createAdapter(Button, {
       subtle: 'ghost',
       default: 'default',
     };
-    const variant = typeof variantRaw === 'string' ? (variantMap[variantRaw] ?? 'default') : 'default';
+    const variant = (typeof variantRaw === 'string' ? (variantMap[variantRaw] ?? 'default') : 'default') as "default" | "destructive" | "secondary" | "ghost" | "outline" | "link";
 
     // Extract other properties
     const fullWidth = extractValue(a2ui.fullWidth) ?? false;
@@ -27,7 +27,7 @@ export const ButtonAdapter = createAdapter(Button, {
     return {
       variant,
       className: `${fullWidth ? 'w-full' : ''} ${compact ? 'h-8 px-3 py-1' : ''}`.trim(),
-      onClick: createActionHandler(a2ui.action, ctx),
+      onClick: createActionHandler(a2ui.action as any, ctx),
       disabled,
       children: ctx.children,
     };

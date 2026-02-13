@@ -106,7 +106,7 @@ export const specializedComponents = {
 export const a2uiComponents: ComponentMapping = {
   // Specialized components (highest priority)
   // Cast needed because these use their own prop types, not A2UIComponentProps
-  ...(specializedComponents as ComponentMapping),
+  ...(specializedComponents as unknown as ComponentMapping),
 
   // Standard UI adapters
   ...shadcnAdapters,

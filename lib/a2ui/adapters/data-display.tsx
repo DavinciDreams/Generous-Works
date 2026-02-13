@@ -22,9 +22,9 @@ export const ListAdapter = createAdapter('ul', {
         'list-none',
         direction === 'horizontal' ? 'flex flex-row space-x-2' : 'flex flex-col space-y-2'
       ),
-      children: items.length > 0 ? (
-        items.map((item: unknown, index: number) => {
-          const content = extractValue(item.content) ?? extractValue(item.text) ?? extractValue(item);
+      children: (items as any[]).length > 0 ? (
+        (items as any[]).map((item: unknown, index: number) => {
+          const content = (extractValue((item as any).content) ?? extractValue((item as any).text) ?? extractValue(item)) as React.ReactNode;
           return (
             <li key={index} className="text-sm">
               {content}
@@ -73,13 +73,13 @@ export const TableBodyAdapter = createAdapter('tbody', {
 // TableRow component
 export const TableRowAdapter = createAdapter('tr', {
   mapProps: (a2ui, ctx) => {
-    const cells = a2ui.cells ?? [];
+    const cells = a2ui.cells as any[] ?? [];
 
     return {
       className: 'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
       children: cells.length > 0 ? (
         cells.map((cell: any, index: number) => {
-          const content = extractValue(cell.content) ?? extractValue(cell);
+          const content = (extractValue(cell.content) ?? extractValue(cell)) as React.ReactNode;
           return (
             <td key={index} className="p-4 align-middle">
               {content}
@@ -148,13 +148,13 @@ export const ImageAdapter = createAdapter('img', {
     };
 
     return {
-      src,
-      alt,
+      src: src as string | Blob | undefined,
+      alt: alt as string,
       width,
       height,
       className: cn(
         'object-cover',
-        usageHint && sizeClasses[usageHint]
+        usageHint && sizeClasses[usageHint as string]
       ),
     };
   },
@@ -165,14 +165,14 @@ export const ImageAdapter = createAdapter('img', {
 export const AvatarAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
     const src = extractValue(a2ui.src) ?? extractValue(a2ui.url);
-    const alt = extractValue(a2ui.alt) ?? extractValue(a2ui.name) ?? '';
+    const alt = (extractValue(a2ui.alt) ?? extractValue(a2ui.name) ?? '') as string;
     const fallback = extractValue(a2ui.fallback) ?? alt.slice(0, 2).toUpperCase();
 
     return {
       children: (
         <Avatar>
-          {src && <AvatarImage src={src} alt={alt} />}
-          <AvatarFallback>{fallback}</AvatarFallback>
+          {src && <AvatarImage src={src as string | Blob} alt={alt} />}
+          <AvatarFallback>{fallback as React.ReactNode}</AvatarFallback>
         </Avatar>
       ),
     };

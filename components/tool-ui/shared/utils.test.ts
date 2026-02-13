@@ -128,7 +128,7 @@ describe('getDomain', () => {
 describe('prefersReducedMotion', () => {
   it('should return false when matchMedia is not available', () => {
     const originalWindow = global.window;
-    // @ts-expect-error - intentionally setting to undefined
+    // @ts-ignore - intentionally setting to undefined
     global.window = undefined;
     expect(prefersReducedMotion()).toBe(false);
     global.window = originalWindow;
@@ -136,7 +136,7 @@ describe('prefersReducedMotion', () => {
 
   it('should return falsy when matchMedia is not a function', () => {
     const originalMatchMedia = window.matchMedia;
-    // @ts-expect-error - intentionally setting to undefined
+    // @ts-ignore - intentionally setting to undefined
     window.matchMedia = undefined;
     // Optional chaining returns undefined, which is falsy
     expect(prefersReducedMotion()).toBeFalsy();

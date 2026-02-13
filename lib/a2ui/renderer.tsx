@@ -288,7 +288,7 @@ export function renderA2UIComponent(
     const validation = validateProps(componentType, props);
 
     if (!validation.success) {
-      const errorMessage = validation.error.message;
+      const errorMessage = (validation as { success: false; error: Error }).error.message;
       console.error(`[A2UI] Validation failed for ${componentType}:`, errorMessage);
 
       return (
@@ -379,9 +379,18 @@ export function renderA2UIComponent(
 
       case 'NodeEditor': {
         const nodeEditorProps = validation.data as NodeEditorProps;
+        // Fix nodes/edges type for NodeEditor
+        const fixedNodeEditorProps = {
+          ...nodeEditorProps,
+          data: {
+            ...nodeEditorProps.data,
+            nodes: nodeEditorProps.data?.nodes as any[] || [],
+            edges: nodeEditorProps.data?.edges as any[] || [],
+          }
+        };
         return (
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
-            <NodeEditor {...nodeEditorProps}>
+            <NodeEditor {...fixedNodeEditorProps}>
               <NodeEditorHeader>
                 <NodeEditorTitle />
                 <NodeEditorActions>
@@ -515,9 +524,31 @@ export function renderA2UIComponent(
 
       case 'Geospatial': {
         const geospatialProps = validation.data as GeospatialProps;
+        // Fix layers to have required color property
+        const fixedGeospatialProps = {
+          ...geospatialProps,
+          data: {
+            ...geospatialProps.data,
+            layers: geospatialProps.data?.layers?.map((layer: any) => ({
+              ...layer,
+              style: {
+                color: layer.style?.color || '#3b82f6',
+                ...layer.style,
+              }
+            })) || [],
+            timeline: geospatialProps.data?.timeline ? {
+              enabled: geospatialProps.data.timeline.enabled,
+              startTime: geospatialProps.data.timeline.startTime || 0,
+              endTime: geospatialProps.data.timeline.endTime || 100,
+              step: geospatialProps.data.timeline.step,
+              autoPlay: geospatialProps.data.timeline.autoPlay,
+              speed: geospatialProps.data.timeline.speed,
+            } : undefined
+          }
+        };
         return (
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
-            <Geospatial {...geospatialProps}>
+            <Geospatial {...fixedGeospatialProps}>
               <GeospatialHeader>
                 <GeospatialTitle />
                 <GeospatialActions>

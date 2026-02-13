@@ -155,9 +155,9 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
-      expect(result.error.message).toContain('No schema found');
-      expect(result.error.message).toContain('UnknownComponent');
+      expect((result as any).error).toBeInstanceOf(Error);
+      expect((result as any).error.message).toContain('No schema found');
+      expect((result as any).error.message).toContain('UnknownComponent');
     }
   });
 
@@ -172,7 +172,7 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
+      expect((result as any).error).toBeInstanceOf(Error);
     }
   });
 
@@ -209,8 +209,8 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
-      expect(result.error.message).toBeTruthy();
+      expect((result as any).error).toBeInstanceOf(Error);
+      expect((result as any).error.message).toBeTruthy();
     }
   });
 
@@ -239,7 +239,7 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
+      expect((result as any).error).toBeInstanceOf(Error);
     }
   });
 });
@@ -357,7 +357,7 @@ describe('validateProps - type inference', () => {
 
     if (!result.success) {
       // TypeScript should know this has an error property
-      const errorMessage: string = result.error.message;
+      const errorMessage: string = (result as any).error.message;
       expect(typeof errorMessage).toBe('string');
     }
   });

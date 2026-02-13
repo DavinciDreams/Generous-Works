@@ -18,7 +18,7 @@ export const SeparatorAdapter = createAdapter(Separator, {
       orientation,
       decorative,
       className: orientation === 'vertical' ? 'h-full' : 'w-full',
-    };
+    } as any;
   },
   displayName: 'A2UI(Separator)',
 });
@@ -29,8 +29,8 @@ export const DividerAdapter = SeparatorAdapter;
 // ScrollArea component
 export const ScrollAreaAdapter = createAdapter(ScrollArea, {
   mapProps: (a2ui, ctx) => {
-    const height = extractValue(a2ui.height) ?? '100%';
-    const width = extractValue(a2ui.width) ?? '100%';
+    const height = extractValue(a2ui.height) ?? "100%";
+    const width = extractValue(a2ui.width) ?? "100%";
 
     return {
       className: 'rounded-md border',
@@ -39,7 +39,7 @@ export const ScrollAreaAdapter = createAdapter(ScrollArea, {
         width,
       },
       children: ctx.children,
-    };
+    } as any;
   },
   displayName: 'A2UI(ScrollArea)',
 });
@@ -47,7 +47,7 @@ export const ScrollAreaAdapter = createAdapter(ScrollArea, {
 // AspectRatio component
 export const AspectRatioAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
-    const ratio = extractValue(a2ui.ratio) ?? 16 / 9;
+    const ratio = (typeof a2ui.ratio === "number" ? a2ui.ratio : 16) / 9;
 
     return {
       className: 'relative w-full',
@@ -59,7 +59,7 @@ export const AspectRatioAdapter = createAdapter('div', {
           {ctx.children}
         </div>
       ),
-    };
+    } as any;
   },
   displayName: 'A2UI(AspectRatio)',
 });

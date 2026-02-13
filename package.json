@@ -17,9 +17,10 @@
     "logos-liber"
   ],
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
     "dev:webpack": "next dev --no-turbopack",
     "build": "next build",
+    "build:turbo": "next build --turbo",
     "start": "next start",
     "lint": "eslint --cache",
     "check": "eslint --cache",
@@ -27,7 +28,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:registry": "vitest run lib/a2ui/__tests__/registry-validation.test.ts"
+    "test:registry": "vitest run lib/a2ui/__tests__/registry-validation.test.ts",
+    "clean:turbo": "rm -rf .next/turbo"
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.44",

@@ -3,14 +3,14 @@
  * Row, Column, Flex, Grid, Box, Container components
  */
 
-import { createPassthroughAdapter, createAdapter } from '../adapter';
+import { createPassthroughAdapter, createAdapter, extractValue } from '../adapter';
 import { cn } from '@/lib/utils';
 
 // Row - horizontal flex layout
 export const RowAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
-    const distribution = a2ui.distribution ?? 'start';
-    const alignment = a2ui.alignment ?? 'center';
+    const distribution = (a2ui.distribution as string) ?? "start";
+    const alignment = (extractValue(a2ui.align) as string) ?? "center";
 
     const distributionClasses: Record<string, string> = {
       start: 'justify-start',
@@ -31,8 +31,8 @@ export const RowAdapter = createAdapter('div', {
     return {
       className: cn(
         'flex flex-row gap-2',
-        distributionClasses[distribution],
-        alignmentClasses[alignment]
+        (distributionClasses as Record<string, string>)[distribution],
+        (alignmentClasses as Record<string, string>)[alignment]
       ),
       children: ctx.children,
     };
@@ -43,8 +43,8 @@ export const RowAdapter = createAdapter('div', {
 // Column - vertical flex layout
 export const ColumnAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
-    const distribution = a2ui.distribution ?? 'start';
-    const alignment = a2ui.alignment ?? 'stretch';
+    const distribution = (a2ui.distribution as string) ?? "start";
+    const alignment = (extractValue(a2ui.align) as string) ?? "stretch";
 
     const distributionClasses: Record<string, string> = {
       start: 'justify-start',
@@ -65,8 +65,8 @@ export const ColumnAdapter = createAdapter('div', {
     return {
       className: cn(
         'flex flex-col gap-2',
-        distributionClasses[distribution],
-        alignmentClasses[alignment]
+        (distributionClasses as Record<string, string>)[distribution],
+        (alignmentClasses as Record<string, string>)[alignment]
       ),
       children: ctx.children,
     };
@@ -82,9 +82,9 @@ export const StackAdapter = ColumnAdapter;
 // Flex - generic flex container
 export const FlexAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
-    const direction = a2ui.direction ?? 'row';
+    const direction = extractValue(a2ui.direction) as string ?? 'row';
     const wrap = a2ui.wrap ?? false;
-    const gap = a2ui.gap ?? '2';
+    const gap = extractValue(a2ui.gap) as string ?? '2';
 
     return {
       className: cn(
@@ -103,7 +103,7 @@ export const FlexAdapter = createAdapter('div', {
 export const GridAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
     const columns = a2ui.columns ?? 'auto-fit';
-    const gap = a2ui.gap ?? '4';
+    const gap = extractValue(a2ui.gap) as string ?? '4';
 
     return {
       className: cn('grid', `gap-${gap}`),

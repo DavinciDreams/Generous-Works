@@ -6,7 +6,7 @@
  */
 
 import { printValidationReport } from '../lib/a2ui/validate-registry';
-
+import { validateRegistry } from '../lib/a2ui/validate-registry';
 console.log('🔍 A2UI Component Registry Validation\n');
 
 // Run validation

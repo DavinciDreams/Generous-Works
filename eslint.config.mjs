@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    cache: true,
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
     },
