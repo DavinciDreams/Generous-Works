@@ -16,6 +16,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  startTransition,
   useState,
 } from "react";
 import type {
@@ -240,7 +241,9 @@ export const WYSIWYGContent = memo(
 
       // Only render on client
       useEffect(() => {
-        setIsMounted(true);
+        startTransition(() => {
+          setIsMounted(true);
+        });
       }, []);
 
       if (error) {

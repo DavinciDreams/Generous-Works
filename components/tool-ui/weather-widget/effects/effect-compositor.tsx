@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, startTransition } from "react";
 import type { WeatherCondition } from "../schema";
 import type { EffectLayerConfig, EffectSettings } from "./types";
 import {
@@ -325,14 +325,18 @@ export function EffectCompositor({
   className,
   customProps,
 }: EffectCompositorProps) {
-  const [isMounted, setIsMounted] = useState(false);
+  const [isMounted, setIsMounted] = useState(() => typeof window !== "undefined");
   const enabled = settings?.enabled !== false;
   const reducedMotion = settings?.reducedMotion ?? false;
   const hasCustomProps = customProps !== undefined;
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    if (!isMounted) {
+      startTransition(() => {
+        setIsMounted(true);
+      });
+    }
+  }, [isMounted]);
 
   const dpr = useMemo(() => {
     if (typeof window === "undefined") return undefined;

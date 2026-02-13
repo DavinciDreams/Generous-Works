@@ -605,7 +605,26 @@ export function CelestialCanvas({
     moonGlowIntensity,
     moonGlowSize,
   });
-  propsRef.current = {
+  useEffect(() => {
+    propsRef.current = {
+      timeOfDay,
+      moonPhase,
+      starDensity,
+      celestialX,
+      celestialY,
+      sunSize,
+      moonSize,
+      sunGlowIntensity,
+      sunGlowSize,
+      sunRayCount,
+      sunRayLength,
+      sunRayIntensity,
+      sunRayShimmer,
+      sunRayShimmerSpeed,
+      moonGlowIntensity,
+      moonGlowSize,
+    };
+  }, [
     timeOfDay,
     moonPhase,
     starDensity,
@@ -622,7 +641,7 @@ export function CelestialCanvas({
     sunRayShimmerSpeed,
     moonGlowIntensity,
     moonGlowSize,
-  };
+  ]);
 
   const initGL = useCallback(() => {
     const canvas = canvasRef.current;
@@ -667,6 +686,8 @@ export function CelestialCanvas({
     startTimeRef.current = performance.now();
     return true;
   }, []);
+
+  const renderRef = useRef<(() => void) | null>(null);
 
   const render = useCallback(() => {
     const gl = glRef.current;
@@ -718,8 +739,12 @@ export function CelestialCanvas({
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    animationFrameRef.current = requestAnimationFrame(render);
+    animationFrameRef.current = requestAnimationFrame(renderRef.current!);
   }, []);
+
+  useEffect(() => {
+    renderRef.current = render;
+  }, [render]);
 
   useEffect(() => {
     if (initGL()) {

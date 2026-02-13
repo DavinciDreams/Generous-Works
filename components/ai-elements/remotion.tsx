@@ -23,6 +23,7 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  startTransition,
   useState,
 } from "react";
 import { Player, PlayerRef } from "@remotion/player";
@@ -408,7 +409,9 @@ export const RemotionContent = memo(
 
       // Only render on client
       useEffect(() => {
-        setIsMounted(true);
+        startTransition(() => {
+          setIsMounted(true);
+        });
       }, []);
 
       // Validate composition type

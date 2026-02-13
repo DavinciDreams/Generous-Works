@@ -71,11 +71,14 @@ interface ExpandableBodyProps {
 
 function ExpandableBody({ body, isExpanded, onNeedsExpansionChange }: ExpandableBodyProps) {
   const [needsExpansion, setNeedsExpansion] = React.useState<boolean | null>(null);
+  const [contentHeight, setContentHeight] = React.useState<number>(COLLAPSED_BODY_HEIGHT);
   const contentRef = React.useRef<HTMLDivElement>(null);
 
   React.useLayoutEffect(() => {
     if (contentRef.current) {
-      const needs = contentRef.current.scrollHeight > COLLAPSED_BODY_HEIGHT;
+      const scrollHeight = contentRef.current.scrollHeight;
+      setContentHeight(scrollHeight);
+      const needs = scrollHeight > COLLAPSED_BODY_HEIGHT;
       setNeedsExpansion(needs);
       onNeedsExpansionChange?.(needs);
     }
@@ -94,7 +97,7 @@ function ExpandableBody({ body, isExpanded, onNeedsExpansionChange }: Expandable
             needsExpansion === null
               ? `${COLLAPSED_BODY_HEIGHT}px`
               : isExpanded || !needsExpansion
-                ? `${contentRef.current?.scrollHeight ?? 1000}px`
+                ? `${contentHeight}px`
                 : `${COLLAPSED_BODY_HEIGHT}px`,
         }}
       >

@@ -19,6 +19,24 @@ function getLucideIcon(name: string): LucideIcon | null {
   return Icon ?? null;
 }
 
+interface DynamicIconProps {
+  iconName: string | null;
+  className?: string;
+}
+
+function DynamicIcon({ iconName, className }: DynamicIconProps) {
+  const [Icon, setIcon] = React.useState<LucideIcon | null>(() => {
+    return iconName ? getLucideIcon(iconName) : null;
+  });
+
+  React.useEffect(() => {
+    setIcon(iconName ? getLucideIcon(iconName) : null);
+  }, [iconName]);
+
+  if (!Icon) return null;
+  return <Icon className={className} />;
+}
+
 interface ApprovalCardReceiptProps {
   id: string;
   title: string;
@@ -94,7 +112,6 @@ export function ApprovalCard({
   const resolvedVariant = variant ?? "default";
   const resolvedConfirmLabel = confirmLabel ?? "Approve";
   const resolvedCancelLabel = cancelLabel ?? "Deny";
-  const Icon = icon ? getLucideIcon(icon) : null;
 
   const handleAction = React.useCallback(
     async (actionId: string) => {
@@ -159,7 +176,7 @@ export function ApprovalCard({
         >
           <div className="bg-card flex w-full flex-col gap-4 rounded-2xl border p-5 shadow-xs">
             <div className="flex items-start gap-3">
-              {Icon && (
+              {icon && (
                 <span
                   className={cn(
                     "flex size-10 shrink-0 items-center justify-center rounded-xl",
@@ -168,7 +185,7 @@ export function ApprovalCard({
                       : "bg-primary/10 text-primary",
                   )}
                 >
-                  <Icon className="size-5" />
+                  <DynamicIcon iconName={icon} className="size-5" />
                 </span>
               )}
               <div className="flex flex-1 flex-col gap-1">
