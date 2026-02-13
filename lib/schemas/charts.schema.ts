@@ -2,8 +2,8 @@
  * Zod schemas for Charts component
  * Provides runtime type validation for amCharts 5 data visualization props
  *
- * Uses discriminated unions to ensure proper TypeScript type inference
- * and guarantee that each chart type only has the fields it needs.
+ * Uses a simplified approach with a single flexible schema instead of
+ * discriminated unions. This is more maintainable and LLM-friendly.
  */
 
 import { z } from 'zod';
@@ -145,112 +145,6 @@ export const VennIntersectionSchema = z.object({
 });
 
 /**
- * Base chart schema with common properties
- */
-const BaseChartSchema = z.object({
-  title: z.string().optional(),
-});
-
-/**
- * Basic chart types that use series data (line, bar, area, scatter)
- */
-const BasicChartDataSchema = BaseChartSchema.extend({
-  type: z.enum(['line', 'bar', 'area', 'scatter']),
-  series: z.array(SeriesSchema),
-  xAxis: AxisConfigSchema.optional(),
-  yAxis: AxisConfigSchema.optional(),
-});
-
-/**
- * Pie chart schema
- */
-const PieChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('pie'),
-  series: z.array(SeriesSchema),
-});
-
-/**
- * Radar chart schema
- */
-const RadarChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('radar'),
-  series: z.array(SeriesSchema),
-  xAxis: AxisConfigSchema.optional(),
-  yAxis: AxisConfigSchema.optional(),
-});
-
-/**
- * Sankey diagram schema
- */
-const SankeyChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('sankey'),
-  sankeyNodes: z.array(SankeyNodeSchema),
-  sankeyLinks: z.array(SankeyLinkSchema),
-});
-
-/**
- * Chord diagram schema
- */
-const ChordChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('chord'),
-  chordNodes: z.array(z.string()),
-  chordLinks: z.array(ChordLinkSchema),
-});
-
-/**
- * Tree map schema
- */
-const TreeMapChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('treemap'),
-  treeMapData: z.array(TreeMapNodeSchema),
-});
-
-/**
- * Force directed graph schema
- */
-const ForceDirectedChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('forceDirected'),
-  graphNodes: z.array(GraphNodeSchema),
-  graphLinks: z.array(GraphLinkSchema),
-});
-
-/**
- * Hierarchy chart schema
- */
-const HierarchyChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('hierarchy'),
-  hierarchyData: TreeMapNodeSchema,
-});
-
-/**
- * Word cloud schema
- */
-const WordCloudChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('wordCloud'),
-  words: z.array(WordCloudWordSchema),
-});
-
-/**
- * Venn diagram schema
- */
-const VennChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('venn'),
-  vennSets: z.array(VennSetSchema),
-  vennIntersections: z.array(VennIntersectionSchema),
-});
-
-/**
- * Histogram data schema
- */
-const HistogramChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('histogram'),
-  series: z.array(SeriesSchema),
-  xAxis: AxisConfigSchema.optional(),
-  yAxis: AxisConfigSchema.optional(),
-  binCount: z.number().optional(), // Number of bins/buckets
-});
-
-/**
  * Heatmap data point
  */
 export const HeatmapDataPointSchema = z.object({
@@ -258,16 +152,6 @@ export const HeatmapDataPointSchema = z.object({
   y: z.union([z.number(), z.string()]),
   value: z.number(),
   color: z.string().optional()
-});
-
-/**
- * Heatmap schema
- */
-const HeatmapChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('heatmap'),
-  data: z.array(HeatmapDataPointSchema),
-  xAxis: AxisConfigSchema.optional(),
-  yAxis: AxisConfigSchema.optional(),
 });
 
 /**
@@ -280,14 +164,6 @@ export const FunnelStageSchema = z.object({
 });
 
 /**
- * Funnel chart schema
- */
-const FunnelChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('funnel'),
-  stages: z.array(FunnelStageSchema),
-});
-
-/**
  * Gauge range/band
  */
 export const GaugeRangeSchema = z.object({
@@ -295,18 +171,6 @@ export const GaugeRangeSchema = z.object({
   end: z.number(),
   color: z.string().optional(),
   label: z.string().optional()
-});
-
-/**
- * Gauge chart schema
- */
-const GaugeChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('gauge'),
-  value: z.number(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  ranges: z.array(GaugeRangeSchema).optional(),
-  target: z.number().optional(), // Target marker
 });
 
 /**
@@ -322,50 +186,87 @@ export const CandlestickDataPointSchema = z.object({
 });
 
 /**
- * Candlestick chart schema
+ * Charts data structure using a single flexible schema
+ *
+ * This approach is simpler and more maintainable than discriminated unions:
+ * - All fields are optional, making it LLM-friendly
+ * - Runtime validation ensures at least one data field is present
+ * - Type narrowing is done in the component using type guards
+ * - Easier to add new chart types without modifying the schema structure
  */
-const CandlestickChartDataSchema = BaseChartSchema.extend({
-  type: z.literal('candlestick'),
-  data: z.array(CandlestickDataPointSchema),
-  showVolume: z.boolean().optional(),
-});
+export const ChartsDataSchema = z.object({
+  // Common fields
+  title: z.string().optional(),
+  type: ChartTypeSchema.optional(),
 
-/**
- * Charts data structure using discriminated union with fallback
- *
- * This ensures proper TypeScript type inference for all chart types.
- * Each chart type has only the fields it needs, making it impossible
- * to pass incorrect data shapes.
- *
- * A catch-all variant is added to handle cases where the LLM generates
- * data without a proper 'type' field or with an invalid type.
- */
-export const ChartsDataSchema = z.discriminatedUnion('type', [
-  BasicChartDataSchema,
-  PieChartDataSchema,
-  RadarChartDataSchema,
-  HistogramChartDataSchema,
-  HeatmapChartDataSchema,
-  FunnelChartDataSchema,
-  GaugeChartDataSchema,
-  CandlestickChartDataSchema,
-  SankeyChartDataSchema,
-  ChordChartDataSchema,
-  TreeMapChartDataSchema,
-  ForceDirectedChartDataSchema,
-  HierarchyChartDataSchema,
-  WordCloudChartDataSchema,
-  VennChartDataSchema,
-]).or(
-  // Catch-all for data with missing or invalid type field
-  // This allows the schema to validate even when LLM doesn't provide a proper type
-  BaseChartSchema.extend({
-    type: z.string().optional(),
-  }).and(
-    z.object({
-      // Accept any additional properties
-    }).passthrough()
-  )
+  // Series-based charts (line, bar, area, scatter, radar, histogram)
+  series: z.array(SeriesSchema).optional(),
+
+  // Axis configuration (for charts that need it)
+  xAxis: AxisConfigSchema.optional(),
+  yAxis: AxisConfigSchema.optional(),
+
+  // Sankey diagram
+  sankeyNodes: z.array(SankeyNodeSchema).optional(),
+  sankeyLinks: z.array(SankeyLinkSchema).optional(),
+
+  // Chord diagram
+  chordNodes: z.array(z.string()).optional(),
+  chordLinks: z.array(ChordLinkSchema).optional(),
+
+  // Tree map
+  treeMapData: z.array(TreeMapNodeSchema).optional(),
+
+  // Force directed graph
+  graphNodes: z.array(GraphNodeSchema).optional(),
+  graphLinks: z.array(GraphLinkSchema).optional(),
+
+  // Hierarchy chart
+  hierarchyData: TreeMapNodeSchema.optional(),
+
+  // Word cloud
+  words: z.array(WordCloudWordSchema).optional(),
+
+  // Venn diagram
+  vennSets: z.array(VennSetSchema).optional(),
+  vennIntersections: z.array(VennIntersectionSchema).optional(),
+
+  // Heatmap
+  data: z.array(HeatmapDataPointSchema).optional(),
+
+  // Funnel chart
+  stages: z.array(FunnelStageSchema).optional(),
+
+  // Gauge chart
+  value: z.number().optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  ranges: z.array(GaugeRangeSchema).optional(),
+  target: z.number().optional(),
+
+  // Candlestick chart
+  showVolume: z.boolean().optional(),
+  binCount: z.number().optional(), // For histogram
+}).refine(
+  (data) => {
+    // Ensure at least one data field is present
+    return !!(
+      data.series ||
+      data.sankeyNodes ||
+      data.chordNodes ||
+      data.treeMapData ||
+      data.graphNodes ||
+      data.hierarchyData ||
+      data.words ||
+      data.vennSets ||
+      data.data ||
+      data.stages ||
+      data.value !== undefined
+    );
+  },
+  {
+    message: "Charts data must include at least one data field (series, sankeyNodes, chordNodes, etc.)",
+  }
 );
 
 export type ChartsData = z.infer<typeof ChartsDataSchema>;
@@ -405,3 +306,21 @@ export const ChartsPropsSchema = z.object({
 });
 
 export type ChartsProps = z.infer<typeof ChartsPropsSchema>;
+
+/**
+ * TypeScript utility types for type narrowing based on chart type
+ * These can be used in components to get better type inference
+ */
+export type SeriesChartData = ChartsData & { type?: 'line' | 'bar' | 'area' | 'scatter' | 'radar' | 'histogram'; series: Series[] };
+export type PieChartData = ChartsData & { type?: 'pie'; series: Series[] };
+export type SankeyChartData = ChartsData & { type?: 'sankey'; sankeyNodes: SankeyNode[]; sankeyLinks: SankeyLink[] };
+export type ChordChartData = ChartsData & { type?: 'chord'; chordNodes: string[]; chordLinks: ChordLink[] };
+export type TreeMapChartData = ChartsData & { type?: 'treemap'; treeMapData: TreeMapNode[] };
+export type ForceDirectedChartData = ChartsData & { type?: 'forceDirected'; graphNodes: GraphNode[]; graphLinks: GraphLink[] };
+export type HierarchyChartData = ChartsData & { type?: 'hierarchy'; hierarchyData: TreeMapNode };
+export type WordCloudChartData = ChartsData & { type?: 'wordCloud'; words: WordCloudWord[] };
+export type VennChartData = ChartsData & { type?: 'venn'; vennSets: VennSet[]; vennIntersections: VennIntersectionSchema[] };
+export type HeatmapChartData = ChartsData & { type?: 'heatmap'; data: HeatmapDataPoint[] };
+export type FunnelChartData = ChartsData & { type?: 'funnel'; stages: FunnelStage[] };
+export type GaugeChartData = ChartsData & { type?: 'gauge'; value: number };
+export type CandlestickChartData = ChartsData & { type?: 'candlestick'; data: CandlestickDataPointSchema[] };
