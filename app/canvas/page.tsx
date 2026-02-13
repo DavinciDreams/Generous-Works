@@ -19,6 +19,7 @@ import { GenerativeMessage } from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Canvas } from "@/components/ai-elements/canvas";
+import { ClearActions } from "@/components/ai-elements/clear-actions";
 
 // ============================================================================
 // UI Components for Bindings
@@ -384,13 +385,16 @@ export default function Page() {
             <Link href="/" className="text-sm font-semibold text-foreground whitespace-nowrap">
               Generous
             </Link>
-            <button
-              type="button"
-              onClick={() => setNavOpen(!navOpen)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
-            >
-              {navOpen ? "Hide" : "Components"} {navOpen ? "\u25B2" : "\u25BC"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNavOpen(!navOpen)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
+              >
+                {navOpen ? "Hide" : "Components"} {navOpen ? "\u25B2" : "\u25BC"}
+              </button>
+              <ClearActions />
+            </div>
           </div>
           {navOpen && (
             <div className="pb-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 text-xs">
