@@ -262,6 +262,9 @@ export function renderA2UIComponent(
 ): React.ReactNode {
   const componentId = component.id;
 
+  // Diagnostic logging
+  console.log('[renderA2UIComponent] Rendering component:', { id: componentId, component });
+
   // Extract component type and props
   const componentEntry = Object.entries(component.component)[0];
   if (!componentEntry) {

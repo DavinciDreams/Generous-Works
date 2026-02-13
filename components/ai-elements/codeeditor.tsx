@@ -112,7 +112,11 @@ const getTheme = (themeName?: CodeEditorTheme) => {
 export const CodeEditor = memo(
   forwardRef<HTMLDivElement, CodeEditorProps>(
     ({ data, options = {}, onChange, className, children, ...props }, ref) => {
-      const [code, setCode] = useState(data.code || "");
+      // Defensive check: if data is undefined, provide default empty code
+      const safeData = data || { code: '' };
+      const initialCode = safeData.code || '';
+      
+      const [code, setCode] = useState(initialCode);
       const [isFullscreen, setIsFullscreen] = useState(false);
 
       const handleChange = useCallback(
@@ -191,6 +195,8 @@ export const CodeEditorTitle = memo(
   forwardRef<HTMLDivElement, CodeEditorTitleProps>(
     ({ className, children, ...props }, ref) => {
       const { data } = useCodeEditor();
+      // Defensive check for data
+      const safeData = data || { filename: '', language: '' };
 
       return (
         <div
@@ -200,11 +206,11 @@ export const CodeEditorTitle = memo(
         >
           <CodeIcon className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold text-lg">
-            {children || data.filename || "Code Editor"}
+            {children || safeData.filename || "Code Editor"}
           </h3>
-          {data.language && (
+          {safeData.language && (
             <span className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted">
-              {data.language}
+              {safeData.language}
             </span>
           )}
         </div>
@@ -275,6 +281,8 @@ CodeEditorCopyButton.displayName = "CodeEditorCopyButton";
 
 export const CodeEditorDownloadButton = memo(() => {
   const { code, data } = useCodeEditor();
+  // Defensive check for data
+  const safeData = data || { language: '', filename: '' };
 
   const handleDownload = useCallback(() => {
     try {
@@ -282,8 +290,8 @@ export const CodeEditorDownloadButton = memo(() => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const ext = data.language || "txt";
-      a.download = data.filename || `code.${ext}`;
+      const ext = safeData.language || "txt";
+      a.download = safeData.filename || `code.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -338,8 +346,10 @@ export const CodeEditorContent = memo(
   forwardRef<HTMLDivElement, CodeEditorContentProps>(
     ({ className, ...props }, ref) => {
       const { data, options, code, setCode } = useCodeEditor();
-
-      const languageExtension = getLanguageExtension(data.language);
+      // Defensive check for data
+      const safeData = data || { code: '', language: undefined, readOnly: false };
+      
+      const languageExtension = getLanguageExtension(safeData.language);
       const theme = getTheme(options?.theme);
 
       return (
@@ -357,8 +367,8 @@ export const CodeEditorContent = memo(
             theme={theme}
             extensions={languageExtension ? [languageExtension] : []}
             onChange={setCode}
-            editable={options?.editable ?? !data.readOnly}
-            readOnly={data.readOnly}
+            editable={options?.editable ?? !safeData.readOnly}
+            readOnly={safeData.readOnly}
             placeholder={options?.placeholder}
             basicSetup={{
               lineNumbers: options?.lineNumbers ?? true,
