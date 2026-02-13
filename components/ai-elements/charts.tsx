@@ -376,7 +376,8 @@ export const ChartsContent = memo(
 
                 // Add series
                 if ('series' in data) {
-                  data.series.forEach((seriesData) => {
+                  const series = (data['series'] as unknown) as Series[];
+                  series.forEach((seriesData: Series) => {
                   let series: any;
 
                   if (data.type === 'line') {
