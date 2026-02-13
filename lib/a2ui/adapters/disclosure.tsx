@@ -94,7 +94,7 @@ export const AccordionItemAdapter = createAdapter('div', {
 export const CollapsibleAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
     const trigger = extractValue(a2ui.trigger) ?? 'Toggle';
-    const defaultOpen = extractValue(a2ui.defaultOpen) ?? false;
+    const defaultOpen = (extractValue(a2ui.defaultOpen) ?? false) as boolean;
 
     return {
       children: (

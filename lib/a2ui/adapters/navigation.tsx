@@ -12,44 +12,31 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 // Tabs component
 export const TabsAdapter = createAdapter('div', {
   mapProps: (a2ui, ctx) => {
-    const tabItems = a2ui.tabItems ?? a2ui.items ?? [];
-    const defaultValue = extractValue(a2ui.defaultValue) ??
-                         (tabItems[0] ? `tab-${0}` : 'tab-0');
+    const tabItems = (a2ui.tabItems ?? a2ui.items ?? []) as unknown[];
+    const defaultValue = (extractValue(a2ui.defaultValue) ??
+                         (tabItems[0] ? `tab-${0}` : 'tab-0')) as string;
 
     return {
       children: (
-  // @ts-ignore
         <Tabs defaultValue={defaultValue} className="w-full">
-  // @ts-ignore
           <TabsList>
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
             {tabItems.map((item: unknown, index: number) => {
               const title = extractValue((item as any).title) ?? extractValue((item as any).label) ?? `Tab ${(index as number) + 1}`;
-              const value = extractValue((item as any).value) ?? `tab-${index}`;
-  // @ts-ignore
+              const value = String(extractValue((item as any).value) ?? `tab-${index}`);
 
               return (
-  // @ts-ignore
-                <TabsTrigger key={(value as React.ReactNode)} value={(value as React.ReactNode)}>
+                <TabsTrigger key={value} value={value}>
                   {(title as React.ReactNode)}
                 </TabsTrigger>
-  // @ts-ignore
               );
             })}
           </TabsList>
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
           {tabItems.map((item: any, index: number) => {
-  // @ts-ignore
-            const value = extractValue((item as any).value) ?? `tab-${index}`;
+            const value = String(extractValue((item as any).value) ?? `tab-${index}`);
             const content = extractValue((item as any).content) ?? '';
 
             return (
-  // @ts-ignore
-              <TabsContent key={(value as React.ReactNode)} value={(value as React.ReactNode)}>
+              <TabsContent key={value} value={value}>
                 {(content as React.ReactNode)}
               </TabsContent>
             );
@@ -80,19 +67,13 @@ export const TabPanelAdapter = createAdapter(TabsContent, {
 export const BreadcrumbAdapter = createAdapter('nav', {
   mapProps: (a2ui, ctx) => {
     const items = a2ui.items ?? [];
-  // @ts-ignore
 
     return {
-  // @ts-ignore
       'aria-label': 'Breadcrumb',
-  // @ts-ignore
       className: 'flex',
       children: (
         <ol className="flex items-center space-x-2">
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-          {(Array.Array.Array.isArray(items) ? items : []).map((item: unknown, index: number) => {
+          {(Array.isArray(items) ? items : []).map((item: unknown, index: number) => {
             const label = extractValue((item as any).label) ?? extractValue((item as any).text);
   // @ts-ignore
             const href = extractValue(item.href) ?? extractValue(item.url);
@@ -133,12 +114,11 @@ export const BreadcrumbAdapter = createAdapter('nav', {
 // Alias
 export const BreadcrumbsAdapter = BreadcrumbAdapter;
 
-  // @ts-ignore
 // Pagination component
 export const PaginationAdapter = createAdapter('nav', {
   mapProps: (a2ui, ctx) => {
-    const currentPage = extractValue(a2ui.currentPage) ?? extractValue(a2ui.page) ?? 1;
-    const totalPages = extractValue(a2ui.totalPages) ?? extractValue(a2ui.total) ?? 1;
+    const currentPage = (extractValue(a2ui.currentPage) ?? extractValue(a2ui.page) ?? 1) as number;
+    const totalPages = (extractValue(a2ui.totalPages) ?? extractValue(a2ui.total) ?? 1) as number;
     const onPageChange = a2ui.action;
 
     const handlePageChange = (page: number) => {
@@ -178,9 +158,6 @@ export const PaginationAdapter = createAdapter('nav', {
           </button>
 
           <div className="flex items-center space-x-1">
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
             {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
               const page = i + 1;
               return (

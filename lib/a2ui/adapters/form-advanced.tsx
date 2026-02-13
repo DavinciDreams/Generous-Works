@@ -40,13 +40,9 @@ export const SelectAdapter = createAdapter('div', {
               });
             }
           }}
-  // @ts-ignore
         >
           <SelectTrigger>
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-            <SelectValue placeholder={placeholder} />
+            <SelectValue placeholder={placeholder as React.ReactNode} />
           </SelectTrigger>
           <SelectContent>
   // @ts-ignore
