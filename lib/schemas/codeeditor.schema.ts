@@ -86,3 +86,5 @@ export const CodeEditorPropsSchema = z.object({
   data: CodeEditorDataSchema,
   options: CodeEditorOptionsSchema,
 });
+
+export type CodeEditorProps = z.infer<typeof CodeEditorPropsSchema>;

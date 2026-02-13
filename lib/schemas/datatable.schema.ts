@@ -63,3 +63,5 @@ export const DataTablePropsSchema = z.object({
   data: DataTableDataSchema,
   options: DataTableOptionsSchema,
 });
+
+export type DataTableProps = z.infer<typeof DataTablePropsSchema>;

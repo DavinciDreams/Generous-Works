@@ -160,6 +160,65 @@ import {
   VRMContent,
   VRMControls
 } from '@/components/ai-elements/vrm';
+import {
+  CodeEditor,
+  CodeEditorHeader,
+  CodeEditorTitle,
+  CodeEditorActions,
+  CodeEditorCopyButton,
+  CodeEditorDownloadButton,
+  CodeEditorFullscreenButton,
+  CodeEditorContent
+} from '@/components/ai-elements/codeeditor';
+import {
+  Calendar,
+  CalendarHeader,
+  CalendarTitle,
+  CalendarActions,
+  CalendarNavigation,
+  CalendarCopyButton,
+  CalendarFullscreenButton,
+  CalendarContent
+} from '@/components/ai-elements/calendar';
+import {
+  Markdown,
+  MarkdownHeader,
+  MarkdownTitle,
+  MarkdownActions,
+  MarkdownCopyButton,
+  MarkdownDownloadButton,
+  MarkdownFullscreenButton,
+  MarkdownContent
+} from '@/components/ai-elements/markdown';
+import {
+  DataTable,
+  DataTableHeader,
+  DataTableTitle,
+  DataTableActions,
+  DataTableCopyButton,
+  DataTableDownloadButton,
+  DataTableFullscreenButton,
+  DataTableContent
+} from '@/components/ai-elements/datatable';
+import {
+  JSONViewer,
+  JSONViewerHeader,
+  JSONViewerTitle,
+  JSONViewerActions,
+  JSONViewerCopyButton,
+  JSONViewerDownloadButton,
+  JSONViewerFullscreenButton,
+  JSONViewerContent
+} from '@/components/ai-elements/jsonviewer';
+import {
+  ImageGallery,
+  ImageGalleryHeader,
+  ImageGalleryTitle,
+  ImageGalleryActions,
+  ImageGalleryDownloadButton,
+  ImageGalleryFullscreenButton,
+  ImageGalleryGrid
+} from '@/components/ai-elements/imagegallery';
 import { validateProps } from '@/lib/schemas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -181,6 +240,12 @@ import type { ToolUIProps } from '@/lib/schemas/toolui.schema';
 import type { ChartsProps } from '@/lib/schemas/charts.schema';
 import type { WYSIWYGProps } from '@/lib/schemas/wysiwyg.schema';
 import type { VRMProps } from '@/lib/schemas/vrm.schema';
+import type { CodeEditorProps } from '@/lib/schemas/codeeditor.schema';
+import type { CalendarProps } from '@/lib/schemas/calendar.schema';
+import type { MarkdownProps } from '@/lib/schemas/markdown.schema';
+import type { DataTableProps } from '@/lib/schemas/datatable.schema';
+import type { JSONViewerProps } from '@/lib/schemas/jsonviewer.schema';
+import type { ImageGalleryProps } from '@/lib/schemas/imagegallery.schema';
 
 /**
  * List of specialized components that use Zod validation and composable pattern
@@ -203,6 +268,12 @@ const SPECIALIZED_COMPONENTS = new Set([
   'Charts',
   'WYSIWYG',
   'VRM',
+  'CodeEditor',
+  'Calendar',
+  'Markdown',
+  'DataTable',
+  'JSONViewer',
+  'ImageGallery',
 ]);
 
 /**
@@ -629,6 +700,119 @@ export function renderA2UIComponent(
               <VRMContent />
               <VRMControls />
             </VRM>
+          </div>
+        );
+      }
+
+      case 'CodeEditor': {
+        const codeEditorProps = validation.data as CodeEditorProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <CodeEditor {...codeEditorProps}>
+              <CodeEditorHeader>
+                <CodeEditorTitle />
+                <CodeEditorActions>
+                  <CodeEditorCopyButton />
+                  <CodeEditorDownloadButton />
+                  <CodeEditorFullscreenButton />
+                </CodeEditorActions>
+              </CodeEditorHeader>
+              <CodeEditorContent />
+            </CodeEditor>
+          </div>
+        );
+      }
+
+      case 'Calendar': {
+        const calendarProps = validation.data as CalendarProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Calendar {...calendarProps}>
+              <CalendarHeader>
+                <CalendarTitle />
+                <CalendarActions>
+                  <CalendarNavigation />
+                  <CalendarCopyButton />
+                  <CalendarFullscreenButton />
+                </CalendarActions>
+              </CalendarHeader>
+              <CalendarContent />
+            </Calendar>
+          </div>
+        );
+      }
+
+      case 'Markdown': {
+        const markdownProps = validation.data as MarkdownProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <Markdown {...markdownProps}>
+              <MarkdownHeader>
+                <MarkdownTitle />
+                <MarkdownActions>
+                  <MarkdownCopyButton />
+                  <MarkdownDownloadButton />
+                  <MarkdownFullscreenButton />
+                </MarkdownActions>
+              </MarkdownHeader>
+              <MarkdownContent />
+            </Markdown>
+          </div>
+        );
+      }
+
+      case 'DataTable': {
+        const dataTableProps = validation.data as DataTableProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <DataTable {...dataTableProps}>
+              <DataTableHeader>
+                <DataTableTitle />
+                <DataTableActions>
+                  <DataTableCopyButton />
+                  <DataTableDownloadButton />
+                  <DataTableFullscreenButton />
+                </DataTableActions>
+              </DataTableHeader>
+              <DataTableContent />
+            </DataTable>
+          </div>
+        );
+      }
+
+      case 'JSONViewer': {
+        const jsonViewerProps = validation.data as JSONViewerProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <JSONViewer {...jsonViewerProps}>
+              <JSONViewerHeader>
+                <JSONViewerTitle />
+                <JSONViewerActions>
+                  <JSONViewerCopyButton />
+                  <JSONViewerDownloadButton />
+                  <JSONViewerFullscreenButton />
+                </JSONViewerActions>
+              </JSONViewerHeader>
+              <JSONViewerContent />
+            </JSONViewer>
+          </div>
+        );
+      }
+
+      case 'ImageGallery': {
+        const imageGalleryProps = validation.data as ImageGalleryProps;
+        return (
+          <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+            <ImageGallery {...imageGalleryProps}>
+              <ImageGalleryHeader>
+                <ImageGalleryTitle />
+                <ImageGalleryActions>
+                  <ImageGalleryDownloadButton />
+                  <ImageGalleryFullscreenButton />
+                </ImageGalleryActions>
+              </ImageGalleryHeader>
+              <ImageGalleryGrid />
+            </ImageGallery>
           </div>
         );
       }

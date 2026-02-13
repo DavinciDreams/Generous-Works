@@ -45,3 +45,5 @@ export const MarkdownPropsSchema = z.object({
   data: MarkdownDataSchema,
   options: MarkdownOptionsSchema,
 });
+
+export type MarkdownProps = z.infer<typeof MarkdownPropsSchema>;

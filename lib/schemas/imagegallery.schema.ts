@@ -64,3 +64,5 @@ export const ImageGalleryPropsSchema = z.object({
   data: ImageGalleryDataSchema,
   options: ImageGalleryOptionsSchema,
 });
+
+export type ImageGalleryProps = z.infer<typeof ImageGalleryPropsSchema>;
