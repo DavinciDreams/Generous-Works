@@ -1736,16 +1736,27 @@ export function WeatherEffectsCanvas({
     dpr: dprProp,
   });
 
-  propsRef.current = {
-    layers: { ...DEFAULT_LAYERS, ...layersProp },
-    celestial: { ...DEFAULT_CELESTIAL, ...celestialProp },
-    cloud: { ...DEFAULT_CLOUD, ...cloudProp },
-    rain: { ...DEFAULT_RAIN, ...rainProp },
-    lightning: { ...DEFAULT_LIGHTNING, ...lightningProp },
-    snow: { ...DEFAULT_SNOW, ...snowProp },
-    interactions: { ...DEFAULT_INTERACTIONS, ...interactionsProp },
-    dpr: dprProp,
-  };
+  useEffect(() => {
+    propsRef.current = {
+      layers: { ...DEFAULT_LAYERS, ...layersProp },
+      celestial: { ...DEFAULT_CELESTIAL, ...celestialProp },
+      cloud: { ...DEFAULT_CLOUD, ...cloudProp },
+      rain: { ...DEFAULT_RAIN, ...rainProp },
+      lightning: { ...DEFAULT_LIGHTNING, ...lightningProp },
+      snow: { ...DEFAULT_SNOW, ...snowProp },
+      interactions: { ...DEFAULT_INTERACTIONS, ...interactionsProp },
+      dpr: dprProp,
+    };
+  }, [
+    layersProp,
+    celestialProp,
+    cloudProp,
+    rainProp,
+    lightningProp,
+    snowProp,
+    interactionsProp,
+    dprProp,
+  ]);
 
   const getUniformLocationCached = useCallback(
     (gl: WebGL2RenderingContext, program: WebGLProgram, name: string) => {
@@ -2014,6 +2025,8 @@ export function WeatherEffectsCanvas({
     startTimeRef.current = performance.now();
     return true;
   }, [disposeGL]);
+
+  const renderRef = useRef<(() => void) | null>(null);
 
   const render = useCallback(() => {
     const gl = glRef.current;
@@ -2338,12 +2351,16 @@ export function WeatherEffectsCanvas({
 
     if (isVisibleRef.current && !isContextLostRef.current) {
       isRunningRef.current = true;
-      animationFrameRef.current = requestAnimationFrame(render);
+      animationFrameRef.current = requestAnimationFrame(renderRef.current!);
     } else {
       isRunningRef.current = false;
       animationFrameRef.current = 0;
     }
   }, [getUniformLocationCached]);
+
+  useEffect(() => {
+    renderRef.current = render;
+  }, [render]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -21,6 +21,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  startTransition,
   useState,
 } from "react";
 
@@ -164,8 +165,10 @@ export const InlineCitationCarouselIndex = ({
       return;
     }
 
-    setCount(api.scrollSnapList().length);
-    setCurrent(api.selectedScrollSnap() + 1);
+    startTransition(() => {
+      setCount(api.scrollSnapList().length);
+      setCurrent(api.selectedScrollSnap() + 1);
+    });
 
     const handleSelect = () => {
       setCurrent(api.selectedScrollSnap() + 1);
