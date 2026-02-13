@@ -6,6 +6,7 @@ import { MapsPropsSchema } from './maps.schema';
 describe('schemaRegistry', () => {
   it('should contain all expected component schemas', () => {
     const expectedComponents = [
+      // Specialized components
       'Timeline',
       'Maps',
       'ThreeScene',
@@ -27,7 +28,24 @@ describe('schemaRegistry', () => {
       'CodeEditor',
       'Markdown',
       'DataTable',
-      'ImageGallery'
+      'ImageGallery',
+      // Individual ToolUI component schemas
+      'ApprovalCard',
+      'WeatherWidget',
+      'StatsDisplay',
+      'ProgressTracker',
+      'OptionList',
+      'InstagramPost',
+      'LinkedInPost',
+      'XPost',
+      'LinkPreview',
+      'Video',
+      'MessageDraft',
+      'ItemCarousel',
+      'OrderSummary',
+      'ParameterSlider',
+      'PreferencesPanel',
+      'QuestionFlow',
     ];
 
     expectedComponents.forEach((component) => {

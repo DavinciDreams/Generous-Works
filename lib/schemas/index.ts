@@ -39,7 +39,7 @@ export * from './remotion.schema';
 // Geospatial schemas
 export * from './geospatial.schema';
 
-// ToolUI schemas
+// ToolUI schemas (includes all individual ToolUI component schemas)
 export * from './toolui.schema';
 
 // Charts schemas
@@ -95,7 +95,24 @@ import {
   CodeEditorPropsSchema,
   MarkdownPropsSchema,
   DataTablePropsSchema,
-  ImageGalleryPropsSchema
+  ImageGalleryPropsSchema,
+  // Individual ToolUI component schemas
+  SerializableApprovalCardSchema,
+  SerializableWeatherWidgetSchema,
+  SerializableStatsDisplaySchema,
+  SerializableProgressTrackerSchema,
+  SerializableOptionListSchema,
+  SerializableInstagramPostSchema,
+  SerializableLinkedInPostSchema,
+  SerializableXPostSchema,
+  SerializableLinkPreviewSchema,
+  SerializableVideoSchema,
+  SerializableMessageDraftSchema,
+  SerializableItemCarouselSchema,
+  SerializableOrderSummarySchema,
+  SerializableParameterSliderSchema,
+  SerializablePreferencesPanelSchema,
+  SerializableQuestionFlowSchema,
 } from '.';
 
 import type { ZodSchema } from 'zod';
@@ -122,7 +139,24 @@ export const schemaRegistry: Record<string, ZodSchema> = {
   CodeEditor: CodeEditorPropsSchema,
   Markdown: MarkdownPropsSchema,
   DataTable: DataTablePropsSchema,
-  ImageGallery: ImageGalleryPropsSchema
+  ImageGallery: ImageGalleryPropsSchema,
+  // Individual ToolUI component schemas for granular validation
+  ApprovalCard: SerializableApprovalCardSchema,
+  WeatherWidget: SerializableWeatherWidgetSchema,
+  StatsDisplay: SerializableStatsDisplaySchema,
+  ProgressTracker: SerializableProgressTrackerSchema,
+  OptionList: SerializableOptionListSchema,
+  InstagramPost: SerializableInstagramPostSchema,
+  LinkedInPost: SerializableLinkedInPostSchema,
+  XPost: SerializableXPostSchema,
+  LinkPreview: SerializableLinkPreviewSchema,
+  Video: SerializableVideoSchema,
+  MessageDraft: SerializableMessageDraftSchema,
+  ItemCarousel: SerializableItemCarouselSchema,
+  OrderSummary: SerializableOrderSummarySchema,
+  ParameterSlider: SerializableParameterSliderSchema,
+  PreferencesPanel: SerializablePreferencesPanelSchema,
+  QuestionFlow: SerializableQuestionFlowSchema,
 };
 
 /**
