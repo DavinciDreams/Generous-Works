@@ -5,10 +5,6 @@ import { XPost as ToolUIXPost } from "@/components/tool-ui/x-post";
 import type { XPostProps as ToolUIXPostProps } from "@/components/tool-ui/x-post";
 import type {
   XPostData as ToolUIXPostData,
-  XPostAuthor as ToolUIXPostAuthor,
-  XPostMedia as ToolUIXPostMedia,
-  XPostLinkPreview as ToolUIXPostLinkPreview,
-  XPostStats as ToolUIXPostStats,
 } from "@/components/tool-ui/x-post";
 
 /**
@@ -68,7 +64,7 @@ export type XPostProps = ComponentProps<"div"> & {
   options?: XPostOptions;
 };
 
-export function XPost({ data, options = {}, ...props }: XPostProps) {
+export function XPost({ data, options = {} }: XPostProps) {
   // Helper to convert timestamp to ISO string
   const convertTimestamp = (
     timestamp?: string | number

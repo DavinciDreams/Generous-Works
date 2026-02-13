@@ -66,8 +66,10 @@ export interface WYSIWYGProps extends HTMLAttributes<HTMLDivElement> {
 
 export const WYSIWYG = forwardRef<HTMLDivElement, WYSIWYGProps>(
   ({ data, options, children, className, ...props }, ref) => {
+    // Defensive check for data
+    const safeData = data || { content: '' };
     const [error, setError] = useState<string | null>(null);
-    const [content, setContent] = useState(data.content);
+    const [content, setContent] = useState(safeData.content);
 
     const contextValue: WYSIWYGContextValue = {
       data,

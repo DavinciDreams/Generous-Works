@@ -221,7 +221,7 @@ export function ChatSidebar({
                 if (content) {
                   assistantContent += content;
                 }
-              } catch (e) {
+              } catch {
                 continue;
               }
             }

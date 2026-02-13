@@ -433,14 +433,15 @@ describe('Timeline', () => {
       });
 
       if (refValue) {
-        expect(typeof refValue.goTo).toBe('function');
-        expect(typeof refValue.goToId).toBe('function');
-        expect(typeof refValue.goToNext).toBe('function');
-        expect(typeof refValue.goToPrev).toBe('function');
-        expect(typeof refValue.goToStart).toBe('function');
-        expect(typeof refValue.goToEnd).toBe('function');
-        expect(typeof refValue.getData).toBe('function');
-        expect(typeof refValue.getDataById).toBe('function');
+        const ref = refValue as TimelineRef;
+        expect(typeof ref.goTo).toBe('function');
+        expect(typeof ref.goToId).toBe('function');
+        expect(typeof ref.goToNext).toBe('function');
+        expect(typeof ref.goToPrev).toBe('function');
+        expect(typeof ref.goToStart).toBe('function');
+        expect(typeof ref.goToEnd).toBe('function');
+        expect(typeof ref.getData).toBe('function');
+        expect(typeof ref.getDataById).toBe('function');
       }
     });
   });

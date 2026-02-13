@@ -1,0 +1,53 @@
+app/api/a2ui-chat/route.ts(3,30): error TS2307: Cannot find module '@ai-sdk/openai' or its corresponding type declarations.
+app/api/chat/route.ts(605,9): error TS2322: Type 'LanguageModelV2' is not assignable to type 'LanguageModel'.
+  Type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2' is not assignable to type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2'.
+    Types of property 'doGenerate' are incompatible.
+      Type '(options: import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2CallOptions) => PromiseLike<{ content: import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Content[]; ......' is not assignable to type '(options: import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2CallOptions) => PromiseLike<{ content: import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Content[]; ... 5 more ...; warnings: import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").Lan...'.
+        Types of parameters 'options' and 'options' are incompatible.
+          Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2CallOptions' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2CallOptions'.
+            Types of property 'prompt' are incompatible.
+              Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Prompt' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Prompt'.
+                Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Message' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").LanguageModelV2Message'.
+                  Type '{ role: "system"; content: string; } & { providerOptions?: SharedV2ProviderOptions | undefined; }' is not assignable to type 'LanguageModelV2Message'.
+                    Type '{ role: "system"; content: string; } & { providerOptions?: import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions | undefined; }' is not assignable to type '{ role: "system"; content: string; } & { providerOptions?: import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions | undefined; }'.
+                      Type '{ role: "system"; content: string; } & { providerOptions?: SharedV2ProviderOptions | undefined; }' is not assignable to type '{ providerOptions?: SharedV2ProviderOptions | undefined; }'.
+                        Types of property 'providerOptions' are incompatible.
+                          Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions | undefined' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions | undefined'.
+                            Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").SharedV2ProviderOptions'.
+                              'string' index signatures are incompatible.
+                                Type 'Record<string, import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").JSONValue>' is not assignable to type 'Record<string, import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").JSONValue>'.
+                                  'string' index signatures are incompatible.
+                                    Type 'import("C:/Users/lmwat/node_modules/@ai-sdk/provider/dist/index").JSONValue' is not assignable to type 'import("C:/Users/lmwat/genui/v0-clone/node_modules/zhipu-ai-provider/node_modules/@ai-sdk/provider/dist/index").JSONValue'.
+                                      Type 'JSONObject' is not assignable to type 'JSONValue'.
+                                        Type 'JSONObject' is missing the following properties from type 'JSONValue[]': length, pop, push, concat, and 35 more.
+components/ai-elements/charts.tsx(192,40): error TS2307: Cannot find module '@amcharts/amcharts5/plugins/exporting' or its corresponding type declarations.
+components/ai-elements/charts.tsx(312,38): error TS2307: Cannot find module '@amcharts/amcharts5' or its corresponding type declarations.
+components/ai-elements/charts.tsx(313,40): error TS2307: Cannot find module '@amcharts/amcharts5/xy' or its corresponding type declarations.
+components/ai-elements/charts.tsx(314,45): error TS2307: Cannot find module '@amcharts/amcharts5/percent' or its corresponding type declarations.
+components/ai-elements/charts.tsx(315,43): error TS2307: Cannot find module '@amcharts/amcharts5/radar' or its corresponding type declarations.
+components/ai-elements/charts.tsx(316,53): error TS2307: Cannot find module '@amcharts/amcharts5/themes/Animated' or its corresponding type declarations.
+components/ai-elements/charts.tsx(526,46): error TS2307: Cannot find module '@amcharts/amcharts5/flow' or its corresponding type declarations.
+components/ai-elements/charts.tsx(545,46): error TS2307: Cannot find module '@amcharts/amcharts5/flow' or its corresponding type declarations.
+components/ai-elements/charts.tsx(563,51): error TS2307: Cannot find module '@amcharts/amcharts5/hierarchy' or its corresponding type declarations.
+components/ai-elements/charts.tsx(583,51): error TS2307: Cannot find module '@amcharts/amcharts5/hierarchy' or its corresponding type declarations.
+components/ai-elements/charts.tsx(614,51): error TS2307: Cannot find module '@amcharts/amcharts5/hierarchy' or its corresponding type declarations.
+components/ai-elements/charts.tsx(635,44): error TS2307: Cannot find module '@amcharts/amcharts5/wc' or its corresponding type declarations.
+components/ai-elements/charts.tsx(652,46): error TS2307: Cannot find module '@amcharts/amcharts5/venn' or its corresponding type declarations.
+components/ai-elements/charts.tsx(798,49): error TS2307: Cannot find module '@amcharts/amcharts5/percent' or its corresponding type declarations.
+components/ai-elements/charts.tsx(830,47): error TS2307: Cannot find module '@amcharts/amcharts5/radar' or its corresponding type declarations.
+components/ai-elements/timeline.test.tsx(425,32): error TS2339: Property 'goTo' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(426,32): error TS2339: Property 'goToId' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(427,32): error TS2339: Property 'goToNext' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(428,32): error TS2339: Property 'goToPrev' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(429,32): error TS2339: Property 'goToStart' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(430,32): error TS2339: Property 'goToEnd' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(431,32): error TS2339: Property 'getData' does not exist on type 'never'.
+components/ai-elements/timeline.test.tsx(432,32): error TS2339: Property 'getDataById' does not exist on type 'never'.
+components/tool-ui/shared/parse.test.ts(78,9): error TS2353: Object literal may only specify known properties, and 'received' does not exist in type '$ZodIssueInvalidType<unknown>'.
+components/tool-ui/shared/parse.test.ts(85,9): error TS2353: Object literal may only specify known properties, and 'received' does not exist in type '$ZodIssueInvalidType<unknown>'.
+components/tool-ui/weather-widget/weather-widget.test.tsx(233,11): error TS2322: Type '{ celestial: { timeOfDay: number; }; glass: { blur: number; opacity: number; }; }' is not assignable to type 'CustomEffectProps'.
+  Types of property 'celestial' are incompatible.
+    Type '{ timeOfDay: number; }' is missing the following properties from type '{ timeOfDay: number; moonPhase: number; starDensity: number; celestialX: number; celestialY: number; sunSize: number; moonSize: number; sunGlowIntensity: number; sunGlowSize: number; sunRayCount: number; ... 5 more ...; moonGlowSize: number; }': moonPhase, starDensity, celestialX, celestialY, and 9 more.
+lib/a2ui/__tests__/registry-validation.test.ts(10,38): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+lib/a2ui/__tests__/registry-validation.test.ts(162,16): error TS18048: 'catalogEntry.examples' is possibly 'undefined'.
+lib/schemas/index.test.ts(92,14): error TS18046: 'result.data' is of type 'unknown'.

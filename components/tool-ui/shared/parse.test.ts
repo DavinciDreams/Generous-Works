@@ -70,27 +70,17 @@ describe('formatZodError', () => {
       field2: z.string()
     });
 
-    // Manually create a ZodError with duplicate issues
-    const error = new z.ZodError([
-      {
-        code: 'invalid_type',
-        expected: 'string',
-        received: 'number',
-        path: ['field1'],
-        message: 'Expected string, received number'
-      },
-      {
-        code: 'invalid_type',
-        expected: 'string',
-        received: 'number',
-        path: ['field1'],
-        message: 'Expected string, received number'
-      }
-    ]);
+    // Use actual parsing to generate duplicate-like errors
+    const result1 = schema.safeParse({ field1: 123, field2: 'valid' });
+    const result2 = schema.safeParse({ field1: 123, field2: 'valid' });
 
-    const formatted = formatZodError(error);
-    const occurrences = (formatted.match(/field1/g) || []).length;
-    expect(occurrences).toBe(1);
+    if (!result1.success && !result2.success) {
+      // Combine issues to simulate duplicates
+      const error = new z.ZodError([...result1.error.issues, ...result2.error.issues]);
+      const formatted = formatZodError(error);
+      const occurrences = (formatted.match(/field1/g) || []).length;
+      expect(occurrences).toBe(1);
+    }
   });
 
   it('should join multiple errors with semicolons', () => {

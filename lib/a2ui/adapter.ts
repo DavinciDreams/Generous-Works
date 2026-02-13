@@ -25,7 +25,7 @@ export interface UserAction {
 export interface A2UINode {
   id: string;
   type: string;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
 }
 
 /**
@@ -48,9 +48,9 @@ export interface A2UIComponentProps<T = A2UINode> {
  * Mapping of A2UI component types to React components
  */
 export interface ComponentMapping {
-  [componentType: string]: ComponentType<A2UIComponentProps<any>> | undefined;
+  [componentType: string]: ComponentType<A2UIComponentProps<A2UINode>> | undefined;
   /** Special fallback component for unknown types */
-  __fallback__?: ComponentType<A2UIComponentProps<any>>;
+  __fallback__?: ComponentType<A2UIComponentProps<A2UINode>>;
 }
 
 /**
@@ -77,7 +77,7 @@ export interface AdapterOptions<TTargetProps> {
    * Transform A2UI properties to target component props.
    * This is where you map A2UI's property names to your component's prop names.
    */
-  mapProps: (a2uiProps: Record<string, any>, context: AdapterContext) => TTargetProps;
+  mapProps: (a2uiProps: Record<string, unknown>, context: AdapterContext) => TTargetProps;
 
   /**
    * Optional: Customize how children are passed to the component.
@@ -129,15 +129,15 @@ export function createAdapter<TTargetProps extends Record<string, any>>(
     };
 
     // Map A2UI properties to target component props
-    const a2uiProps = (node.properties as Record<string, any>) || {};
+    const a2uiProps = (node.properties as Record<string, unknown>) || {};
     const targetProps = mapProps(a2uiProps, context);
 
     // Handle children if not already in mapped props and childrenProp is set
-    if (childrenProp && children && !(targetProps as any)[childrenProp]) {
-      (targetProps as any)[childrenProp] = children;
+    if (childrenProp && children && !(targetProps as Record<string, unknown>)[childrenProp]) {
+      (targetProps as Record<string, unknown>)[childrenProp] = children;
     }
 
-    return createElement(Component as ComponentType<any>, targetProps);
+    return createElement(Component as ComponentType<TTargetProps>, targetProps);
   }
 
   AdaptedComponent.displayName = displayName || `A2UIAdapter(${typeof Component === 'string' ? Component : (Component.displayName || Component.name || 'Component')})`;
@@ -158,14 +158,14 @@ export function createAdapter<TTargetProps extends Record<string, any>>(
  * ```
  */
 export function createActionHandler(
-  action: { name: string; context?: Array<{ key: string; value: any }> } | undefined,
+  action: { name: string; context?: Array<{ key: string; value: unknown }> } | undefined,
   context: AdapterContext,
-  additionalContext?: Record<string, any>
+  additionalContext?: Record<string, unknown>
 ): (() => void) | undefined {
   if (!action?.name) return undefined;
 
   return () => {
-    const actionContext: Record<string, any> = { ...additionalContext };
+    const actionContext: Record<string, unknown> = { ...additionalContext };
 
     if (action.context) {
       for (const item of action.context) {
@@ -191,7 +191,7 @@ export function createActionHandler(
  * const count = extractValue(a2ui.count); // 42
  * ```
  */
-export function extractValue(value: any): any {
+export function extractValue(value: unknown): unknown {
   if (value === null || value === undefined) return undefined;
   if (typeof value !== 'object') return value;
 
@@ -250,16 +250,16 @@ export function mapVariant<T extends string>(
  * });
  * ```
  */
-export function createPassthroughAdapter<TTargetProps extends Record<string, any> = any>(
+export function createPassthroughAdapter<TTargetProps extends Record<string, unknown> = Record<string, unknown>>(
   Component: ComponentType<TTargetProps> | keyof React.JSX.IntrinsicElements,
   defaultProps?: Partial<TTargetProps>
 ): ComponentType<A2UIComponentProps<A2UINode>> {
-  return createAdapter(Component as any, {
+  return createAdapter(Component as ComponentType<TTargetProps>, {
     mapProps: (_, ctx) => ({
       ...defaultProps,
       children: ctx.children,
     } as unknown as TTargetProps),
-    displayName: `Passthrough(${typeof Component === 'string' ? Component : (Component as any).displayName || (Component as any).name || 'Component'})`,
+    displayName: `Passthrough(${typeof Component === 'string' ? Component : (Component as ComponentType<TTargetProps>).displayName || (Component as ComponentType<TTargetProps>).name || 'Component'})`,
   });
 }
 
@@ -268,9 +268,9 @@ export function createPassthroughAdapter<TTargetProps extends Record<string, any
  */
 export function renderChild(
   childId: string | undefined,
-  components: ComponentMapping,
-  onAction: (action: UserAction) => void,
-  surfaceId: string
+  _components: ComponentMapping,
+  _onAction: (action: UserAction) => void,
+  _surfaceId: string
 ): ReactNode {
   if (!childId) return null;
   // This is a placeholder - in full implementation would look up component tree

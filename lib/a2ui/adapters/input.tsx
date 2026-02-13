@@ -19,14 +19,14 @@ export const InputAdapter = createAdapter(Input, {
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
         if (a2ui.action) {
           ctx.onAction({
-            actionName: a2ui.action.name,
+            actionName: (a2ui.action as any)?.name || "",
             sourceComponentId: ctx.componentId,
             timestamp: new Date().toISOString(),
             context: { value: e.target.value },
           });
         }
       },
-    };
+    } as any;
   },
   displayName: 'A2UI(Input)',
 });

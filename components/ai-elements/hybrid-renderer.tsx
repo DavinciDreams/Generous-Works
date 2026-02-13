@@ -188,13 +188,17 @@ export function HybridRenderer({
 
   return (
     <div className={cn("space-y-4", className)} {...props}>
-      {blocks.map((block) => (
-        <HybridRendererErrorBoundary
-          key={block.id}
-          blockId={block.id}
-          blockType={block.type}
-        >
-          {block.type === 'text' && (
+      {blocks.map((block) => {
+        // Diagnostic logging for debugging
+        console.log('[HybridRenderer] Rendering block:', { id: block.id, type: block.type });
+        
+        return (
+          <HybridRendererErrorBoundary
+            key={block.id}
+            blockId={block.id}
+            blockType={block.type}
+          >
+            {block.type === 'text' && (
             <div className="prose prose-sm dark:prose-invert max-w-none">
               <MessageResponse>{block.content}</MessageResponse>
             </div>
@@ -218,8 +222,9 @@ export function HybridRenderer({
               <A2UIRenderer message={block.spec} />
             </div>
           )}
-        </HybridRendererErrorBoundary>
-      ))}
+          </HybridRendererErrorBoundary>
+        );
+      })}
     </div>
   );
 }

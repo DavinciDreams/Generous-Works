@@ -7,6 +7,9 @@
  *
  * This serves as a central export point for all ToolUI schemas while maintaining
  * the component-defined schemas as the single source of truth.
+ *
+ * Uses a simplified approach with a single flexible schema instead of
+ * discriminated unions. This is more maintainable and LLM-friendly.
  */
 
 import { z } from "zod";
@@ -266,7 +269,7 @@ export {
 } from "@/components/tool-ui/item-carousel/schema";
 
 // ============================================================================
-// IMPORTS FOR DISCRIMINATED UNION
+// IMPORTS FOR FLEXIBLE SCHEMA
 // ============================================================================
 
 import { SerializableXPostSchema } from "@/components/tool-ui/x-post/schema";
@@ -289,66 +292,57 @@ import { SerializablePreferencesPanelSchema } from "@/components/tool-ui/prefere
 import { SerializableItemCarouselSchema } from "@/components/tool-ui/item-carousel/schema";
 
 // ============================================================================
-// DISCRIMINATED UNION FOR ALL COMPONENT TYPES
+// FLEXIBLE SCHEMA FOR ALL COMPONENT TYPES
 // ============================================================================
 
 /**
- * Discriminated union schema for all ToolUI components.
- *
- * This schema is used to validate LLM tool call payloads and determine
- * which component to render based on the "type" field.
- *
- * Each variant maps to a component-specific schema:
- * - x-post -> SerializableXPostSchema
- * - instagram-post -> SerializableInstagramPostSchema
- * - linkedin-post -> SerializableLinkedInPostSchema
- * - image-gallery -> SerializableImageGallerySchema
- * - video -> SerializableVideoSchema
- * - stats-display -> SerializableStatsDisplaySchema
- * - data-table -> SerializableDataTableSchema
- * - option-list -> SerializableOptionListSchema
- * - parameter-slider -> SerializableParameterSliderSchema
- * - progress-tracker -> SerializableProgressTrackerSchema
- * - question-flow -> SerializableQuestionFlowSchema
- * - approval-card -> SerializableApprovalCardSchema
- * - message-draft -> SerializableMessageDraftSchema
- * - order-summary -> SerializableOrderSummarySchema
- * - link-preview -> SerializableLinkPreviewSchema
- * - weather-widget -> SerializableWeatherWidgetSchema
- * - preferences-panel -> SerializablePreferencesPanelSchema
- * - item-carousel -> SerializableItemCarouselSchema
+ * Supported ToolUI component types
  */
-export const ToolUIDataSchema = z.discriminatedUnion("type", [
+export const ToolUIComponentTypeSchema = z.enum([
   // Social Posts
-  z.object({ type: z.literal("x-post"), data: SerializableXPostSchema }),
-  z.object({ type: z.literal("instagram-post"), data: SerializableInstagramPostSchema }),
-  z.object({ type: z.literal("linkedin-post"), data: SerializableLinkedInPostSchema }),
-
+  "x-post",
+  "instagram-post",
+  "linkedin-post",
   // Media
-  z.object({ type: z.literal("image-gallery"), data: SerializableImageGallerySchema }),
-  z.object({ type: z.literal("video"), data: SerializableVideoSchema }),
-
+  "image-gallery",
+  "video",
   // Data Visualization
-  z.object({ type: z.literal("stats-display"), data: SerializableStatsDisplaySchema }),
-  z.object({ type: z.literal("data-table"), data: SerializableDataTableSchema }),
-
+  "stats-display",
+  "data-table",
   // UI Components
-  z.object({ type: z.literal("option-list"), data: SerializableOptionListSchema }),
-  z.object({ type: z.literal("parameter-slider"), data: SerializableParameterSliderSchema }),
-
+  "option-list",
+  "parameter-slider",
   // Workflow
-  z.object({ type: z.literal("progress-tracker"), data: SerializableProgressTrackerSchema }),
-  z.object({ type: z.literal("question-flow"), data: SerializableQuestionFlowSchema }),
-  z.object({ type: z.literal("approval-card"), data: SerializableApprovalCardSchema }),
-  z.object({ type: z.literal("message-draft"), data: SerializableMessageDraftSchema }),
-
+  "progress-tracker",
+  "question-flow",
+  "approval-card",
+  "message-draft",
   // Specialized
-  z.object({ type: z.literal("order-summary"), data: SerializableOrderSummarySchema }),
-  z.object({ type: z.literal("link-preview"), data: SerializableLinkPreviewSchema }),
-  z.object({ type: z.literal("weather-widget"), data: SerializableWeatherWidgetSchema }),
-  z.object({ type: z.literal("preferences-panel"), data: SerializablePreferencesPanelSchema }),
-  z.object({ type: z.literal("item-carousel"), data: SerializableItemCarouselSchema }),
+  "order-summary",
+  "link-preview",
+  "weather-widget",
+  "preferences-panel",
+  "item-carousel",
 ]);
+
+export type ToolUIComponentType = z.infer<typeof ToolUIComponentTypeSchema>;
+
+/**
+ * Flexible schema for all ToolUI components.
+ *
+ * This approach is simpler and more maintainable than discriminated unions:
+ * - Uses a single schema with a type field and a generic data field
+ * - The data field accepts any value and is validated at the component level
+ * - More LLM-friendly as it doesn't require exact schema matching
+ * - Easier to add new component types without modifying the schema structure
+ *
+ * Component-specific validation is done by passing the data to the appropriate
+ * component's schema when rendering.
+ */
+export const ToolUIDataSchema = z.object({
+  type: ToolUIComponentTypeSchema.optional(),
+  data: z.any().optional(), // Flexible data field, validated at component level
+}).passthrough(); // Allow additional fields for LLM flexibility
 
 // Options schema
 export const ToolUIOptionsSchema = z.object({
@@ -369,3 +363,26 @@ export const ToolUIPropsSchema = z.object({
 export type ToolUIData = z.infer<typeof ToolUIDataSchema>;
 export type ToolUIOptions = z.infer<typeof ToolUIOptionsSchema>;
 export type ToolUIProps = z.infer<typeof ToolUIPropsSchema>;
+
+/**
+ * TypeScript utility types for type narrowing based on component type
+ * These can be used in components to get better type inference
+ */
+export type XPostDataWithMeta = ToolUIData & { type?: "x-post"; data?: z.infer<typeof SerializableXPostSchema> };
+export type InstagramPostDataWithMeta = ToolUIData & { type?: "instagram-post"; data?: z.infer<typeof SerializableInstagramPostSchema> };
+export type LinkedInPostDataWithMeta = ToolUIData & { type?: "linkedin-post"; data?: z.infer<typeof SerializableLinkedInPostSchema> };
+export type ImageGalleryDataWithMeta = ToolUIData & { type?: "image-gallery"; data?: z.infer<typeof SerializableImageGallerySchema> };
+export type VideoDataWithMeta = ToolUIData & { type?: "video"; data?: z.infer<typeof SerializableVideoSchema> };
+export type StatsDisplayDataWithMeta = ToolUIData & { type?: "stats-display"; data?: z.infer<typeof SerializableStatsDisplaySchema> };
+export type DataTableDataWithMeta = ToolUIData & { type?: "data-table"; data?: z.infer<typeof SerializableDataTableSchema> };
+export type OptionListDataWithMeta = ToolUIData & { type?: "option-list"; data?: z.infer<typeof SerializableOptionListSchema> };
+export type ParameterSliderDataWithMeta = ToolUIData & { type?: "parameter-slider"; data?: z.infer<typeof SerializableParameterSliderSchema> };
+export type ProgressTrackerDataWithMeta = ToolUIData & { type?: "progress-tracker"; data?: z.infer<typeof SerializableProgressTrackerSchema> };
+export type QuestionFlowDataWithMeta = ToolUIData & { type?: "question-flow"; data?: z.infer<typeof SerializableQuestionFlowSchema> };
+export type ApprovalCardDataWithMeta = ToolUIData & { type?: "approval-card"; data?: z.infer<typeof SerializableApprovalCardSchema> };
+export type MessageDraftDataWithMeta = ToolUIData & { type?: "message-draft"; data?: z.infer<typeof SerializableMessageDraftSchema> };
+export type OrderSummaryDataWithMeta = ToolUIData & { type?: "order-summary"; data?: z.infer<typeof SerializableOrderSummarySchema> };
+export type LinkPreviewDataWithMeta = ToolUIData & { type?: "link-preview"; data?: z.infer<typeof SerializableLinkPreviewSchema> };
+export type WeatherWidgetDataWithMeta = ToolUIData & { type?: "weather-widget"; data?: z.infer<typeof SerializableWeatherWidgetSchema> };
+export type PreferencesPanelDataWithMeta = ToolUIData & { type?: "preferences-panel"; data?: z.infer<typeof SerializablePreferencesPanelSchema> };
+export type ItemCarouselDataWithMeta = ToolUIData & { type?: "item-carousel"; data?: z.infer<typeof SerializableItemCarouselSchema> };

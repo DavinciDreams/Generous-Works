@@ -223,8 +223,7 @@ describe('WeatherWidget', () => {
 
     it('applies custom effect props', () => {
       const customEffectProps = {
-        celestial: { timeOfDay: 18 },
-        glass: { blur: 10, opacity: 0.5 },
+        glass: { blur: 10, brightness: 0.5 },
       };
       render(
         <WeatherWidget

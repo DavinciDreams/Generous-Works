@@ -270,14 +270,13 @@ function useElementDimensions(ref: RefObject<HTMLElement | null>): Dimensions | 
  * no glass distortion, which is fine.
  */
 function useSupportsBackdropFilter(): boolean {
-  const [supported, setSupported] = useState(true);
-
-  useEffect(() => {
-    const hasSupport =
+  const [supported, setSupported] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return (
       CSS.supports("backdrop-filter", "blur(1px)") ||
-      CSS.supports("-webkit-backdrop-filter", "blur(1px)");
-    setSupported(hasSupport);
-  }, []);
+      CSS.supports("-webkit-backdrop-filter", "blur(1px)")
+    );
+  });
 
   return supported;
 }

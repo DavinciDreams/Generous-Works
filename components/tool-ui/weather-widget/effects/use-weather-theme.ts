@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { WeatherCondition } from "../schema";
 import { getSceneBrightness, getWeatherTheme, type WeatherTheme } from "./parameter-mapper";
 
@@ -25,21 +25,25 @@ export function useWeatherTheme({
   enabled = true,
 }: UseWeatherThemeOptions): UseWeatherThemeResult {
   const [theme, setTheme] = useState<WeatherTheme>("light");
+  const themeRef = useRef<WeatherTheme>(theme);
+  themeRef.current = theme;
 
   const brightness = enabled ? getSceneBrightness(timestamp, condition) : 1;
 
   useEffect(() => {
     if (!enabled) {
-      setTheme("light");
+      if (themeRef.current !== "light") {
+        setTheme("light");
+      }
       return;
     }
 
-    const newTheme = getWeatherTheme(brightness, theme);
+    const newTheme = getWeatherTheme(brightness, themeRef.current);
 
-    if (newTheme !== theme) {
+    if (newTheme !== themeRef.current) {
       setTheme(newTheme);
     }
-  }, [brightness, enabled, theme]);
+  }, [brightness, enabled]);
 
   return { theme, brightness };
 }

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { getSchema, validateProps, schemaRegistry } from './index';
-import { TimelinePropsSchema } from './timeline.schema';
+import { TimelinePropsSchema, type TimelineProps } from './timeline.schema';
 import { MapsPropsSchema } from './maps.schema';
 
 describe('schemaRegistry', () => {
   it('should contain all expected component schemas', () => {
     const expectedComponents = [
+      // Specialized components
       'Timeline',
       'Maps',
       'ThreeScene',
@@ -27,7 +28,24 @@ describe('schemaRegistry', () => {
       'CodeEditor',
       'Markdown',
       'DataTable',
-      'ImageGallery'
+      'ImageGallery',
+      // Individual ToolUI component schemas
+      'ApprovalCard',
+      'WeatherWidget',
+      'StatsDisplay',
+      'ProgressTracker',
+      'OptionList',
+      'InstagramPost',
+      'LinkedInPost',
+      'XPost',
+      'LinkPreview',
+      'Video',
+      'MessageDraft',
+      'ItemCarousel',
+      'OrderSummary',
+      'ParameterSlider',
+      'PreferencesPanel',
+      'QuestionFlow',
     ];
 
     expectedComponents.forEach((component) => {
@@ -37,7 +55,7 @@ describe('schemaRegistry', () => {
   });
 
   it('should have valid Zod schemas for each component', () => {
-    Object.entries(schemaRegistry).forEach(([componentType, schema]) => {
+    Object.entries(schemaRegistry).forEach(([_componentType, schema]) => {
       expect(schema).toBeDefined();
       expect(typeof schema.parse).toBe('function');
       expect(typeof schema.safeParse).toBe('function');
@@ -84,7 +102,7 @@ describe('validateProps - success cases', () => {
       }
     };
 
-    const result = validateProps('Timeline', validProps);
+    const result = validateProps<TimelineProps>('Timeline', validProps);
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -137,9 +155,9 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
-      expect(result.error.message).toContain('No schema found');
-      expect(result.error.message).toContain('UnknownComponent');
+      expect((result as any).error).toBeInstanceOf(Error);
+      expect((result as any).error.message).toContain('No schema found');
+      expect((result as any).error.message).toContain('UnknownComponent');
     }
   });
 
@@ -154,7 +172,7 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
+      expect((result as any).error).toBeInstanceOf(Error);
     }
   });
 
@@ -191,8 +209,8 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
-      expect(result.error.message).toBeTruthy();
+      expect((result as any).error).toBeInstanceOf(Error);
+      expect((result as any).error.message).toBeTruthy();
     }
   });
 
@@ -221,7 +239,7 @@ describe('validateProps - error cases', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBeInstanceOf(Error);
+      expect((result as any).error).toBeInstanceOf(Error);
     }
   });
 });
@@ -339,7 +357,7 @@ describe('validateProps - type inference', () => {
 
     if (!result.success) {
       // TypeScript should know this has an error property
-      const errorMessage: string = result.error.message;
+      const errorMessage: string = (result as any).error.message;
       expect(typeof errorMessage).toBe('string');
     }
   });

@@ -41,7 +41,7 @@ function VideoInner(props: Omit<VideoProps, "defaultMuted">) {
   const {
     className,
     autoPlay = true,
-    onNavigate,
+    onNavigate: _onNavigate,
     onMediaEvent,
     responseActions,
     onResponseAction,

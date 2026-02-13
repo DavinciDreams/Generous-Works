@@ -88,14 +88,16 @@ export const Mermaid = memo(
     children,
     ...props
   }: MermaidProps) => {
+    // Defensive check for data
+    const safeData = data || { diagram: '' };
     const [error, setError] = useState<Error | null>(null);
     const [mode, setMode] = useState<MermaidMode>("preview");
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [prevDiagram, setPrevDiagram] = useState(data.diagram);
+    const [prevDiagram, setPrevDiagram] = useState(safeData.diagram);
 
     // Clear error when diagram changes
-    if (data.diagram !== prevDiagram) {
-      setPrevDiagram(data.diagram);
+    if (safeData.diagram !== prevDiagram) {
+      setPrevDiagram(safeData.diagram);
       setError(null);
     }
 

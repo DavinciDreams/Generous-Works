@@ -30,6 +30,20 @@ import type {
   DataPoint,
   AxisConfig,
 } from '@/lib/schemas/charts.schema';
+import {
+  hasSeries,
+  hasSankeyData,
+  hasChordData,
+  hasTreeMapData,
+  hasGraphData,
+  hasHierarchyData,
+  hasWordCloudData,
+  hasVennData,
+  hasHeatmapData,
+  hasFunnelData,
+  hasGaugeData,
+  hasCandlestickData,
+} from '@/lib/schemas/charts.schema';
 
 export type {
   ChartsData,
@@ -360,20 +374,24 @@ export const ChartsContent = memo(
                   })
                 );
 
-                if ('yAxis' in data && data.yAxis?.title) {
-                  yAxis.children.unshift(
-                    am5.Label.new(root, {
-                      text: data.yAxis.title,
-                      rotation: -90,
-                      y: am5.p50,
-                      centerX: am5.p50,
-                    })
-                  );
+                if ('yAxis' in data) {
+                  const yAxisConfig = (data as { yAxis?: AxisConfig }).yAxis;
+                  if (yAxisConfig?.title) {
+                    yAxis.children.unshift(
+                      am5.Label.new(root, {
+                        text: yAxisConfig.title,
+                        rotation: -90,
+                        y: am5.p50,
+                        centerX: am5.p50,
+                      })
+                    );
+                  }
                 }
 
                 // Add series
                 if ('series' in data) {
-                  data.series.forEach((seriesData) => {
+                  const series = (data['series'] as unknown) as Series[];
+                  series.forEach((seriesData: Series) => {
                   let series: any;
 
                   if (data.type === 'line') {
@@ -437,7 +455,7 @@ export const ChartsContent = memo(
 
                   // Set data on xAxis
                   const allXValues = Array.from(
-                    new Set(data.series.flatMap((s) => s.data.map((d) => d.x)))
+                    new Set(data.series!.flatMap((s) => s.data.map((d) => d.x)))
                   );
                   xAxis.data.setAll(allXValues.map((x) => ({ x })));
                 }
@@ -459,7 +477,7 @@ export const ChartsContent = memo(
                 );
 
                 // Combine all series data for pie chart
-                if ('series' in data) {
+                if (data.series) {
                   const pieData = data.series.flatMap((s) =>
                     s.data.map((d) => ({
                       category: typeof d.x === 'string' ? d.x : d.label || `${d.x}`,
@@ -497,7 +515,7 @@ export const ChartsContent = memo(
                 );
 
                 if ('series' in data) {
-                  data.series.forEach((seriesData) => {
+                  data.series!.forEach((seriesData) => {
                     const series = chart.series.push(
                       am5radar.RadarLineSeries.new(root, {
                         name: seriesData.name,
@@ -515,7 +533,7 @@ export const ChartsContent = memo(
                   });
 
                   const allXValues = Array.from(
-                    new Set(data.series.flatMap((s) => s.data.map((d) => d.x)))
+                    new Set(data.series!.flatMap((s) => s.data.map((d) => d.x)))
                   );
                   xAxis.data.setAll(allXValues.map((x) => ({ x })));
                 }
@@ -553,7 +571,7 @@ export const ChartsContent = memo(
                 );
 
                 if ('chordNodes' in data && 'chordLinks' in data) {
-                  chart.nodes.data.setAll(data.chordNodes.map(node => ({ id: node, name: node })));
+                  chart.nodes.data.setAll(data.chordNodes!.map(node => ({ id: node, name: node })));
                   chart.data.setAll(data.chordLinks);
                 }
                 break;
@@ -596,12 +614,12 @@ export const ChartsContent = memo(
 
                 // Convert graph nodes/links to hierarchy format
                 if ('graphNodes' in data && 'graphLinks' in data) {
-                  const hierarchyData = data.graphNodes.map(node => ({
+                  const hierarchyData = data.graphNodes!.map(node => ({
                     id: node.id,
                     name: node.name,
                     value: node.value || 1,
                     color: node.color,
-                    linkWith: data.graphLinks
+                    linkWith: data.graphLinks!
                       .filter(link => link.from === node.id)
                       .map(link => link.to),
                   }));
@@ -660,7 +678,7 @@ export const ChartsContent = memo(
                 );
 
                 if ('vennSets' in data && 'vennIntersections' in data) {
-                  chart.data.setAll([...data.vennSets, ...data.vennIntersections]);
+                  chart.data.setAll([...data.vennSets!, ...data.vennIntersections!]);
                 }
                 break;
               }
@@ -691,7 +709,7 @@ export const ChartsContent = memo(
 
                 // Add histogram series
                 if ('series' in data) {
-                  data.series.forEach((seriesData) => {
+                  data.series!.forEach((seriesData) => {
                     const series = chart.series.push(
                       am5xy.ColumnSeries.new(root, {
                         name: seriesData.name,
@@ -713,7 +731,7 @@ export const ChartsContent = memo(
                   });
 
                   const allXValues = Array.from(
-                    new Set(data.series.flatMap((s) => s.data.map((d) => d.x)))
+                    new Set(data.series!.flatMap((s) => s.data.map((d) => d.x)))
                   );
                   xAxis.data.setAll(allXValues.map((x) => ({ x })));
                 }
@@ -772,7 +790,7 @@ export const ChartsContent = memo(
                   const dataItem = target.dataItem as any;
                   if (dataItem) {
                     const value = dataItem.get('value', 0);
-                    const maxValue = Math.max(...('data' in data ? data.data.map(d => d.value) : [1]));
+                    const maxValue = Math.max(...('data' in data ? data.data!.map(d => d.value) : [1]));
                     const intensity = value / maxValue;
                     return am5.Color.interpolate(
                       intensity,
@@ -786,8 +804,8 @@ export const ChartsContent = memo(
                 if ('data' in data) {
                   series.data.setAll(data.data);
 
-                  const allXValues = Array.from(new Set(data.data.map((d) => d.x)));
-                  const allYValues = Array.from(new Set(data.data.map((d) => d.y)));
+                  const allXValues = Array.from(new Set(data.data!.map((d) => d.x)));
+                  const allYValues = Array.from(new Set(data.data!.map((d) => d.y)));
                   xAxis.data.setAll(allXValues.map((x) => ({ x })));
                   yAxis.data.setAll(allYValues.map((y) => ({ y })));
                 }
@@ -1071,7 +1089,7 @@ export const ChartsLegend = forwardRef<
   const { data } = useChartsContext();
 
   // Only show legend for chart types with series data
-  if (!('series' in data) || !data.series || data.series.length <= 1) return null;
+  if (!data.series || data.series!.length <= 1) return null;
 
   return (
     <div
@@ -1087,7 +1105,7 @@ export const ChartsLegend = forwardRef<
           <div
             className="h-3 w-3 rounded-sm"
             style={{
-              backgroundColor: series.color || `hsl(${(idx * 360) / data.series.length}, 70%, 50%)`,
+              backgroundColor: series.color || `hsl(${(idx * 360) / data.series!.length}, 70%, 50%)`,
             }}
           />
           <span className="text-xs text-muted-foreground">{series.name}</span>

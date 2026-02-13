@@ -153,7 +153,7 @@ describe('A2UI Component Registry', () => {
         const catalogEntry = componentCatalog[componentName];
         expect(catalogEntry?.examples).toBeTruthy();
         expect(Array.isArray(catalogEntry?.examples)).toBe(true);
-        expect(catalogEntry?.examples.length).toBeGreaterThan(0);
+        expect(catalogEntry?.examples?.length).toBeGreaterThan(0);
       });
     });
 

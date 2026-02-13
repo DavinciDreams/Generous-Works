@@ -8,7 +8,7 @@
  * - Tool UI schemas (schemas/toolui.schema.ts)
  */
 
-import { a2uiComponents, specializedComponents, getAvailableComponents, componentCategories } from './components';
+import { a2uiComponents, specializedComponents, getAvailableComponents } from './components';
 import { schemaRegistry } from '../schemas/index';
 import { componentCatalog } from './catalog';
 
@@ -59,7 +59,8 @@ const CORE_SPECIALIZED = [
 ];
 
 // All specialized components that should have schemas
-const ALL_SPECIALIZED = [...CORE_SPECIALIZED];
+// Unused for now, but kept for future validation
+// const ALL_SPECIALIZED = [...CORE_SPECIALIZED];
 
 interface ValidationResult {
   componentName: string;

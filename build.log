@@ -1,0 +1,98 @@
+
+> generous@0.1.0 build
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\lmwat\pnpm-lock.yaml as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\lmwat\genui\v0-clone\package-lock.json
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.5min
+  Running TypeScript ...
+  Collecting page data using 7 workers ...
+⚠ Using edge runtime on a page currently disables static generation for that page
+  Generating static pages using 7 workers (0/44) ...
+[A2UI Renderer] Rendering message: { surfaceUpdate: { components: [ [Object] ] } }
+[A2UI Renderer] Rendering 1 component(s)
+[DEBUG] lib/store.ts - useUIComponents hook created
+  Generating static pages using 7 workers (11/44) 
+  Generating static pages using 7 workers (22/44) 
+[GenerativeMessage] Parsed blocks: 1 [ 'text' ]
+[DEBUG] Extracted JSX: <Card className="w-full max-w-md mx-auto">
+  <CardHeader>
+    <CardTitle>Login</CardTitle>
+    <CardDescription>Enter your credentials</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <Input placeholder="Email" type="email" />
+      <Input placeholder="Password" type="password" />
+      <Button className="w-full">Sign In</Button>
+    </div>
+  </CardContent>
+</Card>
+[DEBUG] Normalized JSX: <Card className="w-full max-w-md mx-auto"><CardHeader><CardTitle> Login</CardTitle><CardDescription> Enter your credentials</CardDescription></CardHeader><CardContent><div className="space-y-4"><Input placeholder="Email" type="email" /><Input placeholder="Password" type="password" /><Button className="w-full"> Sign In</Button></div></CardContent></Card>
+[DEBUG] Extracted JSX: <Button>Hello World</Button>
+[DEBUG] Normalized JSX: <Button> Hello World</Button>
+[DEBUG] Extracted JSX: <Button>Hello World</Button>
+[DEBUG] Normalized JSX: <Button> Hello World</Button>
+[GenerativeMessage] Parsed blocks: 3 [ 'text', 'jsx', 'text' ]
+  Generating static pages using 7 workers (33/44) 
+✓ Generating static pages using 7 workers (44/44) in 10.4s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /a2ui-chat
+├ ○ /a2ui-demo
+├ ƒ /api/a2ui-chat
+├ ƒ /api/chat
+├ ƒ /api/maf/chat
+├ ○ /calendar-test
+├ ○ /canvas
+├ ○ /charts-test
+├ ○ /code
+├ ○ /codeeditor-test
+├ ○ /datatable-test
+├ ○ /docs
+├ ○ /empire-borders
+├ ○ /forms-showcase
+├ ○ /geospatial-test
+├ ○ /imagegallery-test
+├ ○ /jsonviewer-test
+├ ○ /jsx-diagnostic
+├ ○ /knowledge-graph-test
+├ ○ /latex-test
+├ ○ /maps-test
+├ ○ /markdown-test
+├ ○ /mermaid-test
+├ ○ /model-viewer-test
+├ ○ /node-editor-test
+├ ƒ /opengraph-image
+├ ○ /phaser-test
+├ ○ /remotion-test
+├ ○ /showcase
+├ ○ /sitemap.xml
+├ ○ /svg-preview-test
+├ ○ /temporal-test
+├ ○ /territorial-expansion
+├ ○ /territorial-polygons
+├ ○ /threescene-test
+├ ○ /timeline-test
+├ ○ /toggle-group-test
+├ ○ /tool-ui-showcase
+├ ○ /toolui-test
+├ ○ /vrm-test
+└ ○ /wysiwyg-test
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

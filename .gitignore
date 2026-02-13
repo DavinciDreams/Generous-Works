@@ -45,3 +45,6 @@ next-env.d.ts
 
 # temporary build outputs
 build-output.txt
+
+# eslint cache
+.eslintcache

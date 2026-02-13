@@ -39,7 +39,7 @@ console.log('\n📚 PROGRESSIVE LEVELS');
 // Category-specific
 console.log('\n🎯 CATEGORY-SPECIFIC CATALOGS');
 const categories = getCategoryInfo();
-categories.forEach(({ name, count, components }) => {
+categories.forEach(({ name, count }) => {
   const catalog = getCatalogByCategory(name as any);
   const tokens = estimateTokens(catalog);
   const savings = ((1 - tokens / fullTokens) * 100).toFixed(1);

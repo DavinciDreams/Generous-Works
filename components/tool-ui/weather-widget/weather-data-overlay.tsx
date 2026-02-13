@@ -133,6 +133,8 @@ export function WeatherDataOverlay({
         : 0.5;
 
   const [theme, setTheme] = useState<WeatherTheme>("dark");
+  const themeRef = useRef<WeatherTheme>(theme);
+  themeRef.current = theme;
   const [glowState, setGlowState] = useState<{
     x: number;
     y: number;
@@ -183,11 +185,11 @@ export function WeatherDataOverlay({
 
   useEffect(() => {
     const brightness = getSceneBrightnessFromTimeOfDay(timeOfDay, condition);
-    const newTheme = getWeatherTheme(brightness, theme);
-    if (newTheme !== theme) {
+    const newTheme = getWeatherTheme(brightness, themeRef.current);
+    if (newTheme !== themeRef.current) {
       setTheme(newTheme);
     }
-  }, [timeOfDay, condition, theme]);
+  }, [timeOfDay, condition]);
 
   useEffect(() => {
     const container = containerRef.current;

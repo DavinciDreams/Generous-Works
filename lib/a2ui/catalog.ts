@@ -8,7 +8,7 @@
  */
 
 import type { ComponentCatalog, ComponentExample } from './types';
-import { standardUICatalog, getStandardUICatalogPrompt } from './catalog-standard-ui';
+import { standardUICatalog } from './catalog-standard-ui';
 
 /**
  * Timeline Component Examples

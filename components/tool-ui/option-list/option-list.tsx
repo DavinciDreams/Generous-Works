@@ -259,7 +259,7 @@ export function OptionList({
 
   const effectiveMaxSelections = selectionMode === "single" ? 1 : maxSelections;
 
-  const [uncontrolledSelected, setUncontrolledSelected] = useState<Set<string>>(
+  const [uncontrolledSelectedRaw, setUncontrolledSelectedRaw] = useState<Set<string>>(
     () =>
       parseSelectionToIdSet(
         defaultValue,
@@ -268,16 +268,20 @@ export function OptionList({
       ),
   );
 
-  useEffect(() => {
-    setUncontrolledSelected((prev) => {
-      const normalized = parseSelectionToIdSet(
-        Array.from(prev),
-        selectionMode,
-        effectiveMaxSelections,
-      );
-      return areSetsEqual(prev, normalized) ? prev : normalized;
-    });
-  }, [selectionMode, effectiveMaxSelections]);
+  const uncontrolledSelected = useMemo(() => {
+    const normalized = parseSelectionToIdSet(
+      Array.from(uncontrolledSelectedRaw),
+      selectionMode,
+      effectiveMaxSelections,
+    );
+    if (!areSetsEqual(uncontrolledSelectedRaw, normalized)) {
+      // Schedule update for next render to avoid setting state during render
+      queueMicrotask(() => {
+        setUncontrolledSelectedRaw(normalized);
+      });
+    }
+    return normalized;
+  }, [uncontrolledSelectedRaw, selectionMode, effectiveMaxSelections]);
 
   const selectedIds = useMemo(
     () =>
@@ -310,7 +314,22 @@ export function OptionList({
   ]);
 
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [activeIndex, setActiveIndex] = useState(() => {
+
+  // Compute valid active index from optionStates
+  const getValidActiveIndex = useCallback((currentIndex: number, states: typeof optionStates) => {
+    if (states.length === 0) return 0;
+    if (
+      currentIndex >= 0 &&
+      currentIndex < states.length &&
+      !states[currentIndex].isDisabled
+    ) {
+      return currentIndex;
+    }
+    const firstEnabled = states.findIndex((s) => !s.isDisabled);
+    return firstEnabled >= 0 ? firstEnabled : 0;
+  }, []);
+
+  const [activeIndexRaw, setActiveIndexRaw] = useState(() => {
     const firstSelected = optionStates.findIndex(
       (s) => s.isSelected && !s.isDisabled,
     );
@@ -319,20 +338,16 @@ export function OptionList({
     return firstEnabled >= 0 ? firstEnabled : 0;
   });
 
-  useEffect(() => {
-    if (optionStates.length === 0) return;
-    setActiveIndex((prev) => {
-      if (
-        prev < 0 ||
-        prev >= optionStates.length ||
-        optionStates[prev].isDisabled
-      ) {
-        const firstEnabled = optionStates.findIndex((s) => !s.isDisabled);
-        return firstEnabled >= 0 ? firstEnabled : 0;
-      }
-      return prev;
-    });
-  }, [optionStates]);
+  const activeIndex = useMemo(() => {
+    const validIndex = getValidActiveIndex(activeIndexRaw, optionStates);
+    if (validIndex !== activeIndexRaw) {
+      // Schedule update for next render
+      queueMicrotask(() => {
+        setActiveIndexRaw(validIndex);
+      });
+    }
+    return validIndex;
+  }, [activeIndexRaw, optionStates, getValidActiveIndex]);
 
   const updateSelection = useCallback(
     (next: Set<string>) => {
@@ -344,7 +359,7 @@ export function OptionList({
 
       if (value === undefined) {
         if (!areSetsEqual(uncontrolledSelected, normalizedNext)) {
-          setUncontrolledSelected(normalizedNext);
+          setUncontrolledSelectedRaw(normalizedNext);
         }
       }
 
@@ -434,7 +449,7 @@ export function OptionList({
   const focusOptionAt = useCallback((index: number) => {
     const el = optionRefs.current[index];
     if (el) el.focus();
-    setActiveIndex(index);
+    setActiveIndexRaw(index);
   }, []);
 
   const findFirstEnabledIndex = useCallback(() => {
@@ -599,7 +614,7 @@ export function OptionList({
                     isFirst={index === 0}
                     isLast={index === optionStates.length - 1}
                     tabIndex={index === activeIndex ? 0 : -1}
-                    onFocus={() => setActiveIndex(index)}
+                    onFocus={() => setActiveIndexRaw(index)}
                     buttonRef={(el) => {
                       optionRefs.current[index] = el;
                     }}

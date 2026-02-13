@@ -33,7 +33,6 @@ import {
   SwitchAdapter,
   ToggleAdapter,
   TextareaAdapter,
-  TextAreaAdapter,
   SliderAdapter,
   NumberInputAdapter,
 } from './form';
