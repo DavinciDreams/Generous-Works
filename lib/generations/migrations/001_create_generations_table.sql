@@ -1,3 +1,6 @@
+-- Enable pg_trgm extension for trigram matching (must be before GIN indexes)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- Create generations table
 CREATE TABLE IF NOT EXISTS generations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -27,6 +30,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_generations_updated_at ON generations;
 CREATE TRIGGER update_generations_updated_at
   BEFORE UPDATE ON generations
   FOR EACH ROW
@@ -35,6 +39,3 @@ CREATE TRIGGER update_generations_updated_at
 -- Full-text search index using GIN
 CREATE INDEX IF NOT EXISTS idx_generations_name_gin ON generations USING gin(name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_generations_description_gin ON generations USING gin(description gin_trgm_ops);
-
--- Enable pg_trgm extension for trigram matching
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
