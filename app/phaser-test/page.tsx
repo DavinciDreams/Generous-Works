@@ -10,7 +10,7 @@ import {
   PhaserTitle,
   type PhaserData,
 } from "@/components/ai-elements/phaser";
-import { ChatSidebar } from "@/components/chat-sidebar";
+import { ChatSidebar } from "@/components/ui/chat-sidebar";
 
 const sampleData: PhaserData = {
   config: {

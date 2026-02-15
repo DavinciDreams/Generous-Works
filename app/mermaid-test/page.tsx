@@ -10,7 +10,7 @@ import {
   MermaidTitle,
   type MermaidData,
 } from "@/components/ai-elements/mermaid";
-import { ChatSidebar } from "@/components/chat-sidebar";
+import { ChatSidebar } from "@/components/ui/chat-sidebar";
 
 const flowchartDiagram: MermaidData = {
   diagram: `graph TB

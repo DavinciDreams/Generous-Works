@@ -11,7 +11,7 @@ import {
   RemotionTitle,
   type RemotionData,
 } from "@/components/ai-elements/remotion";
-import { ChatSidebar } from "@/components/chat-sidebar";
+import { ChatSidebar } from "@/components/ui/chat-sidebar";
 
 const textAnimationExample: RemotionData = {
   composition: {
