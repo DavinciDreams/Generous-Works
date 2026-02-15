@@ -403,7 +403,7 @@ export default function Page() {
       {/* Navigation Bar */}
       <div className="border-b bg-background flex-shrink-0">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="flex items-center justify-between h-10">
+          <div className="flex items-center justify-between h-8">
             <Link href="/" className="text-sm font-semibold text-foreground whitespace-nowrap">
               Generous
             </Link>
@@ -465,12 +465,12 @@ export default function Page() {
       {/* Messages Display - Conversation handles scroll behavior */}
       <Conversation className="flex-1">
         <ConversationContent className="overflow-y-auto">
-          <div className="px-4 py-6">
+          <div className="px-4 py-4">
             <div className="mx-auto max-w-3xl space-y-6">
               {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
+                <div className="flex h-full items-center justify-center min-h-[200px]">
                   <div className="text-center">
-                    <h2 className="text-2xl font-semibold text-foreground">
+                    <h2 className="text-xl font-semibold text-foreground">
                       Ask for anything.
                     </h2>
                     <p className="mt-2 text-muted-foreground">
@@ -516,7 +516,7 @@ export default function Page() {
       </Conversation>
 
       {/* Prompt Input - OUTSIDE Conversation to prevent overflow issues */}
-      <div className="border-t bg-background p-4 flex-shrink-0">
+      <div className="border-t bg-background p-3 flex-shrink-0">
         <div className="mx-auto max-w-3xl">
           <PromptInput onSubmit={handleSubmit}>
             <PromptInputTextarea placeholder="What would you like to know?" />

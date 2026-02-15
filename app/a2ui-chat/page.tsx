@@ -314,33 +314,33 @@ export default function A2UIChatPage() {
   }
 
   return (
-    <div className="container mx-auto p-8 max-w-6xl h-screen flex flex-col">
+    <div className="container mx-auto p-4 max-w-6xl h-screen flex flex-col">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="w-8 h-8 text-purple-500" />
-          <h1 className="text-4xl font-bold">A2UI Chat</h1>
+      <div className="mb-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles className="w-6 h-6 text-purple-500" />
+          <h1 className="text-2xl font-bold">A2UI Chat</h1>
           <Badge variant="default" className="text-xs bg-purple-600">87 Components</Badge>
         </div>
-        <p className="text-muted-foreground text-lg">
+        <p className="text-muted-foreground text-sm">
           Chat with AI to generate UIs using 87 components - specialized visualizations + standard UI
         </p>
       </div>
 
       {/* Messages Container */}
-      <Card className="flex-1 mb-4 flex flex-col overflow-hidden">
-        <CardHeader className="border-b">
+      <Card className="flex-1 mb-3 flex flex-col overflow-hidden">
+        <CardHeader className="border-b py-2">
           <CardTitle className="text-sm font-medium">Conversation</CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+        <CardContent className="flex-1 overflow-y-auto p-3 space-y-3">
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground py-12">
-              <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Start a conversation</p>
-              <p className="text-sm mt-2">Try: "Show me a timeline of space exploration"</p>
-              <p className="text-sm">Or: "Create a login form with email and password"</p>
-              <p className="text-sm">Or: "Build a card with a title, description, and button"</p>
-              <p className="text-sm">Or: "Design a dashboard with stats and charts"</p>
+            <div className="text-center text-muted-foreground py-6">
+              <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-50" />
+              <p className="text-base font-medium">Start a conversation</p>
+              <p className="text-xs mt-2">Try: "Show me a timeline of space exploration"</p>
+              <p className="text-xs">Or: "Create a login form with email and password"</p>
+              <p className="text-xs">Or: "Build a card with a title, description, and button"</p>
+              <p className="text-xs">Or: "Design a dashboard with stats and charts"</p>
             </div>
           )}
 
@@ -386,7 +386,7 @@ export default function A2UIChatPage() {
 
       {/* Quick Suggestions */}
       {messages.length === 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge
             variant="outline"
             className="cursor-pointer hover:bg-accent"
