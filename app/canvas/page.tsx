@@ -11,6 +11,7 @@ import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { GenerativeMessage } from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
+import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -172,6 +173,9 @@ export default function Page() {
                 </svg>
                 New chat
               </button>
+
+              {/* Artifact canvas shelf */}
+              <ArtifactShelf jsxComponents={componentBindings as unknown as Parameters<typeof ArtifactShelf>[0]['jsxComponents']} />
 
               {/* Chat history */}
               {savedChats.length > 0 && (

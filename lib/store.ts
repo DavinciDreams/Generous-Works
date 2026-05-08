@@ -45,6 +45,23 @@ export interface SavedChat {
 }
 
 /**
+ * A saved UI artifact (component generated in chat, pinned to the canvas)
+ */
+export interface Artifact {
+  id: string;
+  name: string;
+  type: 'jsx' | 'a2ui';
+  content: string;   // JSX code string or serialized JSON string
+  spec?: unknown;    // parsed A2UI spec (for a2ui type)
+  createdAt: number;
+  isOpen: boolean;
+  windowX: number;
+  windowY: number;
+  color: string;     // hex accent color for icon
+  emoji: string;     // display emoji
+}
+
+/**
  * Store state interface
  */
 export interface StoreState {
@@ -53,6 +70,9 @@ export interface StoreState {
 
   // Saved chat history
   savedChats: SavedChat[];
+
+  // Saved artifacts (pinned components)
+  artifacts: Artifact[];
 
   // UI Components state
   uiComponents: Record<string, UIComponent>; // Map of component ID to component
@@ -90,6 +110,13 @@ export interface StoreActions {
   loadChat: (id: string) => void;
   deleteChat: (id: string) => Promise<void>;
 
+  // Artifact actions
+  saveArtifact: (data: Omit<Artifact, 'id' | 'createdAt' | 'isOpen' | 'windowX' | 'windowY'>) => void;
+  openArtifact: (id: string) => void;
+  closeArtifact: (id: string) => void;
+  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
+  deleteArtifact: (id: string) => void;
+
   // Reset action
   reset: () => void;
 }
@@ -118,6 +145,7 @@ export interface GenerativeUIStore extends StoreState, StoreActions {
 const initialState: StoreState = {
   messages: [],
   savedChats: [],
+  artifacts: [],
   uiComponents: {},
   isLoading: false,
   error: null,
@@ -310,6 +338,41 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
         }
       },
 
+      // =====================
+      // Artifact Actions
+      // =====================
+
+      saveArtifact: (data) => {
+        const idx = get().artifacts.length;
+        const artifact: Artifact = {
+          ...data,
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          isOpen: true,
+          windowX: 80 + (idx % 6) * 36,
+          windowY: 64 + (idx % 6) * 36,
+        };
+        set((state) => ({ artifacts: [...state.artifacts, artifact] }));
+      },
+
+      openArtifact: (id) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, isOpen: true } : a)),
+        })),
+
+      closeArtifact: (id) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, isOpen: false } : a)),
+        })),
+
+      updateArtifact: (id, updates) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+        })),
+
+      deleteArtifact: (id) =>
+        set((state) => ({ artifacts: state.artifacts.filter((a) => a.id !== id) })),
+
       /**
        * Reset the entire store to initial state
        */
@@ -360,6 +423,7 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
       partialize: (state) => ({
         messages: state.messages,
         savedChats: state.savedChats,
+        artifacts: state.artifacts,
         uiComponents: state.uiComponents,
       }),
     }

@@ -8,14 +8,16 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { TProps as JsxParserProps } from "react-jsx-parser";
 import type { ContentBlock } from "@/components/ai-elements/generative-message";
+import type { A2UIMessage } from "@/lib/a2ui/types";
 
 import { JSXPreview, JSXPreviewContent, JSXPreviewError } from "@/components/ai-elements/jsx-preview";
 import { A2UIRenderer } from "@/lib/a2ui/renderer";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Component, ErrorInfo } from "react";
+import { Component, ErrorInfo, useState } from "react";
+import { useGenerativeUIStore } from "@/lib/store";
 
 // ============================================================================
 // Error Boundary
@@ -147,6 +149,96 @@ export function HybridRendererError({
 }
 
 // ============================================================================
+// Artifact Save Helper
+// ============================================================================
+
+const ARTIFACT_COLORS = [
+  '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b',
+  '#ef4444', '#06b6d4', '#f97316', '#ec4899',
+];
+
+function resolveArtifactMeta(block: ContentBlock): { name: string; emoji: string; color: string } {
+  const color = ARTIFACT_COLORS[Math.floor(Math.random() * ARTIFACT_COLORS.length)];
+
+  if (block.type === 'a2ui') {
+    const components = block.spec?.surfaceUpdate?.components;
+    const key = components?.length ? Object.keys(components[0].component)[0] : null;
+    const map: Record<string, { name: string; emoji: string }> = {
+      Charts: { name: 'Chart', emoji: '📊' },
+      Maps: { name: 'Map', emoji: '🗺️' },
+      Geospatial: { name: 'Map', emoji: '🌍' },
+      Timeline: { name: 'Timeline', emoji: '📅' },
+      Calendar: { name: 'Calendar', emoji: '📆' },
+      ThreeScene: { name: '3D Scene', emoji: '🎲' },
+      Phaser: { name: 'Game', emoji: '🎮' },
+      CodeEditor: { name: 'Code', emoji: '💻' },
+      Mermaid: { name: 'Diagram', emoji: '📐' },
+      KnowledgeGraph: { name: 'Graph', emoji: '🕸️' },
+      Presentation: { name: 'Slides', emoji: '📑' },
+      Document: { name: 'Document', emoji: '📄' },
+      DataTable: { name: 'Table', emoji: '📋' },
+      NodeEditor: { name: 'Node Editor', emoji: '🔧' },
+    };
+    const m = key ? (map[key] ?? { name: key, emoji: '✨' }) : { name: 'Component', emoji: '✨' };
+    return { ...m, color };
+  }
+
+  if (block.type === 'jsx') {
+    const tagMatch = block.code.match(/<([A-Z][a-zA-Z0-9]*)/);
+    return { name: tagMatch ? tagMatch[1] : 'Component', emoji: '🧩', color };
+  }
+
+  return { name: 'Artifact', emoji: '✨', color };
+}
+
+interface BlockSaveWrapperProps {
+  block: ContentBlock;
+  children: ReactNode;
+}
+
+function BlockSaveWrapper({ block, children }: BlockSaveWrapperProps) {
+  const saveArtifact = useGenerativeUIStore((s) => s.saveArtifact);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    const meta = resolveArtifactMeta(block);
+    saveArtifact({
+      name: meta.name,
+      type: block.type === 'jsx' ? 'jsx' : 'a2ui',
+      content: block.type === 'jsx' ? block.code : JSON.stringify((block as Extract<ContentBlock, { type: 'a2ui' }>).spec),
+      spec: block.type === 'a2ui' ? (block as Extract<ContentBlock, { type: 'a2ui' }>).spec : undefined,
+      color: meta.color,
+      emoji: meta.emoji,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="relative group/save">
+      {children}
+      <button
+        onClick={handleSave}
+        className={cn(
+          "absolute top-2 right-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md transition-all duration-150",
+          "opacity-0 group-hover/save:opacity-100",
+          saved
+            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+            : "bg-black/40 text-white/60 border border-white/10 hover:text-white hover:bg-black/60"
+        )}
+        aria-label="Save as artifact"
+      >
+        {saved ? (
+          <><BookmarkCheck className="w-3 h-3" /> Saved</>
+        ) : (
+          <><Bookmark className="w-3 h-3" /> Save</>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
 // Hybrid Renderer Component
 // ============================================================================
 
@@ -205,22 +297,26 @@ export function HybridRenderer({
           )}
 
           {block.type === 'jsx' && (
-            <JSXPreview
-              jsx={block.code}
-              isStreaming={isStreaming}
-              components={jsxComponents}
-              bindings={jsxBindings}
-              className="border rounded-lg bg-background p-4"
-            >
-              <JSXPreviewError />
-              <JSXPreviewContent />
-            </JSXPreview>
+            <BlockSaveWrapper block={block}>
+              <JSXPreview
+                jsx={block.code}
+                isStreaming={isStreaming}
+                components={jsxComponents}
+                bindings={jsxBindings}
+                className="border rounded-lg bg-background p-4"
+              >
+                <JSXPreviewError />
+                <JSXPreviewContent />
+              </JSXPreview>
+            </BlockSaveWrapper>
           )}
 
           {block.type === 'a2ui' && (
-            <div className="border rounded-lg bg-background p-4">
-              <A2UIRenderer message={block.spec} />
-            </div>
+            <BlockSaveWrapper block={block}>
+              <div className="border rounded-lg bg-background p-4">
+                <A2UIRenderer message={block.spec} />
+              </div>
+            </BlockSaveWrapper>
           )}
           </HybridRendererErrorBoundary>
         );
