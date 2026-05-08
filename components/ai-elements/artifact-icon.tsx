@@ -55,10 +55,7 @@ export function ArtifactIcon({ artifact, isOpen, onOpen, onDelete, className }: 
         )}
       </div>
 
-      <span
-        className="text-[10px] text-center text-white/70 max-w-[64px] leading-tight"
-        style={{ textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}
-      >
+      <span className="text-[10px] text-center text-foreground/80 max-w-16 leading-tight">
         {artifact.name.length > 10 ? artifact.name.slice(0, 10) + "…" : artifact.name}
       </span>
     </div>

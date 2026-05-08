@@ -39,7 +39,7 @@ export function ArtifactWindow({ artifact, zIndex, onClose, onFocus, jsxComponen
       dragListener={false}
       dragMomentum={false}
       className={cn(
-        "flex flex-col overflow-hidden shadow-2xl",
+        "flex flex-col overflow-hidden shadow-2xl bg-popover/95 backdrop-blur-xl",
         maximized ? "rounded-none" : "rounded-xl"
       )}
       style={{
@@ -51,12 +51,10 @@ export function ArtifactWindow({ artifact, zIndex, onClose, onFocus, jsxComponen
         zIndex,
         width: maximized ? '100vw' : 660,
         height: maximized ? '100vh' : 'auto',
-        background: 'rgba(12, 16, 22, 0.96)',
         border: `1px solid ${artifact.color}44`,
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        boxShadow: `0 0 0 1px ${artifact.color}22, 0 24px 64px rgba(0,0,0,0.6)`,
+        boxShadow: `0 0 0 1px ${artifact.color}22, 0 24px 64px rgba(0,0,0,0.25)`,
       }}
+      // Theme-aware translucent surface for both light and dark modes
       onPointerDown={onFocus}
       onDragEnd={() => {
         if (!maximized) {
@@ -80,7 +78,7 @@ export function ArtifactWindow({ artifact, zIndex, onClose, onFocus, jsxComponen
       >
         <div className="flex items-center gap-2">
           <span className="text-base">{artifact.emoji}</span>
-          <span className="text-sm font-medium text-white/90">{artifact.name}</span>
+          <span className="text-sm font-medium text-foreground">{artifact.name}</span>
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
             style={{ background: `${artifact.color}33`, color: artifact.color }}
@@ -92,14 +90,14 @@ export function ArtifactWindow({ artifact, zIndex, onClose, onFocus, jsxComponen
         <div className="flex items-center gap-1">
           <button
             onClick={() => setMaximized((v) => !v)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             aria-label={maximized ? "Restore" : "Maximize"}
           >
             {maximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={onClose}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-red-500/20 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-destructive/20 transition-colors"
             aria-label="Close"
           >
             <X className="w-3.5 h-3.5" />

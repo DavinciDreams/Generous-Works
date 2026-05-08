@@ -44,16 +44,9 @@ export function ArtifactShelf({ jsxComponents }: ArtifactShelfProps) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setPanelOpen(false)} />
           <div
-            className="fixed right-4 top-14 z-50 w-64 rounded-xl overflow-hidden"
-            style={{
-              background: 'rgba(10, 14, 20, 0.95)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-            }}
+            className="fixed right-4 top-14 z-50 w-64 rounded-xl overflow-hidden bg-popover/95 backdrop-blur-xl border border-border shadow-2xl"
           >
-            <div className="px-3 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-wider font-medium text-white/40">
+            <div className="px-3 py-2.5 border-b border-border text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
               Saved artifacts — click to open
             </div>
             <div className="p-4 grid grid-cols-3 gap-4">

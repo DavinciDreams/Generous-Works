@@ -286,10 +286,10 @@ export default function Page() {
                     >
                       ✦
                     </div>
-                    <h2 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-poppins)' }}>
+                    <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
                       Ask for anything.
                     </h2>
-                    <p className="text-white/50 max-w-xs leading-relaxed text-sm">
+                    <p className="text-muted-foreground max-w-xs leading-relaxed text-sm">
                       Charts, 3D scenes, maps, code, timelines, slides, docs — watch it render live.
                     </p>
                   </div>
@@ -324,11 +324,10 @@ export default function Page() {
       </Conversation>
 
       {/* Prompt input */}
-      <div className="shrink-0 px-4 py-4 border-t border-white/5"
-        style={{ background: 'rgba(10, 14, 20, 0.85)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+      <div className="shrink-0 px-4 py-4 border-t border-border bg-background/85 backdrop-blur-xl">
         <div className="mx-auto max-w-3xl">
-          <div className="rounded-xl overflow-hidden"
-            style={{ background: 'rgba(18, 24, 32, 0.8)', border: '1px solid rgba(0, 151, 178, 0.2)', boxShadow: '0 0 0 1px rgba(0,151,178,0.05), 0 8px 32px rgba(0,0,0,0.4)' }}>
+          <div className="rounded-xl overflow-hidden bg-card/80 backdrop-blur"
+            style={{ border: '1px solid rgba(0, 151, 178, 0.2)', boxShadow: '0 0 0 1px rgba(0,151,178,0.05), 0 8px 32px rgba(0,0,0,0.15)' }}>
             <PromptInput onSubmit={handleSubmit}>
               <PromptInputTextarea placeholder="Ask for anything — a chart, a map, slides, a document, a 3D scene…" />
             </PromptInput>

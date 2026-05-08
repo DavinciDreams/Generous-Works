@@ -223,8 +223,8 @@ function BlockSaveWrapper({ block, children }: BlockSaveWrapperProps) {
           "absolute top-2 right-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md transition-all duration-150",
           "opacity-0 group-hover/save:opacity-100",
           saved
-            ? "bg-green-500/20 text-green-400 border border-green-500/30"
-            : "bg-black/40 text-white/60 border border-white/10 hover:text-white hover:bg-black/60"
+            ? "bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30"
+            : "bg-popover/80 text-muted-foreground border border-border hover:text-foreground hover:bg-popover backdrop-blur"
         )}
         aria-label="Save as artifact"
       >
