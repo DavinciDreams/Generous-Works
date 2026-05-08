@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
-import { createZhipu } from "zhipu-ai-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
@@ -776,20 +776,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!process.env.ZHIPU_API_KEY) {
-      console.error("Chat API: ZHIPU_API_KEY is not set");
+    // Resolve provider: prefer vLLM (local DGX) when VLLM_BASE_URL is set,
+    // fall back to Zhipu/Z.AI otherwise.
+    let aiModel;
+    if (process.env.VLLM_BASE_URL) {
+      const vllm = createOpenAI({
+        baseURL: process.env.VLLM_BASE_URL,
+        apiKey: process.env.VLLM_API_KEY || "none",
+      });
+      aiModel = vllm(process.env.VLLM_MODEL || "default");
+    } else if (process.env.ZHIPU_API_KEY) {
+      // Lazy-import so the package isn't required when vLLM is active
+      const { createZhipu } = await import("zhipu-ai-provider");
+      const zhipu = createZhipu({
+        baseURL: process.env.ZHIPU_BASE_URL,
+        apiKey: process.env.ZHIPU_API_KEY,
+      });
+      aiModel = zhipu(process.env.ZHIPU_MODEL || "glm-4.7");
+    } else {
+      console.error("Chat API: No AI provider configured");
       return new Response(
-        JSON.stringify({ error: "AI provider is not configured. Please set ZHIPU_API_KEY." }),
+        JSON.stringify({ error: "AI provider is not configured. Set VLLM_BASE_URL or ZHIPU_API_KEY." }),
         { status: 503, headers: { "Content-Type": "application/json" } }
       );
     }
-
-    // Use Zhipu provider, base URL, and model from env
-    const zhipu = createZhipu({
-      baseURL: process.env.ZHIPU_BASE_URL,
-      apiKey: process.env.ZHIPU_API_KEY,
-    });
-    const modelName = process.env.ZHIPU_MODEL || "glm-4.7";
 
     // Prepare messages - combine system prompt with user input
     const preparedMessages = messages || [{ role: "user" as const, content: prompt || "Hello!" }];
@@ -797,7 +807,7 @@ export async function POST(req: NextRequest) {
     // Streaming response
     if (stream) {
       const result = streamText({
-        model: zhipu(modelName),
+        model: aiModel,
         system: getSystemPrompt(),
         messages: preparedMessages,
         temperature: clampedTemperature,
