@@ -55,29 +55,40 @@ export interface GenerativeMessageProps extends HTMLAttributes<HTMLDivElement> {
 /**
  * Regex to match markdown code blocks with jsx or tsx language
  */
-const JSX_CODE_BLOCK_REGEX = /```(?:jsx|tsx)\s*\n([\s\S]*?)```/gi;
+const JSX_CODE_BLOCK_REGEX = /```(?:jsx|tsx)(?:[ \t]*\r?\n|[ \t]+)([\s\S]*?)```/gi;
 
 /**
  * Regex to match JSON code blocks (for A2UI)
  */
-const JSON_CODE_BLOCK_REGEX = /```json\s*\n([\s\S]*?)```/gi;
+const JSON_CODE_BLOCK_REGEX = /```json(?:[ \t]*\r?\n|[ \t]+)([\s\S]*?)```/gi;
+
+/** Unlabelled fenced JSON is common in streamed model responses. */
+const UNLABELLED_JSON_CODE_BLOCK_REGEX = /```[ \t]*(?:\r?\n)?(\s*\{[\s\S]*?\})\s*```/gi;
 
 /**
- * Normalize JSX code for react-jsx-parser
- * Collapses whitespace while preserving structure
+ * Normalize JSX code for react-jsx-parser without changing text or literals.
  */
 const normalizeJSX = (jsx: string): string => {
-  return jsx
-    .trim()
-    // Replace newlines and multiple spaces with single space
-    .replace(/\s+/g, ' ')
-    // Clean up whitespace around JSX tags
-    .replace(/\s*(<\/?[^>]+>)\s*/g, '$1')
-    // Add space between closing tags and text
-    .replace(/>([^<\s])/g, '> $1')
-    // Add space between text and opening tags
-    .replace(/([^>\s])<(?!\/)/g, '$1 <')
-    .trim();
+  return jsx.trim();
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Guard the transport envelope before handing it to the renderer. */
+const isA2UIMessage = (value: unknown): value is A2UIMessage => {
+  if (!isRecord(value) || !isRecord(value.surfaceUpdate)) return false;
+
+  const { components } = value.surfaceUpdate;
+  if (!Array.isArray(components)) return false;
+
+  return components.every((component) => {
+    if (!isRecord(component) || typeof component.id !== 'string') return false;
+    if (!isRecord(component.component)) return false;
+
+    const entries = Object.entries(component.component);
+    return entries.length === 1 && isRecord(entries[0][1]);
+  });
 };
 
 /**
@@ -105,8 +116,6 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
   let jsxMatch: RegExpExecArray | null;
   while ((jsxMatch = jsxRegex.exec(content)) !== null) {
     const normalized = normalizeJSX(jsxMatch[1]);
-    console.log('[DEBUG] Extracted JSX:', jsxMatch[1].trim());
-    console.log('[DEBUG] Normalized JSX:', normalized);
     matches.push({
       type: 'jsx',
       start: jsxMatch.index,
@@ -115,26 +124,28 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
     });
   }
 
-  // Find A2UI JSON blocks
-  const jsonRegex = new RegExp(JSON_CODE_BLOCK_REGEX.source, JSON_CODE_BLOCK_REGEX.flags);
-  let jsonMatch: RegExpExecArray | null;
-  while ((jsonMatch = jsonRegex.exec(content)) !== null) {
-    try {
-      const parsed = JSON.parse(jsonMatch[1].trim());
+  // Find labelled and unlabelled A2UI JSON blocks.
+  for (const pattern of [JSON_CODE_BLOCK_REGEX, UNLABELLED_JSON_CODE_BLOCK_REGEX]) {
+    const jsonRegex = new RegExp(pattern.source, pattern.flags);
+    let jsonMatch: RegExpExecArray | null;
 
-      // Only include if it's a valid A2UI message
-      if (parsed && typeof parsed === 'object' && 'surfaceUpdate' in parsed) {
-        matches.push({
-          type: 'a2ui',
-          start: jsonMatch.index,
-          end: jsonMatch.index + jsonMatch[0].length,
-          content: jsonMatch[1].trim(),
-          data: parsed as A2UIMessage,
-        });
+    while ((jsonMatch = jsonRegex.exec(content)) !== null) {
+      try {
+        const parsed: unknown = JSON.parse(jsonMatch[1].trim());
+
+        if (isA2UIMessage(parsed)) {
+          matches.push({
+            type: 'a2ui',
+            start: jsonMatch.index,
+            end: jsonMatch.index + jsonMatch[0].length,
+            content: jsonMatch[1].trim(),
+            data: parsed,
+          });
+        }
+      } catch {
+        // Invalid JSON stays visible as text instead of disappearing or crashing.
+        console.debug('[parseMessageContent] Invalid JSON block, treating as text');
       }
-    } catch {
-      // Invalid JSON - will be treated as text
-      console.debug('[parseMessageContent] Invalid JSON block, treating as text');
     }
   }
 

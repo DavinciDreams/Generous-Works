@@ -35,22 +35,7 @@ import { DataTable } from '@/components/ai-elements/datatable';
 import { ImageGallery } from '@/components/ai-elements/imagegallery';
 import { Presentation } from '@/components/ai-elements/presentation';
 import { DocumentTemplate } from '@/components/ai-elements/document-template';
-import { ApprovalCard } from '@/components/ai-elements/approval-card';
-import { WeatherWidget } from '@/components/ai-elements/weather-widget';
-import { StatsDisplay } from '@/components/ai-elements/stats-display';
-import { ProgressTracker } from '@/components/ai-elements/progress-tracker';
-import { OptionList } from '@/components/ai-elements/option-list';
-import { InstagramPost } from '@/components/ai-elements/instagram-post';
-import { LinkedInPost } from '@/components/ai-elements/linkedin-post';
-import { XPost } from '@/components/ai-elements/x-post';
-import { LinkPreview } from '@/components/ai-elements/link-preview';
-import { Video } from '@/components/ai-elements/video';
-import { MessageDraft } from '@/components/ai-elements/message-draft';
-import { ItemCarousel } from '@/components/ai-elements/item-carousel';
-import { OrderSummary } from '@/components/ai-elements/order-summary';
-import { ParameterSlider } from '@/components/ai-elements/parameter-slider';
-import { PreferencesPanel } from '@/components/ai-elements/preferences-panel';
-import { QuestionFlow } from '@/components/ai-elements/question-flow';
+import { directToolUIComponents } from './direct-tool-ui-components';
 
 /**
  * Specialized components that use the composable pattern
@@ -79,22 +64,7 @@ export const specializedComponents = {
   Markdown,
   DataTable,
   ImageGallery,
-  ApprovalCard,
-  WeatherWidget,
-  StatsDisplay,
-  ProgressTracker,
-  OptionList,
-  InstagramPost,
-  LinkedInPost,
-  XPost,
-  LinkPreview,
-  Video,
-  MessageDraft,
-  ItemCarousel,
-  OrderSummary,
-  ParameterSlider,
-  PreferencesPanel,
-  QuestionFlow,
+  ...directToolUIComponents,
   Presentation,
   Document: DocumentTemplate,
 } as const;

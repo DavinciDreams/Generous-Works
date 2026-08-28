@@ -7,6 +7,7 @@ import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
 
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
+import { cn } from '@/lib/utils';
 
 import { GenerativeMessage } from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
@@ -97,8 +98,28 @@ export default function Page() {
   const deleteChat = useGenerativeUIStore((state) => state.deleteChat);
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'error'>('checking');
+  const [useGalaxyBrain, setUseGalaxyBrain] = useState(false);
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
+
+  useEffect(() => {
+    let active = true;
+
+    fetch('/api/galaxy-brain/status', { cache: 'no-store' })
+      .then(async (response) => {
+        const status = await response.json() as { configured?: boolean; connected?: boolean };
+        if (!active) return;
+        if (status.connected) setGalaxyBrainStatus('connected');
+        else if (!status.configured) setGalaxyBrainStatus('unconfigured');
+        else setGalaxyBrainStatus('error');
+      })
+      .catch(() => {
+        if (active) setGalaxyBrainStatus('error');
+      });
+
+    return () => { active = false; };
+  }, []);
 
   const handleSubmit = useCallback(async (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,7 +146,7 @@ export default function Page() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, stream: true }),
+        body: JSON.stringify({ messages: apiMessages, stream: true, useGalaxyBrain }),
       });
 
       if (!response.ok) {
@@ -152,7 +173,7 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [messages, addMessage, updateMessage, setLoading, setError]);
+  }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
@@ -328,6 +349,32 @@ export default function Page() {
         <div className="mx-auto max-w-3xl">
           <div className="rounded-xl overflow-hidden bg-card/80 backdrop-blur"
             style={{ border: '1px solid rgba(0, 151, 178, 0.2)', boxShadow: '0 0 0 1px rgba(0,151,178,0.05), 0 8px 32px rgba(0,0,0,0.15)' }}>
+            <div className="flex items-center border-b border-border/60 px-3 py-2">
+              <button
+                type="button"
+                disabled={galaxyBrainStatus !== 'connected'}
+                onClick={() => setUseGalaxyBrain((enabled) => !enabled)}
+                className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                title={
+                  galaxyBrainStatus === 'connected'
+                    ? 'Include relevant experiments and hypotheses from Galaxy Brain'
+                    : galaxyBrainStatus === 'checking'
+                      ? 'Checking Galaxy Brain connection'
+                      : galaxyBrainStatus === 'unconfigured'
+                        ? 'Add the Galaxy Brain URL and read-only agent token in Vercel'
+                        : 'Galaxy Brain is configured but unavailable'
+                }
+              >
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    galaxyBrainStatus === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                  )}
+                />
+                Galaxy Brain
+                {useGalaxyBrain && <span className="font-medium text-primary">on</span>}
+              </button>
+            </div>
             <PromptInput onSubmit={handleSubmit}>
               <PromptInputTextarea placeholder="Ask for anything — a chart, a map, slides, a document, a 3D scene…" />
             </PromptInput>

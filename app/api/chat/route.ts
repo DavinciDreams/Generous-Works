@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
+import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
@@ -26,7 +27,7 @@ You also have access to the following basic UI components from the components/ui
 ### Layout & Container Components
 - **Card** - Container component with header, content, and footer sections
   - Props: className, children
-  - Sub-components: Card.Header, Card.Content, Card.Footer, Card.Title, Card.Description
+  - Sub-components: CardHeader, CardContent, CardFooter, CardTitle, CardDescription
 
 ### Interactive Components
 - **Button** - Clickable action button with variants
@@ -43,14 +44,14 @@ You also have access to the following basic UI components from the components/ui
   - Props: checked, onCheckedChange, disabled, className
 
 - **Select** - Dropdown select component
-  - Sub-components: Select.Trigger, Select.Value, Select.Content, Select.Item
+  - Sub-components: SelectTrigger, SelectValue, SelectContent, SelectItem
 
 ### Display Components
 - **Badge** - Small status or label indicator
   - Props: variant (default|secondary|destructive|outline), className, children
 
 - **Avatar** - User avatar component
-  - Sub-components: Avatar.Image, Avatar.Fallback
+  - Sub-components: AvatarImage, AvatarFallback
 
 - **Progress** - Progress bar component
   - Props: value (0-100), className
@@ -60,20 +61,20 @@ You also have access to the following basic UI components from the components/ui
 
 - **Alert** - Alert message component
   - Props: variant (default|destructive), title, description
-  - Sub-components: Alert.Title, Alert.Description
+  - Sub-components: AlertTitle, AlertDescription
 
 ### Navigation & Organization
 - **Tabs** - Tabbed content container
-  - Sub-components: Tabs.List, Tabs.Trigger, Tabs.Content
+  - Sub-components: TabsList, TabsTrigger, TabsContent
 
 - **Accordion** - Collapsible content sections
-  - Sub-components: Accordion.Item, Accordion.Trigger, Accordion.Content
+  - Sub-components: AccordionItem, AccordionTrigger, AccordionContent
 
 - **Separator** - Visual separator line
   - Props: orientation (horizontal|vertical), className
 
 - **Dialog** - Modal dialog component
-  - Sub-components: Dialog.Trigger, Dialog.Content, Dialog.Header, Dialog.Title, Dialog.Description, Dialog.Footer
+  - Sub-components: DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 
 ### Advanced Components
 - **Command** - Command palette component
@@ -104,7 +105,7 @@ all Layout components (Flex, Grid, Stack, etc.)
 
 **Example - Simple Button:**
 \`\`\`tsx
-<Button variant="primary" size="lg">
+<Button variant="default" size="lg">
   Click me
 </Button>
 \`\`\`
@@ -112,11 +113,11 @@ all Layout components (Flex, Grid, Stack, etc.)
 **Example - Card with Form:**
 \`\`\`tsx
 <Card className="max-w-md">
-  <Card.Header>
-    <Card.Title>Login</Card.Title>
-    <Card.Description>Enter your credentials</Card.Description>
-  </Card.Header>
-  <Card.Content>
+  <CardHeader>
+    <CardTitle>Login</CardTitle>
+    <CardDescription>Enter your credentials</CardDescription>
+  </CardHeader>
+  <CardContent>
     <form className="space-y-4">
       <div>
         <label htmlFor="email">Email</label>
@@ -130,7 +131,7 @@ all Layout components (Flex, Grid, Stack, etc.)
         Sign In
       </Button>
     </form>
-  </Card.Content>
+  </CardContent>
 </Card>
 \`\`\`
 
@@ -652,12 +653,12 @@ When generating UI components:
 Example:
 \`\`\`tsx
 <Card className="max-w-md">
-  <Card.Header>
-    <Card.Title>My Component</Card.Title>
-  </Card.Header>
-  <Card.Content>
+  <CardHeader>
+    <CardTitle>My Component</CardTitle>
+  </CardHeader>
+  <CardContent>
     <Button variant="default">Click me</Button>
-  </Card.Content>
+  </CardContent>
 </Card>
 \`\`\`
 
@@ -668,7 +669,7 @@ Example:
 - **ALWAYS wrap JSX in \`\`\`tsx code fences** - this is mandatory for rendering
 - Always use complete, self-contained JSX snippets
 - Import statements are not needed - components are auto-imported
-- Ensure proper nesting of sub-components (e.g., Card.Header inside Card)
+- Ensure proper nesting of sub-components (e.g., CardHeader inside Card)
 - Use meaningful prop values and placeholders
 - Test your mental model of the component structure before outputting
 - If a request is unclear, ask for clarification first
@@ -743,6 +744,8 @@ const chatRequestSchema = z.object({
   prompt: z.string().optional(),
   stream: z.boolean().optional().default(true),
   temperature: z.number().optional().default(0.7),
+  maxTokens: z.number().optional().default(4000),
+  useGalaxyBrain: z.boolean().optional().default(false),
 });
 
 export async function POST(req: NextRequest) {
@@ -763,9 +766,10 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const { messages, prompt, stream, temperature } = parseResult.data;
+    const { messages, prompt, stream, temperature, maxTokens, useGalaxyBrain } = parseResult.data;
 
     const clampedTemperature = Math.min(Math.max(Number(temperature) || 0.7, 0), 2);
+    const clampedMaxTokens = Math.min(Math.max(Math.trunc(Number(maxTokens) || 4000), 1), 8000);
 
     // Validate required fields
     if (!messages && !prompt) {
@@ -803,14 +807,28 @@ export async function POST(req: NextRequest) {
 
     // Prepare messages - combine system prompt with user input
     const preparedMessages = messages || [{ role: "user" as const, content: prompt || "Hello!" }];
+    const latestUserPrompt = [...preparedMessages]
+      .reverse()
+      .find((message) => message.role === 'user')?.content ?? prompt ?? '';
+    let galaxyBrainContext = '';
+
+    if (useGalaxyBrain) {
+      try {
+        galaxyBrainContext = await getGalaxyBrainContext(latestUserPrompt);
+      } catch (error) {
+        // Context retrieval is optional and must not take down primary chat.
+        console.error('Chat API: Galaxy Brain context unavailable:', error);
+      }
+    }
 
     // Streaming response
     if (stream) {
       const result = streamText({
         model: aiModel,
-        system: getSystemPrompt(),
+        system: getSystemPrompt() + galaxyBrainContext,
         messages: preparedMessages,
         temperature: clampedTemperature,
+        maxOutputTokens: clampedMaxTokens,
         onError: ({ error }) => {
           console.error("Chat API: Streaming error:", error);
         },
