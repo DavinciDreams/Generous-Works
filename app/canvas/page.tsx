@@ -13,6 +13,7 @@ import { GenerativeMessage } from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
+import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -99,6 +100,7 @@ export default function Page() {
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'error'>('checking');
+  const [galaxySurfaceWritesConfigured, setGalaxySurfaceWritesConfigured] = useState(false);
   const [useGalaxyBrain, setUseGalaxyBrain] = useState(false);
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
@@ -108,8 +110,13 @@ export default function Page() {
 
     fetch('/api/galaxy-brain/status', { cache: 'no-store' })
       .then(async (response) => {
-        const status = await response.json() as { configured?: boolean; connected?: boolean };
+        const status = await response.json() as {
+          configured?: boolean;
+          connected?: boolean;
+          surfaceWritesConfigured?: boolean;
+        };
         if (!active) return;
+        setGalaxySurfaceWritesConfigured(Boolean(status.surfaceWritesConfigured));
         if (status.connected) setGalaxyBrainStatus('connected');
         else if (!status.configured) setGalaxyBrainStatus('unconfigured');
         else setGalaxyBrainStatus('error');
@@ -316,14 +323,26 @@ export default function Page() {
                   </div>
                 </div>
               ) : (
-                messages.map((message, index) => (
-                  <GenerativeMessage
-                    key={message.id}
-                    message={{ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp }}
-                    isStreaming={isLoading && message.role === "assistant" && index === messages.length - 1}
-                                      components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
-                  />
-                ))
+                messages.map((message, index) => {
+                  const isStreaming = isLoading && message.role === "assistant" && index === messages.length - 1;
+                  return (
+                    <div key={message.id}>
+                      <GenerativeMessage
+                        message={{ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp }}
+                        isStreaming={isStreaming}
+                        components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
+                      />
+                      {message.role === 'assistant' && (
+                        <GalaxySurfaceControls
+                          messageId={message.id}
+                          content={message.content}
+                          isStreaming={isStreaming}
+                          writesConfigured={galaxySurfaceWritesConfigured}
+                        />
+                      )}
+                    </div>
+                  );
+                })
               )}
 
               {isLoading && (
