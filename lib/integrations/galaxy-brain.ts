@@ -27,7 +27,21 @@ export interface GalaxySurfaceRecord {
   current_content_hash: string;
   current_spec: Record<string, unknown>;
   provenance: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
   replayed?: boolean;
+}
+
+export interface GalaxySurfaceRevisionRecord {
+  id: string;
+  surface_id: string;
+  version: number;
+  title: string;
+  status: 'draft' | 'promoted' | 'archived';
+  content_hash: string;
+  spec: Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  created_at?: string;
 }
 
 interface GalaxySurfaceWrite {
@@ -39,6 +53,34 @@ interface GalaxySurfaceWrite {
 
 function isAgentToken(token: string | undefined): token is string {
   return Boolean(token?.startsWith('gbk_') && token.length >= 40);
+}
+
+function projectSurfaceProvenance(value: Record<string, unknown>): Record<string, unknown> {
+  const allowedFields = [
+    'source',
+    'actor_ref',
+    'model',
+    'profile',
+    'run_id',
+    'message_id',
+    'prompt_hash',
+    'evidence_refs',
+    'ham_refs',
+    'note',
+  ];
+  const projected = Object.fromEntries(
+    allowedFields
+      .filter((field) => value[field] !== undefined)
+      .map((field) => [field, value[field]]),
+  );
+  if (isRecord(value.galaxy)) {
+    projected.galaxy = Object.fromEntries(
+      ['event', 'recorded_at']
+        .filter((field) => typeof value.galaxy[field] === 'string')
+        .map((field) => [field, value.galaxy[field]]),
+    );
+  }
+  return projected;
 }
 
 function getConfiguration(access: 'read' | 'write' = 'read') {
@@ -231,6 +273,28 @@ export async function createGalaxySurface(
   return projectSurfaceRecord(value);
 }
 
+export async function listGalaxySurfaces(input: {
+  status?: GalaxySurfaceRecord['status'];
+  limit?: number;
+} = {}): Promise<GalaxySurfaceRecord[]> {
+  const params = new URLSearchParams();
+  if (input.status) params.set('status', input.status);
+  params.set('limit', String(Math.max(1, Math.min(input.limit ?? 50, 100))));
+  const value = await fetchGalaxyBrainJson<unknown>(`/surfaces?${params.toString()}`);
+  if (!Array.isArray(value)) throw new Error('Galaxy Brain returned an invalid surface list');
+  return value.map(projectSurfaceRecord);
+}
+
+export async function listGalaxySurfaceRevisions(
+  surfaceId: string,
+): Promise<GalaxySurfaceRevisionRecord[]> {
+  const value = await fetchGalaxyBrainJson<unknown>(
+    `/surfaces/${encodeURIComponent(surfaceId)}/revisions?limit=100`,
+  );
+  if (!Array.isArray(value)) throw new Error('Galaxy Brain returned invalid surface revisions');
+  return value.map(projectSurfaceRevisionRecord);
+}
+
 export async function promoteGalaxySurface(input: {
   surfaceId: string;
   baseVersion: number;
@@ -279,7 +343,37 @@ function projectSurfaceRecord(value: unknown): GalaxySurfaceRecord {
     current_version: value.current_version as number,
     current_content_hash: value.current_content_hash,
     current_spec: value.current_spec,
-    provenance: value.provenance,
+    provenance: projectSurfaceProvenance(value.provenance),
+    ...(typeof value.created_at === 'string' ? { created_at: value.created_at } : {}),
+    ...(typeof value.updated_at === 'string' ? { updated_at: value.updated_at } : {}),
     ...(value.replayed === true ? { replayed: true } : {}),
+  };
+}
+
+function projectSurfaceRevisionRecord(value: unknown): GalaxySurfaceRevisionRecord {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.surface_id !== 'string' ||
+    !Number.isInteger(value.version) ||
+    typeof value.title !== 'string' ||
+    !['draft', 'promoted', 'archived'].includes(String(value.status)) ||
+    typeof value.content_hash !== 'string' ||
+    !isRecord(value.spec) ||
+    !isRecord(value.provenance)
+  ) {
+    throw new Error('Galaxy Brain returned an invalid surface revision');
+  }
+
+  return {
+    id: value.id,
+    surface_id: value.surface_id,
+    version: value.version as number,
+    title: value.title,
+    status: value.status as GalaxySurfaceRevisionRecord['status'],
+    content_hash: value.content_hash,
+    spec: value.spec,
+    provenance: projectSurfaceProvenance(value.provenance),
+    ...(typeof value.created_at === 'string' ? { created_at: value.created_at } : {}),
   };
 }

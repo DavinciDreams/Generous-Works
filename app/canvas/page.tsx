@@ -14,6 +14,7 @@ import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/com
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
+import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -204,6 +205,11 @@ export default function Page() {
 
               {/* Artifact canvas shelf */}
               <ArtifactShelf jsxComponents={componentBindings as unknown as Parameters<typeof ArtifactShelf>[0]['jsxComponents']} />
+
+              <GalaxySurfaceLibrary
+                connected={galaxyBrainStatus === 'connected'}
+                writesConfigured={galaxySurfaceWritesConfigured}
+              />
 
               {/* Chat history */}
               {savedChats.length > 0 && (

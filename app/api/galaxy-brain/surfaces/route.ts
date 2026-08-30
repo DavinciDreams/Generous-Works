@@ -2,7 +2,12 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import type { A2UIMessage } from '@/lib/a2ui/types';
-import { createGalaxySurface } from '@/lib/integrations/galaxy-brain';
+import { galaxyActorRef, isGalaxyBrainUserAllowed } from '@/lib/integrations/galaxy-access';
+import {
+  createGalaxySurface,
+  listGalaxySurfaces,
+  type GalaxySurfaceRecord,
+} from '@/lib/integrations/galaxy-brain';
 import {
   GalaxySurfaceContractError,
   deriveGalaxySurfaceTitle,
@@ -18,9 +23,40 @@ function upstreamStatus(error: unknown): number {
   return match ? Number(match[1]) : 502;
 }
 
+export async function GET(request: Request) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isGalaxyBrainUserAllowed(userId)) {
+    return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
+  }
+
+  const requestedStatus = new URL(request.url).searchParams.get('status');
+  if (
+    requestedStatus !== null &&
+    !['draft', 'promoted', 'archived'].includes(requestedStatus)
+  ) {
+    return NextResponse.json({ error: 'Invalid surface status' }, { status: 422 });
+  }
+
+  try {
+    const surfaces = await listGalaxySurfaces({
+      ...(requestedStatus === null
+        ? {}
+        : { status: requestedStatus as GalaxySurfaceRecord['status'] }),
+    });
+    return NextResponse.json(surfaces);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Galaxy Brain read failed';
+    return NextResponse.json({ error: message }, { status: upstreamStatus(error) });
+  }
+}
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isGalaxyBrainUserAllowed(userId)) {
+    return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
+  }
 
   try {
     const body: unknown = await request.json();
@@ -46,6 +82,7 @@ export async function POST(request: Request) {
       spec,
       provenance: {
         source: 'generous.canvas',
+        actor_ref: galaxyActorRef(userId),
         ...(typeof body.messageId === 'string' ? { message_id: body.messageId } : {}),
         note: 'Saved from a rendered A2UI preview in Generous',
       },

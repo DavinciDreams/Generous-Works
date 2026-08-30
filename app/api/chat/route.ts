@@ -3,6 +3,7 @@ import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
+import { isGalaxyBrainUserAllowed } from '@/lib/integrations/galaxy-access';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
@@ -767,6 +768,13 @@ export async function POST(req: NextRequest) {
       });
     }
     const { messages, prompt, stream, temperature, maxTokens, useGalaxyBrain } = parseResult.data;
+
+    if (useGalaxyBrain && !isGalaxyBrainUserAllowed(userId)) {
+      return new Response(JSON.stringify({ error: 'Galaxy Brain access is not allowed' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const clampedTemperature = Math.min(Math.max(Number(temperature) || 0.7, 0), 2);
     const clampedMaxTokens = Math.min(Math.max(Math.trunc(Number(maxTokens) || 4000), 1), 8000);

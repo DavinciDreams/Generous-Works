@@ -6,6 +6,8 @@ import {
   createGalaxySurface,
   getGalaxyBrainConnectionStatus,
   getGalaxyBrainContext,
+  listGalaxySurfaceRevisions,
+  listGalaxySurfaces,
   promoteGalaxySurface,
 } from './galaxy-brain';
 
@@ -129,5 +131,66 @@ describe('Galaxy Brain integration', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     expect(created).not.toHaveProperty('tenant_id');
+  });
+
+  it('lists current surfaces and immutable revisions through the read credential', async () => {
+    const surfaceId = '22a29f54-8cf2-41bf-b6e7-a7a9c1e8a98a';
+    const provenance = {
+      source: 'generous.canvas',
+      actor_ref: 'clerk:abc123',
+      galaxy: {
+        event: 'created',
+        principal_id: 'internal-principal',
+        principal_kind: 'agent',
+        recorded_at: '2026-08-30T12:00:00Z',
+      },
+    };
+    const surface = {
+      id: surfaceId,
+      title: 'Research Board',
+      status: 'draft',
+      schema_version: 'gb.surface.v1',
+      catalog_id: 'generous.a2ui',
+      catalog_version: '1',
+      current_version: 1,
+      current_content_hash: 'a'.repeat(64),
+      current_spec: {},
+      provenance,
+      tenant_id: 'internal-tenant',
+      updated_at: '2026-08-30T12:00:00Z',
+    };
+    const revision = {
+      id: 'c8077041-623e-47ee-b19b-fce05c5af48c',
+      surface_id: surfaceId,
+      version: 1,
+      title: surface.title,
+      status: 'draft',
+      content_hash: surface.current_content_hash,
+      spec: {},
+      provenance,
+      request_hash: 'internal-request-hash',
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request) =>
+      new Response(JSON.stringify(String(input).includes('/revisions') ? [revision] : [surface])),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const listed = await listGalaxySurfaces();
+    const revisions = await listGalaxySurfaceRevisions(surfaceId);
+
+    expect(listed[0]).not.toHaveProperty('tenant_id');
+    expect(listed[0].provenance).toEqual({
+      source: 'generous.canvas',
+      actor_ref: 'clerk:abc123',
+      galaxy: { event: 'created', recorded_at: '2026-08-30T12:00:00Z' },
+    });
+    expect(revisions[0]).not.toHaveProperty('request_hash');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://galaxybrain.example/api/eln/surfaces?limit=50',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: `Bearer gbk_${'a'.repeat(43)}` }),
+      }),
+    );
   });
 });
