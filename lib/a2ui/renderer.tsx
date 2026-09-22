@@ -223,6 +223,10 @@ import { validateProps } from '@/lib/schemas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { a2uiComponents } from './components';
+import {
+  directToolUIComponents,
+  isDirectToolUIComponent,
+} from './direct-tool-ui-components';
 import type { A2UIMessage, A2UIComponent } from './types';
 import type { TimelineProps } from '@/lib/schemas/timeline.schema';
 import type { MapsProps } from '@/lib/schemas/maps.schema';
@@ -329,6 +333,57 @@ export function ComponentError({
   );
 }
 
+interface A2UIComponentBoundaryProps {
+  children: React.ReactNode;
+  componentId: string;
+  componentType: string;
+  resetKey: string;
+}
+
+interface A2UIComponentBoundaryState {
+  error: Error | null;
+}
+
+/** Prevent one malformed generated component from taking down the canvas. */
+class A2UIComponentBoundary extends React.Component<
+  A2UIComponentBoundaryProps,
+  A2UIComponentBoundaryState
+> {
+  state: A2UIComponentBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): A2UIComponentBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(
+      `[A2UI] Render error for ${this.props.componentType}:`,
+      error,
+      info.componentStack,
+    );
+  }
+
+  componentDidUpdate(previousProps: A2UIComponentBoundaryProps) {
+    if (this.state.error && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <ComponentError
+          componentType={this.props.componentType}
+          error={`Render error: ${this.state.error.message}`}
+          componentId={this.props.componentId}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 /**
  * Unknown Component Fallback
  * Displayed when component type is not recognized
@@ -378,6 +433,34 @@ export function renderA2UIComponent(
   const ComponentAdapter = a2uiComponents[componentType];
   if (!ComponentAdapter) {
     return <UnknownComponent type={componentType} id={componentId} />;
+  }
+
+  // DIRECT TOOL UI COMPONENTS: catalog schemas map directly to component props.
+  // Passing these through the adapter contract would provide `node` instead of
+  // their required fields and can crash at render time (for example data.stats).
+  if (isDirectToolUIComponent(componentType)) {
+    const validation = validateProps<Record<string, unknown>>(componentType, props);
+
+    if (!validation.success) {
+      const errorMessage = (validation as { success: false; error: Error }).error.message;
+      console.error(`[A2UI] Validation failed for ${componentType}:`, errorMessage);
+
+      return (
+        <ComponentError
+          componentType={componentType}
+          error={errorMessage}
+          componentId={componentId}
+        />
+      );
+    }
+
+    const DirectToolUIComponent = directToolUIComponents[componentType];
+
+    return (
+      <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
+        <DirectToolUIComponent {...validation.data} />
+      </div>
+    );
   }
 
   // SPECIALIZED COMPONENTS: Use Zod validation and composable pattern
@@ -1040,11 +1123,21 @@ export function A2UIRenderer({ message, className }: A2UIRendererProps) {
 
   return (
     <div className={className} data-a2ui-surface>
-      {components.map((component) => (
-        <div key={component.id}>
-          {renderA2UIComponent(component, componentsMap, handleAction)}
-        </div>
-      ))}
+      {components.map((component) => {
+        const componentType = Object.keys(component.component)[0] ?? 'Unknown';
+        const resetKey = JSON.stringify(component.component);
+
+        return (
+          <A2UIComponentBoundary
+            key={component.id}
+            componentId={component.id}
+            componentType={componentType}
+            resetKey={resetKey}
+          >
+            {renderA2UIComponent(component, componentsMap, handleAction)}
+          </A2UIComponentBoundary>
+        );
+      })}
     </div>
   );
 }

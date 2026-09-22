@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { a2uiComponents, specializedComponents, getAvailableComponents, componentCategories } from '../components';
 import { schemaRegistry } from '../../schemas/index';
 import { componentCatalog, getCatalogPrompt, getComponentTypes, getComponentDefinition } from '../catalog';
+import { directToolUIComponents } from '../direct-tool-ui-components';
 
 // Tool UI components that use ToolUIPropsSchema instead of individual schemas
 const TOOL_UI_COMPONENTS = [
@@ -62,7 +63,7 @@ describe('A2UI Component Registry', () => {
   describe('Component Registration', () => {
     it('should have all specialized components registered', () => {
       const specializedList = Object.keys(specializedComponents);
-      expect(specializedList.length).toBe(38);
+      expect(specializedList.length).toBe(40);
 
       specializedList.forEach(componentName => {
         expect(a2uiComponents).toHaveProperty(componentName);
@@ -73,9 +74,9 @@ describe('A2UI Component Registry', () => {
       const allComponents = getAvailableComponents();
       const specializedList = Object.keys(specializedComponents);
 
-      // 38 specialized + 76 standard UI = 114 total
+      // 40 specialized + 76 standard UI = 116 total
       expect(allComponents.length).toBeGreaterThanOrEqual(110);
-      expect(specializedList.length).toBe(38);
+      expect(specializedList.length).toBe(40);
     });
 
     it('should have all core specialized components', () => {
@@ -87,6 +88,14 @@ describe('A2UI Component Registry', () => {
     it('should have all Tool-UI components', () => {
       TOOL_UI_COMPONENTS.forEach(componentName => {
         expect(specializedComponents).toHaveProperty(componentName);
+      });
+    });
+
+    it('registers direct Tool UI components with their catalog prop contract', () => {
+      expect(Object.keys(directToolUIComponents)).toHaveLength(16);
+
+      Object.entries(directToolUIComponents).forEach(([name, component]) => {
+        expect(specializedComponents[name as keyof typeof specializedComponents]).toBe(component);
       });
     });
   });
