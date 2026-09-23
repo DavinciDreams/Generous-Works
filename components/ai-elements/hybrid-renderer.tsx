@@ -8,7 +8,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { TProps as JsxParserProps } from "react-jsx-parser";
 import type { ContentBlock } from "@/components/ai-elements/generative-message";
-import type { A2UIMessage } from "@/lib/a2ui/types";
 
 import { JSXPreview, JSXPreviewContent, JSXPreviewError } from "@/components/ai-elements/jsx-preview";
 import { A2UIRenderer } from "@/lib/a2ui/renderer";
@@ -17,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Component, ErrorInfo, useState } from "react";
-import { useGenerativeUIStore } from "@/lib/store";
+import { useArtifactStore } from "@/lib/store";
 
 // ============================================================================
 // Error Boundary
@@ -197,7 +196,7 @@ interface BlockSaveWrapperProps {
 }
 
 function BlockSaveWrapper({ block, children }: BlockSaveWrapperProps) {
-  const saveArtifact = useGenerativeUIStore((s) => s.saveArtifact);
+  const saveArtifact = useArtifactStore((s) => s.saveArtifact);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {

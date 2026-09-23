@@ -90,6 +90,8 @@ const navGroups = [
   { label: "Forms", links: [{ href: "/forms-showcase", name: "Forms Showcase" }] },
 ];
 
+const STREAM_RENDER_INTERVAL_MS = 80;
+
 export default function Page() {
   const { messages, addMessage, updateMessage } = useMessages();
   const { isLoading, error, setLoading, setError } = useAppState();
@@ -172,14 +174,21 @@ export default function Page() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = "";
+      let lastRenderedAt = 0;
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           fullContent += decoder.decode(value, { stream: true });
-          updateMessage(assistantMessageId, { content: fullContent });
+          const now = performance.now();
+          if (now - lastRenderedAt >= STREAM_RENDER_INTERVAL_MS) {
+            updateMessage(assistantMessageId, { content: fullContent });
+            lastRenderedAt = now;
+          }
         }
+        fullContent += decoder.decode();
+        updateMessage(assistantMessageId, { content: fullContent });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
@@ -259,13 +268,16 @@ export default function Page() {
                               <button
                                 type="button"
                                 className="flex-1 text-left min-w-0"
-                                onClick={() => { loadChat(chat.id); setHistoryOpen(false); }}
+                                onClick={() => {
+                                  setHistoryOpen(false);
+                                  void loadChat(chat.id);
+                                }}
                               >
                                 <div className="text-xs font-medium text-foreground truncate">{chat.title}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">
                                   {new Date(chat.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                   {' · '}
-                                  {chat.messages.length} messages
+                                  {chat.messageCount} messages
                                 </div>
                               </button>
                               <button
