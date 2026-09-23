@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { authMock, createSurfaceMock, listSurfacesMock } = vi.hoisted(() => ({
+const { accessMock, authMock, createSurfaceMock, listSurfacesMock } = vi.hoisted(() => ({
+  accessMock: vi.fn(),
   authMock: vi.fn(),
   createSurfaceMock: vi.fn(),
   listSurfacesMock: vi.fn(),
@@ -8,14 +9,13 @@ const { authMock, createSurfaceMock, listSurfacesMock } = vi.hoisted(() => ({
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: authMock }));
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/integrations/galaxy-access', () => ({ getGalaxyBrainAccess: accessMock }));
 vi.mock('@/lib/integrations/galaxy-brain', () => ({
   createGalaxySurface: createSurfaceMock,
   listGalaxySurfaces: listSurfacesMock,
 }));
 
 import { GET, POST } from './route';
-
-const originalAllowedUsers = process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
 
 const requestSpec = {
   surfaceUpdate: {
@@ -32,16 +32,11 @@ const requestSpec = {
 beforeEach(() => {
   vi.clearAllMocks();
   authMock.mockResolvedValue({ userId: 'user_denied' });
-  process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = 'user_allowed';
-});
-
-afterEach(() => {
-  if (originalAllowedUsers === undefined) delete process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
-  else process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = originalAllowedUsers;
+  accessMock.mockResolvedValue({ allowed: false, linkedWithNostr: false });
 });
 
 describe('Galaxy surface route authorization', () => {
-  it('denies reads and writes from an authenticated but unapproved user', async () => {
+  it('denies reads and writes from an authenticated but unlinked user', async () => {
     const getResponse = await GET(new Request('https://generous.example/api/galaxy-brain/surfaces'));
     const postResponse = await POST(
       new Request('https://generous.example/api/galaxy-brain/surfaces', {
@@ -57,8 +52,14 @@ describe('Galaxy surface route authorization', () => {
     expect(createSurfaceMock).not.toHaveBeenCalled();
   });
 
-  it('records a hashed actor reference for an allowed writer', async () => {
+  it('records the linked Nostr actor reference for a connected writer', async () => {
     authMock.mockResolvedValue({ userId: 'user_allowed' });
+    accessMock.mockResolvedValue({
+      allowed: true,
+      linkedWithNostr: true,
+      actorRef: 'nostr:0123456789abcdef0123',
+      nostrPubkey: 'a'.repeat(64),
+    });
     createSurfaceMock.mockResolvedValue({
       id: '22a29f54-8cf2-41bf-b6e7-a7a9c1e8a98a',
       title: 'Research Board',
@@ -83,10 +84,11 @@ describe('Galaxy surface route authorization', () => {
       expect.objectContaining({
         provenance: expect.objectContaining({
           source: 'generous.canvas',
-          actor_ref: expect.stringMatching(/^clerk:[0-9a-f]{20}$/),
+          actor_ref: 'nostr:0123456789abcdef0123',
         }),
       }),
     );
     expect(JSON.stringify(createSurfaceMock.mock.calls[0][0])).not.toContain('user_allowed');
+    expect(JSON.stringify(createSurfaceMock.mock.calls[0][0])).not.toContain('a'.repeat(64));
   });
 });

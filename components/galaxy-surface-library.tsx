@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Database, History, RefreshCw, Rocket } from 'lucide-react';
+import { Database, ExternalLink, History, RefreshCw, Rocket } from 'lucide-react';
 
 import { GenerativeMessage } from '@/components/ai-elements/generative-message';
 import { Badge } from '@/components/ui/badge';
@@ -301,6 +301,12 @@ export function GalaxySurfaceLibrary({
                   <Badge variant={selected.status === 'promoted' ? 'default' : 'secondary'}>
                     {selected.status}
                   </Badge>
+                  <Button asChild size="sm" variant="ghost">
+                    <a href={selected.view_url} target="_blank" rel="noreferrer">
+                      Open in Galaxy
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </Button>
                   {selected.status === 'draft' && (
                     <Button
                       type="button"
@@ -311,7 +317,7 @@ export function GalaxySurfaceLibrary({
                       title={
                         writesConfigured
                           ? 'Promote this reviewed draft'
-                          : 'Configure GALAXY_BRAIN_WRITE_TOKEN with eln:write scope'
+                          : 'Galaxy surface writes are unavailable'
                       }
                     >
                       <Rocket className="size-3.5" />

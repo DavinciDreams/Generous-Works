@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { galaxySurfaceViewUrl } from '@/lib/integrations/galaxy-link';
+
 const REQUEST_TIMEOUT_MS = 5_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
 const MAX_CONTEXT_RECORDS = 6;
@@ -30,6 +32,7 @@ export interface GalaxySurfaceRecord {
   created_at?: string;
   updated_at?: string;
   replayed?: boolean;
+  view_url: string;
 }
 
 export interface GalaxySurfaceRevisionRecord {
@@ -52,7 +55,11 @@ interface GalaxySurfaceWrite {
 }
 
 function isAgentToken(token: string | undefined): token is string {
-  return Boolean(token?.startsWith('gbk_') && token.length >= 40);
+  return Boolean(
+    token
+    && (token.startsWith('gb_live_') || token.startsWith('gbk_'))
+    && token.length >= 40,
+  );
 }
 
 function projectSurfaceProvenance(value: Record<string, unknown>): Record<string, unknown> {
@@ -347,6 +354,7 @@ function projectSurfaceRecord(value: unknown): GalaxySurfaceRecord {
     ...(typeof value.created_at === 'string' ? { created_at: value.created_at } : {}),
     ...(typeof value.updated_at === 'string' ? { updated_at: value.updated_at } : {}),
     ...(value.replayed === true ? { replayed: true } : {}),
+    view_url: galaxySurfaceViewUrl(value.id),
   };
 }
 

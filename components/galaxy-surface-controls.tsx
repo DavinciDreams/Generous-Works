@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
-import { Check, CloudUpload, Rocket } from 'lucide-react';
+import { Check, CloudUpload, ExternalLink, Rocket } from 'lucide-react';
 
 import { parseMessageContent } from '@/components/ai-elements/generative-message';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ interface GalaxySurfaceControlsProps {
   content: string;
   isStreaming: boolean;
   writesConfigured: boolean;
+  accessAllowed: boolean;
 }
 
 interface SurfaceState {
@@ -32,6 +33,7 @@ export function GalaxySurfaceControls({
   content,
   isStreaming,
   writesConfigured,
+  accessAllowed,
 }: GalaxySurfaceControlsProps) {
   const surfaces = useMemo(
     () => parseMessageContent(content).filter((block) => block.type === 'a2ui'),
@@ -120,7 +122,9 @@ export function GalaxySurfaceControls({
                 title={
                   writesConfigured
                     ? 'Save this validated A2UI preview as a Galaxy Brain draft'
-                    : 'Configure GALAXY_BRAIN_WRITE_TOKEN with eln:write scope'
+                    : accessAllowed
+                      ? 'Galaxy surface writes are unavailable'
+                      : 'Connect Galaxy with your Nostr identity first'
                 }
               >
                 <CloudUpload className="size-3.5" />
@@ -146,6 +150,14 @@ export function GalaxySurfaceControls({
                   </Button>
                 )}
                 {promoted && <Check className="size-4 text-emerald-500" aria-label="Promoted" />}
+                {promoted && state.surface?.view_url && (
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={state.surface.view_url} target="_blank" rel="noreferrer">
+                      Open in Galaxy
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </Button>
+                )}
               </>
             )}
             {state.error && <span className="text-destructive">{state.error}</span>}

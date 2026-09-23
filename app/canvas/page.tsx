@@ -100,8 +100,10 @@ export default function Page() {
   const deleteChat = useGenerativeUIStore((state) => state.deleteChat);
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'error'>('checking');
+  const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unlinked' | 'unconfigured' | 'error'>('checking');
   const [galaxySurfaceWritesConfigured, setGalaxySurfaceWritesConfigured] = useState(false);
+  const [galaxyAccessAllowed, setGalaxyAccessAllowed] = useState(false);
+  const [galaxyConnectUrl, setGalaxyConnectUrl] = useState('/api/galaxy-brain/connect/start');
   const [useGalaxyBrain, setUseGalaxyBrain] = useState(false);
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
@@ -115,10 +117,15 @@ export default function Page() {
           configured?: boolean;
           connected?: boolean;
           surfaceWritesConfigured?: boolean;
+          accessAllowed?: boolean;
+          connectUrl?: string;
         };
         if (!active) return;
         setGalaxySurfaceWritesConfigured(Boolean(status.surfaceWritesConfigured));
-        if (status.connected) setGalaxyBrainStatus('connected');
+        setGalaxyAccessAllowed(Boolean(status.accessAllowed));
+        if (typeof status.connectUrl === 'string') setGalaxyConnectUrl(status.connectUrl);
+        if (!status.accessAllowed) setGalaxyBrainStatus('unlinked');
+        else if (status.connected) setGalaxyBrainStatus('connected');
         else if (!status.configured) setGalaxyBrainStatus('unconfigured');
         else setGalaxyBrainStatus('error');
       })
@@ -210,6 +217,15 @@ export default function Page() {
                 connected={galaxyBrainStatus === 'connected'}
                 writesConfigured={galaxySurfaceWritesConfigured}
               />
+
+              {galaxyBrainStatus === 'unlinked' && (
+                <a
+                  href={galaxyConnectUrl}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Connect Galaxy
+                </a>
+              )}
 
               {/* Chat history */}
               {savedChats.length > 0 && (
@@ -344,6 +360,7 @@ export default function Page() {
                           content={message.content}
                           isStreaming={isStreaming}
                           writesConfigured={galaxySurfaceWritesConfigured}
+                          accessAllowed={galaxyAccessAllowed}
                         />
                       )}
                     </div>
@@ -387,6 +404,8 @@ export default function Page() {
                       ? 'Checking Galaxy Brain connection'
                       : galaxyBrainStatus === 'unconfigured'
                         ? 'Add the Galaxy Brain URL and read-only agent token in Vercel'
+                        : galaxyBrainStatus === 'unlinked'
+                          ? 'Connect Galaxy with your Nostr identity'
                         : 'Galaxy Brain is configured but unavailable'
                 }
               >

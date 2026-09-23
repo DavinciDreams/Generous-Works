@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import type { A2UIMessage } from '@/lib/a2ui/types';
-import { galaxyActorRef, isGalaxyBrainUserAllowed } from '@/lib/integrations/galaxy-access';
+import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 import {
   createGalaxySurface,
   listGalaxySurfaces,
@@ -26,7 +26,8 @@ function upstreamStatus(error: unknown): number {
 export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isGalaxyBrainUserAllowed(userId)) {
+  const access = await getGalaxyBrainAccess(userId);
+  if (!access.allowed) {
     return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
   }
 
@@ -54,7 +55,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isGalaxyBrainUserAllowed(userId)) {
+  const access = await getGalaxyBrainAccess(userId);
+  if (!access.allowed) {
     return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
   }
 
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
       spec,
       provenance: {
         source: 'generous.canvas',
-        actor_ref: galaxyActorRef(userId),
+        actor_ref: access.actorRef,
         ...(typeof body.messageId === 'string' ? { message_id: body.messageId } : {}),
         note: 'Saved from a rendered A2UI preview in Generous',
       },
