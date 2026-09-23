@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
   useGenerativeUIStore,
+  useArtifactStore,
   useMessages,
   useUIComponents,
   useAppState,
@@ -11,15 +12,20 @@ import {
 
 const initialState = {
   messages: [] as Message[],
+  savedChats: [],
   uiComponents: {} as Record<string, UIComponent>,
   isLoading: false,
   error: null as string | null,
 };
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
   act(() => {
     useGenerativeUIStore.setState(initialState);
+    useArtifactStore.setState({ artifacts: [] });
   });
+  localStorage.clear();
 });
 
 describe('initial state', () => {
@@ -105,6 +111,115 @@ describe('clearMessages', () => {
     act(() => { result.current.clearMessages(); });
 
     expect(result.current.messages).toEqual([]);
+  });
+});
+
+describe('chat persistence', () => {
+  it('stores only lightweight chat summaries from the history endpoint', async () => {
+    const summaries = [{
+      id: 'chat-1',
+      title: 'Earlier chat',
+      createdAt: '2026-09-23T00:00:00.000Z',
+      messageCount: 12,
+    }];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => summaries,
+    }));
+
+    await act(async () => {
+      await useGenerativeUIStore.getState().fetchChats();
+    });
+
+    expect(useGenerativeUIStore.getState().savedChats).toEqual(summaries);
+    expect(useGenerativeUIStore.getState().savedChats[0]).not.toHaveProperty('messages');
+  });
+
+  it('loads a full chat only when the user opens it', async () => {
+    const messages: Message[] = [
+      { id: 'msg-1', role: 'user', content: 'Open me' },
+      { id: 'msg-2', role: 'assistant', content: 'Loaded' },
+    ];
+    useGenerativeUIStore.setState({
+      savedChats: [{ id: 'chat-1', title: 'Earlier chat', createdAt: 1, messageCount: 2 }],
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chat-1',
+        title: 'Earlier chat',
+        createdAt: 1,
+        messageCount: 2,
+        messages,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      await useGenerativeUIStore.getState().loadChat('chat-1');
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/chats/chat-1');
+    expect(useGenerativeUIStore.getState().messages).toEqual(messages);
+  });
+
+  it('does not write streaming messages to localStorage', () => {
+    useGenerativeUIStore.getState().addMessage({ id: 'msg-1', role: 'assistant', content: '' });
+    useGenerativeUIStore.getState().updateMessage('msg-1', { content: 'streamed content' });
+
+    expect(localStorage.getItem('generative-ui-storage')).toBeNull();
+  });
+
+  it('persists saved artifacts without reopening them on startup', () => {
+    useArtifactStore.getState().saveArtifact({
+      name: 'Chart',
+      type: 'jsx',
+      content: '<Card />',
+      color: '#3b82f6',
+      emoji: '📊',
+    });
+
+    const persisted = JSON.parse(localStorage.getItem('generative-ui-storage') ?? '{}');
+    expect(persisted.state).toEqual({
+      artifacts: [expect.objectContaining({ name: 'Chart', isOpen: false })],
+    });
+    expect(persisted.state).not.toHaveProperty('messages');
+    expect(persisted.state).not.toHaveProperty('savedChats');
+    expect(useArtifactStore.getState().artifacts[0].isOpen).toBe(true);
+  });
+
+  it('migrates the legacy localStorage blob down to closed artifacts only', async () => {
+    localStorage.setItem('generative-ui-storage', JSON.stringify({
+      version: 0,
+      state: {
+        messages: [{ id: 'old-message', role: 'user', content: 'large history' }],
+        savedChats: [{ id: 'old-chat', title: 'Old', messages: [] }],
+        uiComponents: { old: { id: 'old', type: 'Card', props: {} } },
+        artifacts: [{
+          id: 'artifact-1',
+          name: 'Saved card',
+          type: 'jsx',
+          content: '<Card />',
+          createdAt: 1,
+          isOpen: true,
+          windowX: 80,
+          windowY: 64,
+          color: '#3b82f6',
+          emoji: '📌',
+        }],
+      },
+    }));
+
+    await act(async () => {
+      await useArtifactStore.persist.rehydrate();
+    });
+
+    const persisted = JSON.parse(localStorage.getItem('generative-ui-storage') ?? '{}');
+    expect(persisted.version).toBe(2);
+    expect(persisted.state).toEqual({
+      artifacts: [expect.objectContaining({ id: 'artifact-1', isOpen: false })],
+    });
+    expect(useArtifactStore.getState().artifacts[0].isOpen).toBe(false);
   });
 });
 

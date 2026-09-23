@@ -37,11 +37,15 @@ export interface UIComponent {
 /**
  * A saved chat session
  */
-export interface SavedChat {
+export interface SavedChatSummary {
   id: string;
   title: string;
+  createdAt: number | string;
+  messageCount: number;
+}
+
+export interface SavedChat extends SavedChatSummary {
   messages: Message[];
-  createdAt: number;
 }
 
 /**
@@ -69,10 +73,7 @@ export interface StoreState {
   messages: Message[];
 
   // Saved chat history
-  savedChats: SavedChat[];
-
-  // Saved artifacts (pinned components)
-  artifacts: Artifact[];
+  savedChats: SavedChatSummary[];
 
   // UI Components state
   uiComponents: Record<string, UIComponent>; // Map of component ID to component
@@ -107,15 +108,8 @@ export interface StoreActions {
   // Saved chat actions
   fetchChats: () => Promise<void>;
   saveCurrentChat: () => Promise<void>;
-  loadChat: (id: string) => void;
+  loadChat: (id: string) => Promise<void>;
   deleteChat: (id: string) => Promise<void>;
-
-  // Artifact actions
-  saveArtifact: (data: Omit<Artifact, 'id' | 'createdAt' | 'isOpen' | 'windowX' | 'windowY'>) => void;
-  openArtifact: (id: string) => void;
-  closeArtifact: (id: string) => void;
-  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
-  deleteArtifact: (id: string) => void;
 
   // Reset action
   reset: () => void;
@@ -145,18 +139,16 @@ export interface GenerativeUIStore extends StoreState, StoreActions {
 const initialState: StoreState = {
   messages: [],
   savedChats: [],
-  artifacts: [],
   uiComponents: {},
   isLoading: false,
   error: null,
 };
 
 /**
- * Create the Zustand store with persistence middleware
+ * Create the transient application store. Messages and chat history are kept
+ * out of synchronous localStorage so streaming updates stay cheap.
  */
-export const useGenerativeUIStore = create<GenerativeUIStore>()(
-  persist(
-    (set, get) => ({
+export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       // =====================
       // Initial State
       // =====================
@@ -263,7 +255,7 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
         try {
           const res = await fetch('/api/chats');
           if (!res.ok) return;
-          const rows: SavedChat[] = await res.json();
+          const rows: SavedChatSummary[] = await res.json();
           set({ savedChats: rows });
         } catch {
           // silently ignore — user may be offline or unauthenticated
@@ -285,10 +277,16 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
           title,
           messages,
           createdAt: Date.now(),
+          messageCount: messages.length,
         };
         set((state) => ({
           ...initialState,
-          savedChats: [saved, ...state.savedChats],
+          savedChats: [{
+            id: saved.id,
+            title: saved.title,
+            createdAt: saved.createdAt,
+            messageCount: saved.messageCount,
+          }, ...state.savedChats],
         }));
         try {
           await fetch('/api/chats', {
@@ -305,18 +303,40 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
        * Load a previously saved chat into the current session.
        * The current session (if non-empty) is saved first.
        */
-      loadChat: (id) => {
+      loadChat: async (id) => {
         const { savedChats, messages } = get();
-        const chat = savedChats.find((c) => c.id === id);
-        if (!chat) return;
+        const summary = savedChats.find((c) => c.id === id);
+        if (!summary) return;
+
+        let chat: SavedChat;
+        try {
+          const response = await fetch(`/api/chats/${id}`);
+          if (!response.ok) throw new Error('Failed to load chat');
+          chat = await response.json() as SavedChat;
+        } catch {
+          set({ error: 'Unable to load that chat. Please try again.' });
+          return;
+        }
+
         let updatedChats = savedChats.filter((c) => c.id !== id);
         if (messages.length > 0) {
           const firstUser = messages.find((m) => m.role === 'user');
           const title = firstUser
             ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
             : 'Chat';
-          const current: SavedChat = { id: crypto.randomUUID(), title, messages, createdAt: Date.now() };
-          updatedChats = [current, ...updatedChats];
+          const current: SavedChat = {
+            id: crypto.randomUUID(),
+            title,
+            messages,
+            createdAt: Date.now(),
+            messageCount: messages.length,
+          };
+          updatedChats = [{
+            id: current.id,
+            title: current.title,
+            createdAt: current.createdAt,
+            messageCount: current.messageCount,
+          }, ...updatedChats];
           fetch('/api/chats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -337,41 +357,6 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
           // already removed from local state
         }
       },
-
-      // =====================
-      // Artifact Actions
-      // =====================
-
-      saveArtifact: (data) => {
-        const idx = get().artifacts.length;
-        const artifact: Artifact = {
-          ...data,
-          id: crypto.randomUUID(),
-          createdAt: Date.now(),
-          isOpen: true,
-          windowX: 80 + (idx % 6) * 36,
-          windowY: 64 + (idx % 6) * 36,
-        };
-        set((state) => ({ artifacts: [...state.artifacts, artifact] }));
-      },
-
-      openArtifact: (id) =>
-        set((state) => ({
-          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, isOpen: true } : a)),
-        })),
-
-      closeArtifact: (id) =>
-        set((state) => ({
-          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, isOpen: false } : a)),
-        })),
-
-      updateArtifact: (id, updates) =>
-        set((state) => ({
-          artifacts: state.artifacts.map((a) => (a.id === id ? { ...a, ...updates } : a)),
-        })),
-
-      deleteArtifact: (id) =>
-        set((state) => ({ artifacts: state.artifacts.filter((a) => a.id !== id) })),
 
       /**
        * Reset the entire store to initial state
@@ -417,14 +402,75 @@ export const useGenerativeUIStore = create<GenerativeUIStore>()(
        */
       getUIComponentsByType: (type) =>
         Object.values(get().uiComponents).filter((comp) => comp.type === type),
+}));
+
+interface ArtifactStore {
+  artifacts: Artifact[];
+  saveArtifact: (data: Omit<Artifact, 'id' | 'createdAt' | 'isOpen' | 'windowX' | 'windowY'>) => void;
+  openArtifact: (id: string) => void;
+  closeArtifact: (id: string) => void;
+  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
+  deleteArtifact: (id: string) => void;
+}
+
+/**
+ * Persist only user-saved artifacts. Reusing the legacy key lets the versioned
+ * migration discard previously persisted chats, messages, and UI components.
+ * Open windows are deliberately serialized as closed to avoid mounting every
+ * saved artifact during startup.
+ */
+export const useArtifactStore = create<ArtifactStore>()(
+  persist(
+    (set, get) => ({
+      artifacts: [],
+      saveArtifact: (data) => {
+        const idx = get().artifacts.length;
+        const artifact: Artifact = {
+          ...data,
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          isOpen: true,
+          windowX: 80 + (idx % 6) * 36,
+          windowY: 64 + (idx % 6) * 36,
+        };
+        set((state) => ({ artifacts: [...state.artifacts, artifact] }));
+      },
+      openArtifact: (id) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((artifact) =>
+            artifact.id === id ? { ...artifact, isOpen: true } : artifact
+          ),
+        })),
+      closeArtifact: (id) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((artifact) =>
+            artifact.id === id ? { ...artifact, isOpen: false } : artifact
+          ),
+        })),
+      updateArtifact: (id, updates) =>
+        set((state) => ({
+          artifacts: state.artifacts.map((artifact) =>
+            artifact.id === id ? { ...artifact, ...updates } : artifact
+          ),
+        })),
+      deleteArtifact: (id) =>
+        set((state) => ({
+          artifacts: state.artifacts.filter((artifact) => artifact.id !== id),
+        })),
     }),
     {
-      name: 'generative-ui-storage', // Storage key for localStorage
+      name: 'generative-ui-storage',
+      version: 2,
+      migrate: (persistedState) => {
+        const legacy = persistedState as { artifacts?: Artifact[] } | undefined;
+        return {
+          artifacts: Array.isArray(legacy?.artifacts)
+            ? legacy.artifacts.map((artifact) => ({ ...artifact, isOpen: false }))
+            : [],
+        };
+      },
       partialize: (state) => ({
-        messages: state.messages,
-        savedChats: state.savedChats,
-        artifacts: state.artifacts,
-        uiComponents: state.uiComponents,
+        artifacts: state.artifacts.map((artifact) => ({ ...artifact, isOpen: false })),
       }),
     }
   )

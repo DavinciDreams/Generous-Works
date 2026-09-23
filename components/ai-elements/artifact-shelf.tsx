@@ -2,7 +2,7 @@
 
 import type { ComponentType } from "react";
 import { useState } from "react";
-import { useGenerativeUIStore } from "@/lib/store";
+import { useArtifactStore } from "@/lib/store";
 import { ArtifactIcon } from "@/components/ai-elements/artifact-icon";
 import { ArtifactWindow } from "@/components/ai-elements/artifact-window";
 import { LayoutGrid } from "lucide-react";
@@ -13,10 +13,10 @@ interface ArtifactShelfProps {
 }
 
 export function ArtifactShelf({ jsxComponents }: ArtifactShelfProps) {
-  const artifacts = useGenerativeUIStore((s) => s.artifacts);
-  const openArtifact = useGenerativeUIStore((s) => s.openArtifact);
-  const closeArtifact = useGenerativeUIStore((s) => s.closeArtifact);
-  const deleteArtifact = useGenerativeUIStore((s) => s.deleteArtifact);
+  const artifacts = useArtifactStore((s) => s.artifacts);
+  const openArtifact = useArtifactStore((s) => s.openArtifact);
+  const closeArtifact = useArtifactStore((s) => s.closeArtifact);
+  const deleteArtifact = useArtifactStore((s) => s.deleteArtifact);
   const [panelOpen, setPanelOpen] = useState(false);
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
