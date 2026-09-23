@@ -19,7 +19,7 @@
  * ```
  */
 
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, HTMLAttributes } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -96,6 +96,7 @@ export const JSONViewer = memo(
   forwardRef<HTMLDivElement, JSONViewerProps>(
     ({ data, options = {}, className, children, ...props }, ref) => {
       const [isFullscreen, setIsFullscreen] = useState(false);
+      const compact = options.mode === "compact";
 
       const value: JSONViewerContextValue = {
         data,
@@ -110,12 +111,13 @@ export const JSONViewer = memo(
             ref={ref}
             className={cn(
               "jsonviewer-container flex flex-col rounded-lg border bg-card",
+              compact && "text-xs",
               isFullscreen && "fixed inset-0 z-50 m-0 rounded-none",
               className
             )}
             style={{
               width: options.width || "100%",
-              height: options.height || 600,
+              height: isFullscreen ? "100vh" : (options.height ?? (compact ? 320 : 600)),
             }}
             {...props}
           >
@@ -136,11 +138,15 @@ export type JSONViewerHeaderProps = HTMLAttributes<HTMLDivElement>;
 export const JSONViewerHeader = memo(
   forwardRef<HTMLDivElement, JSONViewerHeaderProps>(
     ({ className, children, ...props }, ref) => {
+      const { options } = useJSONViewer();
+      const compact = options.mode === "compact";
+
       return (
         <div
           ref={ref}
           className={cn(
-            "flex items-center justify-between gap-2 border-b p-4",
+            "flex items-center justify-between gap-2 border-b",
+            compact ? "px-3 py-2" : "p-4",
             className
           )}
           {...props}
@@ -161,7 +167,7 @@ export type JSONViewerTitleProps = HTMLAttributes<HTMLDivElement>;
 export const JSONViewerTitle = memo(
   forwardRef<HTMLDivElement, JSONViewerTitleProps>(
     ({ className, children, ...props }, ref) => {
-      const { data } = useJSONViewer();
+      const { data, options } = useJSONViewer();
 
       return (
         <div
@@ -169,9 +175,11 @@ export const JSONViewerTitle = memo(
           className={cn("flex items-center gap-2", className)}
           {...props}
         >
-          <FileJson2Icon className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold text-lg">
-            {children || data.rootName || "JSON Viewer"}
+          <FileJson2Icon className={cn("text-muted-foreground", options.mode === "compact" ? "size-4" : "size-5")} />
+          <h3 className={cn("font-semibold", options.mode === "compact" ? "text-sm" : "text-lg")}>
+            {children || (options.mode === "compact"
+              ? "JSON Inspector"
+              : data.rootName || "JSON Viewer")}
           </h3>
         </div>
       );
@@ -207,7 +215,7 @@ JSONViewerActions.displayName = "JSONViewerActions";
 
 export const JSONViewerCopyButton = memo(() => {
   const [copied, setCopied] = useState(false);
-  const { data } = useJSONViewer();
+  const { data, options } = useJSONViewer();
 
   const handleCopy = useCallback(async () => {
     try {
@@ -222,7 +230,7 @@ export const JSONViewerCopyButton = memo(() => {
   return (
     <Button
       variant="outline"
-      size="icon"
+      size={options.mode === "compact" ? "icon-xs" : "icon"}
       onClick={handleCopy}
       aria-label="Copy JSON"
     >
@@ -240,7 +248,7 @@ JSONViewerCopyButton.displayName = "JSONViewerCopyButton";
 // --- JSONViewer Download Button ---
 
 export const JSONViewerDownloadButton = memo(() => {
-  const { data } = useJSONViewer();
+  const { data, options } = useJSONViewer();
 
   const handleDownload = useCallback(() => {
     try {
@@ -262,7 +270,7 @@ export const JSONViewerDownloadButton = memo(() => {
   return (
     <Button
       variant="outline"
-      size="icon"
+      size={options.mode === "compact" ? "icon-xs" : "icon"}
       onClick={handleDownload}
       aria-label="Download JSON"
     >
@@ -276,12 +284,12 @@ JSONViewerDownloadButton.displayName = "JSONViewerDownloadButton";
 // --- JSONViewer Fullscreen Button ---
 
 export const JSONViewerFullscreenButton = memo(() => {
-  const { isFullscreen, setIsFullscreen } = useJSONViewer();
+  const { isFullscreen, setIsFullscreen, options } = useJSONViewer();
 
   return (
     <Button
       variant="outline"
-      size="icon"
+      size={options.mode === "compact" ? "icon-xs" : "icon"}
       onClick={() => setIsFullscreen(!isFullscreen)}
       aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
     >
@@ -306,12 +314,14 @@ export const JSONViewerContent = memo(
       const { data, options } = useJSONViewer();
 
       const theme = getTheme(options?.theme);
+      const compact = options?.mode === "compact";
 
       return (
         <div
           ref={ref}
           className={cn(
-            "jsonviewer-content flex-1 overflow-auto p-4",
+            "jsonviewer-content flex-1 overflow-auto",
+            compact ? "p-3" : "p-4",
             className
           )}
           {...props}
@@ -319,11 +329,12 @@ export const JSONViewerContent = memo(
           <JsonView
             value={data.value}
             keyName={data.rootName}
-            collapsed={data.collapsed}
+            collapsed={data.collapsed ?? (compact ? 2 : false)}
             style={theme as React.CSSProperties}
-            displayDataTypes={options?.displayDataTypes ?? true}
+            displayDataTypes={options?.displayDataTypes ?? !compact}
             displayObjectSize={options?.displayObjectSize ?? true}
             enableClipboard={options?.enableClipboard ?? true}
+            shortenTextAfterLength={options?.maxStringLength ?? (compact ? 120 : undefined)}
           />
         </div>
       );

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { A2UIMessage } from '@/lib/a2ui/types';
 
 // ============================================================================
 // Type Definitions
@@ -17,7 +18,10 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  /** Raw assistant transport retained for future model context, not direct display. */
+  modelContent?: string;
   jsx?: string; // Optional JSX content for UI components
+  a2ui?: A2UIMessage[]; // Reconciled structured surfaces from a JSONL stream
   timestamp?: number;
   uiComponents?: UIComponent[]; // Optional UI components associated with this message
 }

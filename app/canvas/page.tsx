@@ -15,6 +15,11 @@ import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
 import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
 import { InfiniteConversationCanvas } from '@/components/infinite-conversation-canvas';
+import {
+  consumeA2UIJsonl,
+  createA2UIJsonlAccumulator,
+  toRenderableA2UIMessages,
+} from '@/lib/a2ui/jsonl-stream';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -155,15 +160,20 @@ export default function Page() {
 
     try {
       const apiMessages = messages
-        .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0)
-        .map((msg) => ({ role: msg.role, content: msg.content }));
+        .map((msg) => ({ role: msg.role, content: msg.modelContent ?? msg.content }))
+        .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0);
 
       apiMessages.push({ role: "user", content: prompt });
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, stream: true, useGalaxyBrain }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          stream: true,
+          useGalaxyBrain,
+          renderFormat: 'a2ui-jsonl',
+        }),
       });
 
       if (!response.ok) {
@@ -172,28 +182,71 @@ export default function Page() {
       }
 
       const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('The response stream was unavailable');
+      }
       const decoder = new TextDecoder();
       let fullContent = "";
       let lastRenderedAt = 0;
+      const responseFormat = response.headers.get('X-Generous-Render-Format')
+        ?? (response.headers.get('Content-Type')?.includes('application/x-ndjson')
+          ? 'a2ui-jsonl'
+          : null);
 
       if (reader) {
+        let structuredStream = createA2UIJsonlAccumulator();
+        let lastAcceptedEventCount = 0;
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          fullContent += decoder.decode(value, { stream: true });
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+
+          if (responseFormat === 'a2ui-jsonl') {
+            structuredStream = consumeA2UIJsonl(structuredStream, chunk);
+            if (structuredStream.acceptedEvents !== lastAcceptedEventCount) {
+              const a2ui = toRenderableA2UIMessages(structuredStream);
+              if (a2ui.length > 0) {
+                updateMessage(assistantMessageId, { a2ui });
+              }
+              lastAcceptedEventCount = structuredStream.acceptedEvents;
+            }
+            continue;
+          }
+
           const now = performance.now();
           if (now - lastRenderedAt >= STREAM_RENDER_INTERVAL_MS) {
             updateMessage(assistantMessageId, { content: fullContent });
             lastRenderedAt = now;
           }
         }
-        fullContent += decoder.decode();
-        updateMessage(assistantMessageId, { content: fullContent });
+        const finalChunk = decoder.decode();
+        fullContent += finalChunk;
+
+        if (responseFormat === 'a2ui-jsonl') {
+          structuredStream = consumeA2UIJsonl(structuredStream, finalChunk, { flush: true });
+          const a2ui = toRenderableA2UIMessages(structuredStream);
+          if (a2ui.length === 0) {
+            throw new Error('The structured response did not contain a renderable A2UI surface');
+          }
+          updateMessage(assistantMessageId, {
+            content: '',
+            modelContent: fullContent,
+            a2ui,
+          });
+        } else {
+          updateMessage(assistantMessageId, { content: fullContent });
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
-      updateMessage(assistantMessageId, { content: `I apologize, but I encountered an error: ${errorMessage}` });
+      updateMessage(assistantMessageId, {
+        content: `I apologize, but I encountered an error: ${errorMessage}`,
+        modelContent: undefined,
+        a2ui: undefined,
+      });
     } finally {
       setLoading(false);
     }
@@ -219,6 +272,7 @@ export default function Page() {
               id: message.id,
               role: message.role,
               content: message.content,
+              a2ui: message.a2ui,
               timestamp: message.timestamp,
             }}
             isStreaming={isStreaming}
@@ -228,6 +282,7 @@ export default function Page() {
             <GalaxySurfaceControls
               messageId={message.id}
               content={message.content}
+              a2ui={message.a2ui}
               isStreaming={isStreaming}
               writesConfigured={galaxySurfaceWritesConfigured}
               accessAllowed={galaxyAccessAllowed}

@@ -97,6 +97,20 @@ describe('POST /api/chat — validation', () => {
     expect(body.error).toBe('Invalid request body');
   });
 
+  it('returns 400 for an unknown render format', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'user_123' } as any);
+
+    const res = await POST(
+      makeRequest({
+        messages: [{ role: 'user', content: 'Hi' }],
+        renderFormat: 'partial-mystery-json',
+      }) as any
+    );
+
+    expect(res.status).toBe(400);
+    expect(streamText).not.toHaveBeenCalled();
+  });
+
   it('returns a streaming response for valid input', async () => {
     vi.mocked(auth).mockResolvedValue({ userId: 'user_123' } as any);
 
@@ -111,6 +125,34 @@ describe('POST /api/chat — validation', () => {
 
     expect(res.status).toBe(200);
     expect(streamText).toHaveBeenCalledOnce();
+  });
+
+  it('returns a labelled JSONL stream with the A2UI transport prompt', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'user_123' } as any);
+    const toTextStreamResponse = vi.fn((init?: ResponseInit) => new Response('test', init));
+    vi.mocked(streamText).mockReturnValue({ toTextStreamResponse } as any);
+
+    const res = await POST(
+      makeRequest({
+        messages: [{ role: 'user', content: 'Build a live dashboard' }],
+        renderFormat: 'a2ui-jsonl',
+      }) as any
+    );
+
+    expect(res.headers.get('Content-Type')).toContain('application/x-ndjson');
+    expect(res.headers.get('X-Generous-Render-Format')).toBe('a2ui-jsonl');
+    expect(streamText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Required A2UI JSONL transport'),
+      })
+    );
+    expect(toTextStreamResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Generous-Render-Format': 'a2ui-jsonl',
+        }),
+      })
+    );
   });
 
   it('clamps temperature 999 to 2 before forwarding to the AI provider', async () => {
