@@ -35,6 +35,22 @@ afterEach(() => {
 });
 
 describe('Galaxy Brain integration', () => {
+  it('normalizes a Galaxy site origin to the ELN API base', async () => {
+    process.env.GALAXY_BRAIN_API_URL = 'https://galaxybrain.example';
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getGalaxyBrainConnectionStatus()).resolves.toEqual({
+      configured: true,
+      connected: true,
+      surfaceWritesConfigured: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://galaxybrain.example/api/eln/experiments',
+      expect.any(Object),
+    );
+  });
+
   it('reports an unconfigured connection without making a request', async () => {
     delete process.env.GALAXY_BRAIN_API_TOKEN;
     const fetchMock = vi.fn();
