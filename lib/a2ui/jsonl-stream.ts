@@ -95,3 +95,25 @@ export function toRenderableA2UIMessages(
     .filter((surface) => surface.ready)
     .map(toA2UIMessage);
 }
+
+/**
+ * Finish a completed transport without discarding valid component updates when
+ * a provider omits beginRendering. While bytes are still arriving we retain
+ * the stricter readiness gate; at EOF a non-empty, already-normalized surface
+ * is safe to hand to Generous' complete-message renderer.
+ */
+export function toFinalA2UIMessages(
+  accumulator: A2UIJsonlAccumulator,
+): A2UIMessage[] {
+  return accumulator.state.surfaces
+    .filter((surface) => surface.components.length > 0)
+    .map((surface) => surface.ready
+      ? toA2UIMessage(surface)
+      : {
+          surfaceUpdate: {
+            surfaceId: surface.surfaceId,
+            components: surface.components.slice(),
+          },
+          beginRendering: true,
+        });
+}
