@@ -2,7 +2,7 @@
 
 import type { FormEvent, ComponentType } from "react";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
 
@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils';
 
 import { GenerativeMessage } from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
-import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
 import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
+import { InfiniteConversationCanvas } from '@/components/infinite-conversation-canvas';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -199,6 +199,50 @@ export default function Page() {
     }
   }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
 
+  const canvasItems = useMemo(() => messages.flatMap((message, index) => {
+    if (message.role === 'system') return [];
+
+    const isStreaming = isLoading
+      && message.role === "assistant"
+      && index === messages.length - 1;
+
+    return [{
+      id: message.id,
+      role: message.role,
+      isStreaming,
+      timestamp: message.timestamp,
+      body: (
+        <>
+          <GenerativeMessage
+            className="my-0"
+            message={{
+              id: message.id,
+              role: message.role,
+              content: message.content,
+              timestamp: message.timestamp,
+            }}
+            isStreaming={isStreaming}
+            components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
+          />
+          {message.role === 'assistant' ? (
+            <GalaxySurfaceControls
+              messageId={message.id}
+              content={message.content}
+              isStreaming={isStreaming}
+              writesConfigured={galaxySurfaceWritesConfigured}
+              accessAllowed={galaxyAccessAllowed}
+            />
+          ) : null}
+        </>
+      ),
+    }];
+  }), [
+    galaxyAccessAllowed,
+    galaxySurfaceWritesConfigured,
+    isLoading,
+    messages,
+  ]);
+
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {/* Components navigation bar */}
@@ -334,69 +378,29 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Messages area */}
-      <Conversation className="flex-1">
-        <ConversationContent className="overflow-y-auto">
-          <div className="px-4 py-8">
-            <div className="mx-auto max-w-3xl space-y-8">
-              {messages.length === 0 ? (
-                <div className="flex min-h-[40vh] items-center justify-center">
-                  <div className="text-center space-y-4">
-                    <div
-                      className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-xl mb-2"
-                      style={{ background: 'linear-gradient(135deg, #0097b2, #7ed952)' }}
-                    >
-                      ✦
-                    </div>
-                    <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
-                      Ask for anything.
-                    </h2>
-                    <p className="text-muted-foreground max-w-xs leading-relaxed text-sm">
-                      Charts, 3D scenes, maps, code, timelines, slides, docs — watch it render live.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                messages.map((message, index) => {
-                  const isStreaming = isLoading && message.role === "assistant" && index === messages.length - 1;
-                  return (
-                    <div key={message.id}>
-                      <GenerativeMessage
-                        message={{ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp }}
-                        isStreaming={isStreaming}
-                        components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
-                      />
-                      {message.role === 'assistant' && (
-                        <GalaxySurfaceControls
-                          messageId={message.id}
-                          content={message.content}
-                          isStreaming={isStreaming}
-                          writesConfigured={galaxySurfaceWritesConfigured}
-                          accessAllowed={galaxyAccessAllowed}
-                        />
-                      )}
-                    </div>
-                  );
-                })
-              )}
-
-              {isLoading && (
-                <div className="flex items-center gap-3 text-muted-foreground">
-                  <Spinner />
-                  <span className="text-sm">Generating response...</span>
-                </div>
-              )}
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+      {/* Infinite conversation canvas */}
+      <div className="min-h-0 flex-1">
+        <InfiniteConversationCanvas
+          items={canvasItems}
+          error={error}
+          emptyState={(
+            <div className="max-w-sm space-y-4 rounded-3xl border border-border/70 bg-background/80 px-8 py-9 text-center shadow-2xl backdrop-blur-xl">
+              <div
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-xl"
+                style={{ background: 'linear-gradient(135deg, #0097b2, #7ed952)' }}
+              >
+                ✦
+              </div>
+              <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
+                Ask for anything.
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Every prompt and generated artifact lands on a canvas you can pan, zoom, and rearrange.
+              </p>
             </div>
-          </div>
-        </ConversationContent>
-      </Conversation>
+          )}
+        />
+      </div>
 
       {/* Prompt input */}
       <div className="shrink-0 px-4 py-4 border-t border-border bg-background/85 backdrop-blur-xl">
