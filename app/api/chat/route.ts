@@ -724,6 +724,44 @@ You are helpful, concise, and focused on generating high-quality, functional UI 
 }
 
 /**
+ * A line-framed transport prompt for clients that can reconcile A2UI updates.
+ * This intentionally avoids the mixed markdown/JSX instructions above: every
+ * newline becomes a protocol boundary and must therefore contain valid JSON.
+ */
+function getA2UIStreamSystemPrompt(): string {
+  const catalogPrompt = getCatalogPrompt();
+
+  return `You generate live interfaces using Generous' A2UI v0.8 component catalog.
+
+${catalogPrompt}
+
+## Required A2UI JSONL transport
+
+Output newline-delimited JSON only. Do not emit prose, markdown, code fences, comments, or blank-line explanations.
+
+Each physical line must be one complete JSON object containing exactly one of:
+- surfaceUpdate
+- dataModelUpdate
+- beginRendering
+
+Use one stable surfaceId for a UI, normally "main". Use stable component ids so later surfaceUpdate events replace the same components instead of duplicating them.
+
+Stream in this order:
+1. Emit a small surfaceUpdate containing a valid renderable root component.
+2. Immediately emit beginRendering for that root so the client can paint it.
+3. Emit additional surfaceUpdate lines as more content becomes available. This client accepts dataModelUpdate events, but visible values should be placed directly in component props.
+
+For a prose answer, render it with the Text component. Component props must exactly match the catalog examples, including typed literal values where shown.
+
+Minimal valid stream example:
+{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Working..."},"usageHint":{"literalString":"body"}}}}]}}
+{"beginRendering":{"surfaceId":"main","root":"root"}}
+{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Finished."},"usageHint":{"literalString":"body"}}}}]}}
+
+Every line must remain independently parseable while it is streaming.`;
+}
+
+/**
  * POST /api/chat
  * 
  * Handles chat requests with streaming support for both text and UI components.
@@ -734,6 +772,7 @@ You are helpful, concise, and focused on generating high-quality, functional UI 
  * - stream: Enable streaming (default: true)
  * - temperature: Optional temperature for generation (default: 0.7)
  * - maxTokens: Optional max tokens (default: 4000)
+ * - renderFormat: text (legacy mixed response) or a2ui-jsonl (reconciled UI stream)
  */
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
@@ -747,6 +786,7 @@ const chatRequestSchema = z.object({
   temperature: z.number().optional().default(0.7),
   maxTokens: z.number().optional().default(4000),
   useGalaxyBrain: z.boolean().optional().default(false),
+  renderFormat: z.enum(['text', 'a2ui-jsonl']).optional().default('text'),
 });
 
 export async function POST(req: NextRequest) {
@@ -767,7 +807,15 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const { messages, prompt, stream, temperature, maxTokens, useGalaxyBrain } = parseResult.data;
+    const {
+      messages,
+      prompt,
+      stream,
+      temperature,
+      maxTokens,
+      useGalaxyBrain,
+      renderFormat,
+    } = parseResult.data;
 
     if (useGalaxyBrain && !(await getGalaxyBrainAccess(userId)).allowed) {
       return new Response(JSON.stringify({ error: 'Galaxy Brain access is not allowed' }), {
@@ -833,7 +881,9 @@ export async function POST(req: NextRequest) {
     if (stream) {
       const result = streamText({
         model: aiModel,
-        system: getSystemPrompt() + galaxyBrainContext,
+        system: (renderFormat === 'a2ui-jsonl'
+          ? getA2UIStreamSystemPrompt()
+          : getSystemPrompt()) + galaxyBrainContext,
         messages: preparedMessages,
         temperature: clampedTemperature,
         maxOutputTokens: clampedMaxTokens,
@@ -842,7 +892,14 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return result.toTextStreamResponse();
+      return result.toTextStreamResponse(renderFormat === 'a2ui-jsonl' ? {
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+          'X-Generous-Render-Format': 'a2ui-jsonl',
+        },
+      } : undefined);
     }
 
     // Non-streaming fallback (for compatibility)

@@ -58,7 +58,7 @@ describe('parseMessageContent', () => {
     }
   });
 
-  it('keeps malformed JSON and invalid A2UI envelopes visible as text', () => {
+  it('keeps malformed JSON visible and sends other JSON to the compact inspector', () => {
     const malformed = parseMessageContent(
       '```json\n{"surfaceUpdate":{"components":[]},}\n```',
     );
@@ -70,7 +70,22 @@ describe('parseMessageContent', () => {
       expect.objectContaining({ type: 'text' }),
     ]);
     expect(invalidEnvelope).toEqual([
-      expect.objectContaining({ type: 'text' }),
+      expect.objectContaining({
+        type: 'a2ui',
+        spec: expect.objectContaining({
+          surfaceUpdate: {
+            components: [
+              expect.objectContaining({
+                component: {
+                  JSONViewer: expect.objectContaining({
+                    options: expect.objectContaining({ mode: 'compact' }),
+                  }),
+                },
+              }),
+            ],
+          },
+        }),
+      }),
     ]);
   });
 });

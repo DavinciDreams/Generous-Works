@@ -280,9 +280,6 @@ export function HybridRenderer({
   return (
     <div className={cn("space-y-4", className)} {...props}>
       {blocks.map((block) => {
-        // Diagnostic logging for debugging
-        console.log('[HybridRenderer] Rendering block:', { id: block.id, type: block.type });
-        
         return (
           <HybridRendererErrorBoundary
             key={block.id}

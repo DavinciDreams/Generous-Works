@@ -33,6 +33,8 @@ export interface GenerativeMessageProps extends HTMLAttributes<HTMLDivElement> {
     content: string;
     jsx?: string;
     timestamp?: number;
+    /** Reconciled A2UI surfaces received through the JSONL stream protocol. */
+    a2ui?: A2UIMessage[];
     uiComponents?: Array<{
       id: string;
       jsx: string;
@@ -91,6 +93,34 @@ const isA2UIMessage = (value: unknown): value is A2UIMessage => {
   });
 };
 
+/** Turn arbitrary completed JSON into the safe, compact canvas inspector. */
+const createJSONInspectorMessage = (value: unknown): A2UIMessage => ({
+  surfaceUpdate: {
+    components: [
+      {
+        id: 'json-inspector',
+        component: {
+          JSONViewer: {
+            data: {
+              value,
+              rootName: 'response',
+              collapsed: 2,
+            },
+            options: {
+              mode: 'compact',
+              maxStringLength: 120,
+              displayDataTypes: false,
+              displayObjectSize: true,
+              enableClipboard: true,
+            },
+          },
+        },
+      },
+    ],
+  },
+  beginRendering: true,
+});
+
 /**
  * Parse message content into unified ContentBlock array
  * Extracts JSX (```tsx), A2UI (```json with surfaceUpdate), and text
@@ -133,15 +163,13 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
       try {
         const parsed: unknown = JSON.parse(jsonMatch[1].trim());
 
-        if (isA2UIMessage(parsed)) {
-          matches.push({
-            type: 'a2ui',
-            start: jsonMatch.index,
-            end: jsonMatch.index + jsonMatch[0].length,
-            content: jsonMatch[1].trim(),
-            data: parsed,
-          });
-        }
+        matches.push({
+          type: 'a2ui',
+          start: jsonMatch.index,
+          end: jsonMatch.index + jsonMatch[0].length,
+          content: jsonMatch[1].trim(),
+          data: isA2UIMessage(parsed) ? parsed : createJSONInspectorMessage(parsed),
+        });
       } catch {
         // Invalid JSON stays visible as text instead of disappearing or crashing.
         console.debug('[parseMessageContent] Invalid JSON block, treating as text');
@@ -222,7 +250,7 @@ export const GenerativeMessage = memo(
     className,
     ...props
   }: GenerativeMessageProps) => {
-    const { id, role, content, jsx } = message;
+    const { id, role, content, jsx, a2ui } = message;
 
     // Parse content to extract ALL blocks (text, JSX, A2UI)
     const contentBlocks = useMemo(() => {
@@ -244,9 +272,13 @@ export const GenerativeMessage = memo(
 
       // Otherwise, parse content for mixed blocks
       const blocks = parseMessageContent(content);
-      console.log('[GenerativeMessage] Parsed blocks:', blocks.length, blocks.map(b => b.type));
-      return blocks;
-    }, [content, jsx, id]);
+      const streamedSurfaces = (a2ui ?? []).map((spec, index) => ({
+        type: 'a2ui' as const,
+        spec,
+        id: `a2ui-stream-${spec.surfaceUpdate?.surfaceId ?? index}`,
+      }));
+      return [...blocks, ...streamedSurfaces];
+    }, [a2ui, content, jsx, id]);
 
     // Don't render for system messages
     if (role === "system") {
