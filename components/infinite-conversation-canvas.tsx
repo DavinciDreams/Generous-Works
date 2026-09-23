@@ -302,7 +302,7 @@ export function InfiniteConversationCanvas({
         zoomOnDoubleClick={false}
       >
         <Controls position="bottom-left" showInteractive={false} />
-        <MiniMap
+        <MiniMap<ConversationNode>
           ariaLabel="Canvas minimap"
           className="!border !border-border !bg-card/90"
           maskColor="color-mix(in oklab, var(--background) 78%, transparent)"
