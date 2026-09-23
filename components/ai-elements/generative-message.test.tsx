@@ -88,4 +88,28 @@ describe('parseMessageContent', () => {
       }),
     ]);
   });
+
+  it('sends bare completed JSON to the compact inspector', () => {
+    const [block] = parseMessageContent('{"status":"ok","items":[1,2,3]}');
+
+    expect(block).toMatchObject({
+      type: 'a2ui',
+      spec: {
+        surfaceUpdate: {
+          components: [
+            {
+              component: {
+                JSONViewer: {
+                  data: {
+                    value: { status: 'ok', items: [1, 2, 3] },
+                  },
+                  options: { mode: 'compact' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
 });

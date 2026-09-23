@@ -172,13 +172,26 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
         });
       } catch {
         // Invalid JSON stays visible as text instead of disappearing or crashing.
-        console.debug('[parseMessageContent] Invalid JSON block, treating as text');
       }
     }
   }
 
   // Sort matches by position
   matches.sort((a, b) => a.start - b.start);
+
+  // A tool or API may return a bare JSON value without a Markdown fence.
+  if (matches.length === 0 && content.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(content.trim());
+      return [{
+        type: 'a2ui',
+        spec: isA2UIMessage(parsed) ? parsed : createJSONInspectorMessage(parsed),
+        id: 'a2ui-block-0',
+      }];
+    } catch {
+      // Non-JSON content continues through the ordinary text renderer below.
+    }
+  }
 
   // Extract text blocks between code blocks
   let lastEnd = 0;
@@ -225,7 +238,7 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
     }
   }
 
-  // If no blocks were found, treat entire content as text
+  // If no structured blocks were found, treat the entire content as text.
   if (blocks.length === 0 && content.trim()) {
     blocks.push({
       type: 'text',
