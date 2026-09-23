@@ -33,7 +33,7 @@ export function ArtifactShelf({ jsxComponents }: ArtifactShelfProps) {
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-accent"
       >
         <LayoutGrid className="w-3.5 h-3.5" />
-        Canvas
+        Artifacts
         <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-px text-[10px] font-medium text-primary leading-none">
           {artifacts.length}
         </span>

@@ -14,13 +14,13 @@ export const Canvas = ({ children, ...props }: CanvasProps) => (
   <ReactFlow
     deleteKeyCode={deleteKeyCode}
     fitView
-    panOnDrag={false}
+    panOnDrag
     panOnScroll
-    selectionOnDrag={true}
+    selectionOnDrag={false}
     zoomOnDoubleClick={false}
     {...props}
   >
-    <Background bgColor="var(--sidebar)" />
+    <Background bgColor="var(--background)" color="var(--border)" gap={24} size={1.25} />
     {children}
   </ReactFlow>
 );
