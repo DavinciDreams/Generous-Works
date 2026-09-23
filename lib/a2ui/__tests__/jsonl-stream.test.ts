@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   consumeA2UIJsonl,
   createA2UIJsonlAccumulator,
+  toFinalA2UIMessages,
   toRenderableA2UIMessages,
 } from '../jsonl-stream';
 
@@ -60,6 +61,23 @@ describe('A2UI JSONL stream transport', () => {
 
     expect(stream.acceptedEvents).toBe(1);
     expect(stream.buffer).toBe('');
+  });
+
+  it('recovers a normalized surface at EOF when beginRendering is omitted', () => {
+    const stream = consumeA2UIJsonl(
+      createA2UIJsonlAccumulator(),
+      surfaceUpdate('still useful'),
+      { flush: true },
+    );
+
+    expect(toRenderableA2UIMessages(stream)).toEqual([]);
+    expect(toFinalA2UIMessages(stream)[0]).toMatchObject({
+      surfaceUpdate: {
+        surfaceId: 'main',
+        components: [{ id: 'root', component: { Text: { text: 'still useful' } } }],
+      },
+      beginRendering: true,
+    });
   });
 
   it('keeps accepted state when a later event is malformed', () => {

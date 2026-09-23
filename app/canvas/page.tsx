@@ -18,6 +18,7 @@ import { InfiniteConversationCanvas } from '@/components/infinite-conversation-c
 import {
   consumeA2UIJsonl,
   createA2UIJsonlAccumulator,
+  toFinalA2UIMessages,
   toRenderableA2UIMessages,
 } from '@/lib/a2ui/jsonl-stream';
 
@@ -226,15 +227,25 @@ export default function Page() {
 
         if (responseFormat === 'a2ui-jsonl') {
           structuredStream = consumeA2UIJsonl(structuredStream, finalChunk, { flush: true });
-          const a2ui = toRenderableA2UIMessages(structuredStream);
-          if (a2ui.length === 0) {
-            throw new Error('The structured response did not contain a renderable A2UI surface');
+          const a2ui = toFinalA2UIMessages(structuredStream);
+          if (a2ui.length > 0) {
+            updateMessage(assistantMessageId, {
+              content: '',
+              modelContent: fullContent,
+              a2ui,
+            });
+          } else if (fullContent.trim()) {
+            // Providers can occasionally ignore the requested wire format.
+            // Preserve that answer so completed JSON can use the inspector and
+            // prose can render normally instead of becoming a false error.
+            updateMessage(assistantMessageId, {
+              content: fullContent,
+              modelContent: fullContent,
+              a2ui: undefined,
+            });
+          } else {
+            throw new Error('The model returned an empty response');
           }
-          updateMessage(assistantMessageId, {
-            content: '',
-            modelContent: fullContent,
-            a2ui,
-          });
         } else {
           updateMessage(assistantMessageId, { content: fullContent });
         }

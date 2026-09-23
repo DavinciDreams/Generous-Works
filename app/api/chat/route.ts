@@ -739,7 +739,7 @@ ${catalogPrompt}
 
 Output newline-delimited JSON only. Do not emit prose, markdown, code fences, comments, or blank-line explanations.
 
-Each physical line must be one complete JSON object containing exactly one of:
+Each physical line must be one complete JSON object containing one or more of:
 - surfaceUpdate
 - dataModelUpdate
 - beginRendering
@@ -747,15 +747,13 @@ Each physical line must be one complete JSON object containing exactly one of:
 Use one stable surfaceId for a UI, normally "main". Use stable component ids so later surfaceUpdate events replace the same components instead of duplicating them.
 
 Stream in this order:
-1. Emit a small surfaceUpdate containing a valid renderable root component.
-2. Immediately emit beginRendering for that root so the client can paint it.
-3. Emit additional surfaceUpdate lines as more content becomes available. This client accepts dataModelUpdate events, but visible values should be placed directly in component props.
+1. Emit one small first line containing both surfaceUpdate and beginRendering for a valid root, so the client can paint immediately.
+2. Emit additional surfaceUpdate lines as more content becomes available. This client accepts dataModelUpdate events, but visible values should be placed directly in component props.
 
 For a prose answer, render it with the Text component. Component props must exactly match the catalog examples, including typed literal values where shown.
 
 Minimal valid stream example:
-{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Working..."},"usageHint":{"literalString":"body"}}}}]}}
-{"beginRendering":{"surfaceId":"main","root":"root"}}
+{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Working..."},"usageHint":{"literalString":"body"}}}}]},"beginRendering":{"surfaceId":"main","root":"root"}}
 {"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Finished."},"usageHint":{"literalString":"body"}}}}]}}
 
 Every line must remain independently parseable while it is streaming.`;
