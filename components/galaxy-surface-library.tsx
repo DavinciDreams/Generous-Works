@@ -317,7 +317,7 @@ export function GalaxySurfaceLibrary({
                       title={
                         writesConfigured
                           ? 'Promote this reviewed draft'
-                          : 'Configure GALAXY_BRAIN_WRITE_TOKEN with eln:write scope'
+                          : 'Galaxy surface writes are unavailable'
                       }
                     >
                       <Rocket className="size-3.5" />

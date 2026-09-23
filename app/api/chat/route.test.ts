@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { POST } from './route';
 
+const { galaxyAccessMock } = vi.hoisted(() => ({ galaxyAccessMock: vi.fn() }));
+
 vi.mock('@clerk/nextjs/server', () => ({
   auth: vi.fn(),
 }));
@@ -8,6 +10,10 @@ vi.mock('@clerk/nextjs/server', () => ({
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 
 vi.mock('server-only', () => ({}));
+
+vi.mock('@/lib/integrations/galaxy-access', () => ({
+  getGalaxyBrainAccess: galaxyAccessMock,
+}));
 
 vi.mock('zhipu-ai-provider', () => ({
   createZhipu: vi.fn(() => vi.fn()),
@@ -30,7 +36,6 @@ import { streamText } from 'ai';
 import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
 
 const originalZhipuApiKey = process.env.ZHIPU_API_KEY;
-const originalAllowedUsers = process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
 
 function makeRequest(body: unknown): Request {
   return new Request('http://localhost/api/chat', {
@@ -43,7 +48,12 @@ function makeRequest(body: unknown): Request {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.ZHIPU_API_KEY = 'test-api-key';
-  process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = 'user_123';
+  galaxyAccessMock.mockResolvedValue({
+    allowed: true,
+    linkedWithNostr: true,
+    actorRef: 'nostr:0123456789abcdef0123',
+    nostrPubkey: 'a'.repeat(64),
+  });
 });
 
 afterAll(() => {
@@ -51,11 +61,6 @@ afterAll(() => {
     delete process.env.ZHIPU_API_KEY;
   } else {
     process.env.ZHIPU_API_KEY = originalZhipuApiKey;
-  }
-  if (originalAllowedUsers === undefined) {
-    delete process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
-  } else {
-    process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = originalAllowedUsers;
   }
 });
 
@@ -167,8 +172,9 @@ describe('POST /api/chat — validation', () => {
     );
   });
 
-  it('denies Galaxy Brain context to an authenticated but unapproved user', async () => {
+  it('denies Galaxy Brain context to an authenticated but unlinked user', async () => {
     vi.mocked(auth).mockResolvedValue({ userId: 'user_denied' } as any);
+    galaxyAccessMock.mockResolvedValue({ allowed: false, linkedWithNostr: false });
 
     const res = await POST(
       makeRequest({

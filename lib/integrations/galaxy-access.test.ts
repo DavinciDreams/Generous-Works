@@ -1,35 +1,45 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { cookiesMock, verifyReceiptMock } = vi.hoisted(() => ({
+  cookiesMock: vi.fn(),
+  verifyReceiptMock: vi.fn(),
+}));
 
 vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({ cookies: cookiesMock }));
+vi.mock('@/lib/integrations/galaxy-link', () => ({
+  GALAXY_LINK_COOKIE: 'generous_galaxy_link',
+  verifyGalaxyLinkReceipt: verifyReceiptMock,
+}));
 
-import { galaxyActorRef, isGalaxyBrainUserAllowed } from './galaxy-access';
-
-const originalAllowedUsers = process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
+import { getGalaxyBrainAccess } from './galaxy-access';
 
 beforeEach(() => {
-  process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = 'user_alpha, user_beta';
-});
-
-afterEach(() => {
-  if (originalAllowedUsers === undefined) delete process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
-  else process.env.GALAXY_BRAIN_ALLOWED_USER_IDS = originalAllowedUsers;
+  vi.clearAllMocks();
+  cookiesMock.mockResolvedValue({ get: vi.fn(() => ({ value: 'signed-receipt' })) });
 });
 
 describe('Galaxy Brain caller access', () => {
-  it('allows only exact configured Clerk user IDs and fails closed without configuration', () => {
-    expect(isGalaxyBrainUserAllowed('user_alpha')).toBe(true);
-    expect(isGalaxyBrainUserAllowed('user_alph')).toBe(false);
-    expect(isGalaxyBrainUserAllowed('USER_ALPHA')).toBe(false);
+  it('requires a valid Nostr link receipt', async () => {
+    verifyReceiptMock.mockReturnValue(null);
 
-    delete process.env.GALAXY_BRAIN_ALLOWED_USER_IDS;
-    expect(isGalaxyBrainUserAllowed('user_alpha')).toBe(false);
+    await expect(getGalaxyBrainAccess('user_alpha')).resolves.toEqual({
+      allowed: false,
+      linkedWithNostr: false,
+    });
+    expect(verifyReceiptMock).toHaveBeenCalledWith('signed-receipt', 'user_alpha');
   });
 
-  it('produces a stable non-sensitive actor reference', () => {
-    const actorRef = galaxyActorRef('user_alpha');
-    expect(actorRef).toMatch(/^clerk:[0-9a-f]{20}$/);
-    expect(actorRef).not.toContain('user_alpha');
-    expect(galaxyActorRef('user_alpha')).toBe(actorRef);
-    expect(galaxyActorRef('user_beta')).not.toBe(actorRef);
+  it('derives a stable non-sensitive actor reference from the linked Nostr identity', async () => {
+    verifyReceiptMock.mockReturnValue({ nostrPubkey: 'a'.repeat(64) });
+
+    const access = await getGalaxyBrainAccess('user_alpha');
+    expect(access).toEqual(expect.objectContaining({
+      allowed: true,
+      linkedWithNostr: true,
+      nostrPubkey: 'a'.repeat(64),
+      actorRef: expect.stringMatching(/^nostr:[0-9a-f]{20}$/),
+    }));
+    expect(access.allowed && access.actorRef).not.toContain('a'.repeat(64));
   });
 });
