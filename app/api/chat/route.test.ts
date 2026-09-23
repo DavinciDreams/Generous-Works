@@ -5,6 +5,8 @@ vi.mock('@clerk/nextjs/server', () => ({
   auth: vi.fn(),
 }));
 
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+
 vi.mock('server-only', () => ({}));
 
 vi.mock('zhipu-ai-provider', () => ({

@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import { listGalaxySurfaceRevisions } from '@/lib/integrations/galaxy-brain';
-import { isGalaxyBrainUserAllowed } from '@/lib/integrations/galaxy-access';
+import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -18,7 +18,8 @@ export async function GET(
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isGalaxyBrainUserAllowed(userId)) {
+  const access = await getGalaxyBrainAccess(userId);
+  if (!access.allowed) {
     return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
   }
 

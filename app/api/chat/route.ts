@@ -3,7 +3,7 @@ import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
-import { isGalaxyBrainUserAllowed } from '@/lib/integrations/galaxy-access';
+import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
@@ -769,7 +769,7 @@ export async function POST(req: NextRequest) {
     }
     const { messages, prompt, stream, temperature, maxTokens, useGalaxyBrain } = parseResult.data;
 
-    if (useGalaxyBrain && !isGalaxyBrainUserAllowed(userId)) {
+    if (useGalaxyBrain && !(await getGalaxyBrainAccess(userId)).allowed) {
       return new Response(JSON.stringify({ error: 'Galaxy Brain access is not allowed' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },

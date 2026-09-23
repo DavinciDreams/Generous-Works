@@ -7,6 +7,7 @@ const { authMock, createSurfaceMock, listSurfacesMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: authMock }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/integrations/galaxy-brain', () => ({
   createGalaxySurface: createSurfaceMock,
