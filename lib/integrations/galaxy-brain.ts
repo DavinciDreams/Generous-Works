@@ -91,19 +91,25 @@ function projectSurfaceProvenance(value: Record<string, unknown>): Record<string
 }
 
 function getConfiguration(access: 'read' | 'write' = 'read') {
-  const baseUrl = process.env.GALAXY_BRAIN_API_URL?.trim().replace(/\/+$/, '');
+  const configuredUrl = process.env.GALAXY_BRAIN_API_URL?.trim();
   const token = (
     access === 'write'
       ? process.env.GALAXY_BRAIN_WRITE_TOKEN
       : process.env.GALAXY_BRAIN_API_TOKEN
   )?.trim();
 
-  if (!baseUrl || !token) return null;
+  if (!configuredUrl || !token) return null;
   if (!isAgentToken(token)) return null;
 
   try {
-    const parsedUrl = new URL(baseUrl);
+    const parsedUrl = new URL(configuredUrl);
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
+
+    // Accept the public Galaxy origin as well as the explicit ELN API base.
+    // This keeps a root URL from silently targeting HTML pages such as
+    // /surfaces and then failing JSON parsing on "<!DOCTYPE".
+    if (parsedUrl.pathname === '/') parsedUrl.pathname = '/api/eln';
+
     return { baseUrl: parsedUrl.toString().replace(/\/$/, ''), token };
   } catch {
     return null;
