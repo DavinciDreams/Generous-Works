@@ -14,6 +14,7 @@ const MAX_STRING_LENGTH = 20_000;
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const ACTION_KEY_PATTERN = /^on[A-Z_]/;
 const FORBIDDEN_PROPERTY_NAMES = new Set(['action', 'actions', 'handler', 'script']);
+const PROTOTYPE_POLLUTION_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const APPROVED_COMPONENT_TYPES = new Set([
   'Badge',
   'Card',
@@ -93,6 +94,7 @@ function validateBoundedValue(
       if (
         ACTION_KEY_PATTERN.test(key) ||
         FORBIDDEN_PROPERTY_NAMES.has(key.toLowerCase()) ||
+        PROTOTYPE_POLLUTION_KEYS.has(key.toLowerCase()) ||
         key === 'dangerouslySetInnerHTML' ||
         key === 'srcDoc'
       ) {
@@ -105,6 +107,34 @@ function validateBoundedValue(
     return;
   }
   throw new GalaxySurfaceContractError(`${path} contains an unsupported value`);
+}
+
+export function toReplayableA2UIMessage(spec: unknown): A2UIMessage {
+  if (
+    typeof spec !== 'object' ||
+    spec === null ||
+    Array.isArray(spec) ||
+    !('schema' in spec) ||
+    spec.schema !== GALAXY_SURFACE_SCHEMA ||
+    !('catalog' in spec) ||
+    typeof spec.catalog !== 'object' ||
+    spec.catalog === null ||
+    Array.isArray(spec.catalog) ||
+    !('id' in spec.catalog) ||
+    spec.catalog.id !== GALAXY_SURFACE_CATALOG.id ||
+    !('version' in spec.catalog) ||
+    spec.catalog.version !== GALAXY_SURFACE_CATALOG.version
+  ) {
+    throw new GalaxySurfaceContractError('Stored surface has an unsupported schema or catalog');
+  }
+
+  const validated = toGalaxySurfaceSpec(spec as A2UIMessage);
+  return { surfaceUpdate: validated.surfaceUpdate };
+}
+
+export function galaxySurfaceToMessageContent(spec: unknown): string {
+  const message = toReplayableA2UIMessage(spec);
+  return `\`\`\`json\n${JSON.stringify(message, null, 2)}\n\`\`\``;
 }
 
 function assertAcyclic(childrenById: Map<string, string[]>): void {

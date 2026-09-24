@@ -1,17 +1,20 @@
 "use client";
 
 import { useMemo, useState } from 'react';
-import { Check, CloudUpload, Rocket } from 'lucide-react';
+import { Check, CloudUpload, ExternalLink, Rocket } from 'lucide-react';
 
 import { parseMessageContent } from '@/components/ai-elements/generative-message';
 import { Button } from '@/components/ui/button';
+import type { A2UIMessage } from '@/lib/a2ui/types';
 import type { GalaxySurfaceRecord } from '@/lib/integrations/galaxy-brain';
 
 interface GalaxySurfaceControlsProps {
   messageId: string;
   content: string;
+  a2ui?: A2UIMessage[];
   isStreaming: boolean;
   writesConfigured: boolean;
+  accessAllowed: boolean;
 }
 
 interface SurfaceState {
@@ -30,13 +33,19 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 export function GalaxySurfaceControls({
   messageId,
   content,
+  a2ui,
   isStreaming,
   writesConfigured,
+  accessAllowed,
 }: GalaxySurfaceControlsProps) {
-  const surfaces = useMemo(
-    () => parseMessageContent(content).filter((block) => block.type === 'a2ui'),
-    [content],
-  );
+  const surfaces = useMemo(() => [
+    ...parseMessageContent(content).filter((block) => block.type === 'a2ui'),
+    ...(a2ui ?? []).map((spec, index) => ({
+      type: 'a2ui' as const,
+      spec,
+      id: `a2ui-stream-${spec.surfaceUpdate?.surfaceId ?? index}`,
+    })),
+  ], [a2ui, content]);
   const [states, setStates] = useState<Record<string, SurfaceState>>({});
 
   if (isStreaming || surfaces.length === 0) return null;
@@ -120,7 +129,9 @@ export function GalaxySurfaceControls({
                 title={
                   writesConfigured
                     ? 'Save this validated A2UI preview as a Galaxy Brain draft'
-                    : 'Configure GALAXY_BRAIN_WRITE_TOKEN with eln:write scope'
+                    : accessAllowed
+                      ? 'Galaxy surface writes are unavailable'
+                      : 'Connect Galaxy with your Nostr identity first'
                 }
               >
                 <CloudUpload className="size-3.5" />
@@ -146,6 +157,14 @@ export function GalaxySurfaceControls({
                   </Button>
                 )}
                 {promoted && <Check className="size-4 text-emerald-500" aria-label="Promoted" />}
+                {promoted && state.surface?.view_url && (
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={state.surface.view_url} target="_blank" rel="noreferrer">
+                      Open in Galaxy
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </Button>
+                )}
               </>
             )}
             {state.error && <span className="text-destructive">{state.error}</span>}

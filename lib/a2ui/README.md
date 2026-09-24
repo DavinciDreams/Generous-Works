@@ -2,6 +2,34 @@
 
 Complete integration of the a2ui-bridge adapter pattern with the existing A2UI system, enabling total generative UI with **114+ components** across three categories.
 
+## Stream event normalization
+
+`stream-normalizer.ts` is a pure, bounded reducer for A2UI v0.8 JSONL events. It
+buffers `surfaceUpdate` components by `surfaceId` and component `id`, maintains a
+separate data model for each surface, and marks a surface ready only after a
+valid `beginRendering` event identifies a buffered root. Replayed updates are
+idempotent when they already describe the current state. An older event replayed
+after an intervening update remains a valid state transition instead of being
+silently suppressed. Events without a `surfaceId` use the v0.8-compatible
+`@default` surface unless the caller supplies another default.
+
+The reducer returns an error alongside the unchanged previous state for malformed
+or oversized events. It never renders components, dispatches actions, writes to
+storage, or calls an API. Transport code remains responsible for splitting JSONL
+into one complete JSON object per call.
+
+Generous historically consumed a single envelope containing a complete
+`surfaceUpdate`, with `beginRendering` represented as a boolean or omitted.
+`applyA2UICompleteMessage()` preserves that behavior by inferring the root (`root`
+when present, otherwise the first component) and render readiness. Normal stream
+events use `applyA2UIStreamEvent()` and retain the protocol's buffering semantics.
+
+This slice intentionally targets the repository's v0.8 component shape. A2UI
+v0.9 renames and restructures these events, so v0.9 inputs must go through a
+separate version adapter rather than being guessed here. Protocol references:
+[message reference](https://a2ui.org/reference/messages/) and
+[v0.8 protocol](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_8/docs/a2ui_protocol.md).
+
 ---
 
 ## Current Status

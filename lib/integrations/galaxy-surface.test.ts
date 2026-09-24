@@ -4,6 +4,8 @@ import type { SurfaceUpdate } from '@/lib/a2ui/types';
 import {
   GalaxySurfaceContractError,
   deriveGalaxySurfaceTitle,
+  galaxySurfaceToMessageContent,
+  toReplayableA2UIMessage,
   toGalaxySurfaceSpec,
 } from './galaxy-surface';
 
@@ -54,6 +56,20 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(action)).toThrow(/not allowed/);
   });
 
+  it('rejects prototype-pollution keys at any property depth', () => {
+    const polluted = researchBoard();
+    polluted.surfaceUpdate.components[0].component = {
+      Card: JSON.parse('{"data":{"__proto__":{"polluted":true}}}'),
+    };
+    expect(() => toGalaxySurfaceSpec(polluted)).toThrow(/not allowed/);
+
+    const constructor = researchBoard();
+    constructor.surfaceUpdate.components[0].component = {
+      Card: { data: { constructor: { prototype: { polluted: true } } } },
+    };
+    expect(() => toGalaxySurfaceSpec(constructor)).toThrow(/not allowed/);
+  });
+
   it('rejects stale references, cycles, and non-finite data', () => {
     const missing = researchBoard();
     missing.surfaceUpdate.components[0].children = ['missing'];
@@ -67,5 +83,20 @@ describe('Galaxy surface contract', () => {
     const invalidNumber = researchBoard();
     invalidNumber.surfaceUpdate.components[0].component = { Card: { score: Infinity } };
     expect(() => toGalaxySurfaceSpec(invalidNumber)).toThrow(/non-finite/);
+  });
+
+  it('revalidates the schema, catalog, and components before replay', () => {
+    const stored = toGalaxySurfaceSpec(researchBoard());
+    expect(toReplayableA2UIMessage(stored)).toEqual({
+      surfaceUpdate: stored.surfaceUpdate,
+    });
+    expect(galaxySurfaceToMessageContent(stored)).toContain('```json');
+
+    expect(() => toReplayableA2UIMessage({ ...stored, schema: 'gb.surface.v0' })).toThrow(
+      /unsupported schema or catalog/,
+    );
+    const unsafe = structuredClone(stored);
+    unsafe.surfaceUpdate.components[0].component = { JSX: { code: '<Card />' } };
+    expect(() => toReplayableA2UIMessage(unsafe)).toThrow(/not approved/);
   });
 });
