@@ -837,12 +837,16 @@ export async function POST(req: NextRequest) {
     // Resolve provider: prefer vLLM (local DGX) when VLLM_BASE_URL is set,
     // fall back to Zhipu/Z.AI otherwise.
     let aiModel;
+    let providerName: 'vllm' | 'zhipu';
+    let modelId: string;
     if (process.env.VLLM_BASE_URL) {
       const vllm = createOpenAI({
         baseURL: process.env.VLLM_BASE_URL,
         apiKey: process.env.VLLM_API_KEY || "none",
       });
-      aiModel = vllm(process.env.VLLM_MODEL || "default");
+      providerName = 'vllm';
+      modelId = process.env.VLLM_MODEL || "default";
+      aiModel = vllm(modelId);
     } else if (process.env.ZHIPU_API_KEY) {
       // Lazy-import so the package isn't required when vLLM is active
       const { createZhipu } = await import("zhipu-ai-provider");
@@ -850,7 +854,12 @@ export async function POST(req: NextRequest) {
         baseURL: process.env.ZHIPU_BASE_URL,
         apiKey: process.env.ZHIPU_API_KEY,
       });
-      aiModel = zhipu(process.env.ZHIPU_MODEL || "glm-4.7");
+      providerName = 'zhipu';
+      modelId = process.env.ZHIPU_MODEL || "glm-4.7";
+      // Generous needs visible streamed text. Zhipu thinking tokens arrive as
+      // reasoning deltas, which toTextStreamResponse intentionally omits and
+      // can otherwise consume the output budget before any UI JSON is sent.
+      aiModel = zhipu(modelId, { thinking: { type: 'disabled' } });
     } else {
       console.error("Chat API: No AI provider configured");
       return new Response(
@@ -887,6 +896,19 @@ export async function POST(req: NextRequest) {
         maxOutputTokens: clampedMaxTokens,
         onError: ({ error }) => {
           console.error("Chat API: Streaming error:", error);
+        },
+        onFinish: ({ finishReason, rawFinishReason, text, reasoningText, usage }) => {
+          console.info('Chat API: Streaming finished:', {
+            provider: providerName,
+            model: modelId,
+            renderFormat,
+            finishReason,
+            rawFinishReason,
+            textChars: text.length,
+            reasoningChars: reasoningText?.length ?? 0,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+          });
         },
       });
 
