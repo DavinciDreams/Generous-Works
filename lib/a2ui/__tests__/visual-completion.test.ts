@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { A2UIMessage } from '../types';
 import {
   assessA2UIVisualCompletion,
-  getA2UIVisualRetryPrompt,
+  getA2UIRenderFormat,
+  getCompleteA2UIVisualRetryPrompt,
   isVisualRequest,
 } from '../visual-completion';
 
@@ -51,10 +52,16 @@ describe('A2UI visual completion', () => {
     ).toEqual({ complete: true, componentTypes: ['Text'] });
   });
 
-  it('produces a bounded corrective instruction without changing formats', () => {
-    const retry = getA2UIVisualRetryPrompt('Make a chart');
+  it('routes visual prompts through the complete A2UI response path', () => {
+    expect(getA2UIRenderFormat('Build a knowledge graph')).toBeUndefined();
+    expect(getA2UIRenderFormat('Explain quantum mechanics')).toBe('a2ui-jsonl');
+  });
+
+  it('produces a bounded complete-response corrective instruction', () => {
+    const retry = getCompleteA2UIVisualRetryPrompt('Make a chart');
     expect(retry).toContain('Make a chart');
-    expect(retry).toContain('Return JSONL only');
+    expect(retry).toContain('complete A2UI surface');
+    expect(retry).toContain('not JSONL');
     expect(retry).toContain('not just a title or prose');
   });
 });
