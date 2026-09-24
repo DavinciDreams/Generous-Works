@@ -750,6 +750,8 @@ Stream in this order:
 1. Emit one small first line containing both surfaceUpdate and beginRendering for a valid root, so the client can paint immediately.
 2. Emit additional surfaceUpdate lines as more content becomes available. This client accepts dataModelUpdate events, but visible values should be placed directly in component props.
 
+When the user asks for a visualization, chart, graph, diagram, map, timeline, scene, or other visual result, a title or Text-only surface is never complete. Before ending the stream, emit at least one suitable non-text visual component from the catalog with all required props. The minimal example below is for prose responses only.
+
 For a prose answer, render it with the Text component. Component props must exactly match the catalog examples, including typed literal values where shown.
 
 Minimal valid stream example:
