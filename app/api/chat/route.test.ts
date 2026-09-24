@@ -153,6 +153,11 @@ describe('POST /api/chat — validation', () => {
         system: expect.stringContaining('Required A2UI JSONL transport'),
       })
     );
+    expect(streamText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('a title or Text-only surface is never complete'),
+      })
+    );
     expect(toTextStreamResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         headers: expect.objectContaining({

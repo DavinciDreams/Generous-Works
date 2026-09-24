@@ -21,6 +21,12 @@ import {
   toFinalA2UIMessages,
   toRenderableA2UIMessages,
 } from '@/lib/a2ui/jsonl-stream';
+import type { A2UIMessage } from '@/lib/a2ui/types';
+import {
+  assessA2UIVisualCompletion,
+  getA2UIVisualRetryPrompt,
+  isVisualRequest,
+} from '@/lib/a2ui/visual-completion';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -97,6 +103,13 @@ const navGroups = [
 ];
 
 const STREAM_RENDER_INTERVAL_MS = 80;
+const MAX_VISUAL_ATTEMPTS = 2;
+
+interface StreamedChatAttempt {
+  a2ui?: A2UIMessage[];
+  content: string;
+  rejectedEvents: number;
+}
 
 export default function Page() {
   const { messages, addMessage, updateMessage } = useMessages();
@@ -159,44 +172,46 @@ export default function Page() {
 
     setLoading(true);
 
+    let lastRenderableA2UI: A2UIMessage[] | undefined;
+
     try {
-      const apiMessages = messages
+      const conversationMessages = messages
         .map((msg) => ({ role: msg.role, content: msg.modelContent ?? msg.content }))
         .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0);
+      const visualRequest = isVisualRequest(prompt);
+      const attemptCount = visualRequest ? MAX_VISUAL_ATTEMPTS : 1;
 
-      apiMessages.push({ role: "user", content: prompt });
+      const streamAttempt = async (attemptPrompt: string): Promise<StreamedChatAttempt> => {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...conversationMessages, { role: "user", content: attemptPrompt }],
+            stream: true,
+            useGalaxyBrain,
+            renderFormat: 'a2ui-jsonl',
+          }),
+        });
 
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: apiMessages,
-          stream: true,
-          useGalaxyBrain,
-          renderFormat: 'a2ui-jsonl',
-        }),
-      });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(errorData.error || "Failed to get response");
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to get response");
-      }
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('The response stream was unavailable');
+        }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('The response stream was unavailable');
-      }
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let lastRenderedAt = 0;
-      const responseFormat = response.headers.get('X-Generous-Render-Format')
-        ?? (response.headers.get('Content-Type')?.includes('application/x-ndjson')
-          ? 'a2ui-jsonl'
-          : null);
-
-      if (reader) {
+        const decoder = new TextDecoder();
+        let fullContent = "";
+        let lastRenderedAt = 0;
         let structuredStream = createA2UIJsonlAccumulator();
         let lastAcceptedEventCount = 0;
+        const responseFormat = response.headers.get('X-Generous-Render-Format')
+          ?? (response.headers.get('Content-Type')?.includes('application/x-ndjson')
+            ? 'a2ui-jsonl'
+            : null);
 
         while (true) {
           const { done, value } = await reader.read();
@@ -209,7 +224,8 @@ export default function Page() {
             if (structuredStream.acceptedEvents !== lastAcceptedEventCount) {
               const a2ui = toRenderableA2UIMessages(structuredStream);
               if (a2ui.length > 0) {
-                updateMessage(assistantMessageId, { a2ui });
+                lastRenderableA2UI = a2ui;
+                updateMessage(assistantMessageId, { content: '', a2ui });
               }
               lastAcceptedEventCount = structuredStream.acceptedEvents;
             }
@@ -222,42 +238,88 @@ export default function Page() {
             lastRenderedAt = now;
           }
         }
+
         const finalChunk = decoder.decode();
         fullContent += finalChunk;
 
-        if (responseFormat === 'a2ui-jsonl') {
-          structuredStream = consumeA2UIJsonl(structuredStream, finalChunk, { flush: true });
-          const a2ui = toFinalA2UIMessages(structuredStream);
-          if (a2ui.length > 0) {
-            updateMessage(assistantMessageId, {
-              content: '',
-              modelContent: fullContent,
-              a2ui,
-            });
-          } else if (fullContent.trim()) {
-            // Providers can occasionally ignore the requested wire format.
-            // Preserve that answer so completed JSON can use the inspector and
-            // prose can render normally instead of becoming a false error.
-            updateMessage(assistantMessageId, {
-              content: fullContent,
-              modelContent: fullContent,
-              a2ui: undefined,
-            });
-          } else {
-            throw new Error('The model returned an empty response');
-          }
-        } else {
-          updateMessage(assistantMessageId, { content: fullContent });
+        if (responseFormat !== 'a2ui-jsonl') {
+          return { content: fullContent, rejectedEvents: 0 };
         }
+
+        structuredStream = consumeA2UIJsonl(structuredStream, finalChunk, { flush: true });
+        const a2ui = toFinalA2UIMessages(structuredStream);
+        if (a2ui.length > 0) {
+          lastRenderableA2UI = a2ui;
+          return {
+            a2ui,
+            content: fullContent,
+            rejectedEvents: structuredStream.errors.length,
+          };
+        }
+
+        if (fullContent.trim()) {
+          // Providers can occasionally ignore the requested wire format. Keep
+          // the text available, but let visual completion decide whether it is
+          // sufficient for the user's request.
+          return {
+            content: fullContent,
+            rejectedEvents: structuredStream.errors.length,
+          };
+        }
+
+        throw new Error('The model returned an empty response');
+      };
+
+      for (let attempt = 0; attempt < attemptCount; attempt += 1) {
+        const attemptPrompt = attempt === 0
+          ? prompt
+          : getA2UIVisualRetryPrompt(prompt);
+        const result = await streamAttempt(attemptPrompt);
+        const completion = assessA2UIVisualCompletion(prompt, result.a2ui ?? []);
+        const hasAnotherAttempt = attempt + 1 < attemptCount;
+
+        if (visualRequest && !completion.complete && hasAnotherAttempt) {
+          const rejected = result.rejectedEvents > 0
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`
+            : '';
+          setError(`The first visual was incomplete.${rejected} Retrying once...`);
+          continue;
+        }
+
+        updateMessage(assistantMessageId, {
+          content: result.a2ui ? '' : result.content,
+          modelContent: result.content,
+          a2ui: result.a2ui ?? lastRenderableA2UI,
+        });
+
+        if (visualRequest && !completion.complete) {
+          const componentSummary = completion.componentTypes.length > 0
+            ? ` Received only: ${completion.componentTypes.join(', ')}.`
+            : '';
+          const rejected = result.rejectedEvents > 0
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`
+            : '';
+          setError(`Generous could not complete the requested visual after one retry.${componentSummary}${rejected}`);
+        } else if (result.rejectedEvents > 0) {
+          setError(`Rendered the valid surface; ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`);
+        } else {
+          setError(null);
+        }
+
+        break;
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
-      updateMessage(assistantMessageId, {
-        content: `I apologize, but I encountered an error: ${errorMessage}`,
-        modelContent: undefined,
-        a2ui: undefined,
-      });
+      if (lastRenderableA2UI) {
+        updateMessage(assistantMessageId, { a2ui: lastRenderableA2UI });
+      } else {
+        updateMessage(assistantMessageId, {
+          content: `I apologize, but I encountered an error: ${errorMessage}`,
+          modelContent: undefined,
+          a2ui: undefined,
+        });
+      }
     } finally {
       setLoading(false);
     }
