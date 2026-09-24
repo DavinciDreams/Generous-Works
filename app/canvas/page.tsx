@@ -293,7 +293,7 @@ export default function Page() {
 
         if (visualRequest && !completion.complete && hasAnotherAttempt) {
           const rejected = result.rejectedEvents > 0
-            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} ${result.rejectedEvents === 1 ? 'was' : 'were'} rejected.`
             : '';
           setError(`The first complete A2UI visual was incomplete.${rejected} Retrying once...`);
           continue;
@@ -310,11 +310,9 @@ export default function Page() {
             ? ` Received only: ${completion.componentTypes.join(', ')}.`
             : '';
           const rejected = result.rejectedEvents > 0
-            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} ${result.rejectedEvents === 1 ? 'was' : 'were'} rejected.`
             : '';
           setError(`Generous could not complete the requested visual after one retry.${componentSummary}${rejected}`);
-        } else if (result.rejectedEvents > 0) {
-          setError(`Rendered the valid surface; ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`);
         } else {
           setError(null);
         }
