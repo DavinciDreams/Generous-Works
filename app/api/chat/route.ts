@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
+import { isVisualRequest } from '@/lib/a2ui/visual-completion';
 import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
 import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 import { auth } from '@clerk/nextjs/server';
@@ -875,6 +876,9 @@ export async function POST(req: NextRequest) {
     const latestUserPrompt = [...preparedMessages]
       .reverse()
       .find((message) => message.role === 'user')?.content ?? prompt ?? '';
+    const effectiveRenderFormat = renderFormat === 'a2ui-jsonl' && !isVisualRequest(latestUserPrompt)
+      ? 'a2ui-jsonl'
+      : 'text';
     let galaxyBrainContext = '';
 
     if (useGalaxyBrain) {
@@ -890,7 +894,7 @@ export async function POST(req: NextRequest) {
     if (stream) {
       const result = streamText({
         model: aiModel,
-        system: (renderFormat === 'a2ui-jsonl'
+        system: (effectiveRenderFormat === 'a2ui-jsonl'
           ? getA2UIStreamSystemPrompt()
           : getSystemPrompt()) + galaxyBrainContext,
         messages: preparedMessages,
@@ -903,7 +907,7 @@ export async function POST(req: NextRequest) {
           console.info('Chat API: Streaming finished:', {
             provider: providerName,
             model: modelId,
-            renderFormat,
+            renderFormat: effectiveRenderFormat,
             finishReason,
             rawFinishReason,
             textChars: text.length,
@@ -914,7 +918,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return result.toTextStreamResponse(renderFormat === 'a2ui-jsonl' ? {
+      return result.toTextStreamResponse(effectiveRenderFormat === 'a2ui-jsonl' ? {
         headers: {
           'Content-Type': 'application/x-ndjson; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',

@@ -141,7 +141,7 @@ describe('POST /api/chat — validation', () => {
 
     const res = await POST(
       makeRequest({
-        messages: [{ role: 'user', content: 'Build a live dashboard' }],
+        messages: [{ role: 'user', content: 'Explain quantum mechanics' }],
         renderFormat: 'a2ui-jsonl',
       }) as any
     );
@@ -169,6 +169,27 @@ describe('POST /api/chat — validation', () => {
       process.env.ZHIPU_MODEL || 'glm-4.7',
       { thinking: { type: 'disabled' } },
     );
+  });
+
+  it('overrides a requested JSONL stream for visual prompts', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'user_123' } as any);
+    const toTextStreamResponse = vi.fn(() => new Response('test'));
+    vi.mocked(streamText).mockReturnValue({ toTextStreamResponse } as any);
+
+    const res = await POST(
+      makeRequest({
+        messages: [{ role: 'user', content: 'Build a live dashboard' }],
+        renderFormat: 'a2ui-jsonl',
+      }) as any
+    );
+
+    expect(res.headers.get('X-Generous-Render-Format')).toBeNull();
+    expect(streamText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.not.stringContaining('Required A2UI JSONL transport'),
+      })
+    );
+    expect(toTextStreamResponse).toHaveBeenCalledWith(undefined);
   });
 
   it('records completion metadata without logging generated content', async () => {
