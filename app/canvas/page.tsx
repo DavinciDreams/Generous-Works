@@ -9,7 +9,10 @@ import Link from "next/link";
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { cn } from '@/lib/utils';
 
-import { GenerativeMessage } from "@/components/ai-elements/generative-message";
+import {
+  GenerativeMessage,
+  parseMessageContent,
+} from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
@@ -24,7 +27,8 @@ import {
 import type { A2UIMessage } from '@/lib/a2ui/types';
 import {
   assessA2UIVisualCompletion,
-  getA2UIVisualRetryPrompt,
+  getA2UIRenderFormat,
+  getCompleteA2UIVisualRetryPrompt,
   isVisualRequest,
 } from '@/lib/a2ui/visual-completion';
 
@@ -111,6 +115,12 @@ interface StreamedChatAttempt {
   rejectedEvents: number;
 }
 
+function getCompleteA2UISurfaces(content: string): A2UIMessage[] {
+  return parseMessageContent(content).flatMap((block) =>
+    block.type === 'a2ui' ? [block.spec] : [],
+  );
+}
+
 export default function Page() {
   const { messages, addMessage, updateMessage } = useMessages();
   const { isLoading, error, setLoading, setError } = useAppState();
@@ -180,6 +190,7 @@ export default function Page() {
         .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0);
       const visualRequest = isVisualRequest(prompt);
       const attemptCount = visualRequest ? MAX_VISUAL_ATTEMPTS : 1;
+      const renderFormat = getA2UIRenderFormat(prompt);
 
       const streamAttempt = async (attemptPrompt: string): Promise<StreamedChatAttempt> => {
         const response = await fetch("/api/chat", {
@@ -189,7 +200,7 @@ export default function Page() {
             messages: [...conversationMessages, { role: "user", content: attemptPrompt }],
             stream: true,
             useGalaxyBrain,
-            renderFormat: 'a2ui-jsonl',
+            ...(renderFormat ? { renderFormat } : {}),
           }),
         });
 
@@ -273,23 +284,25 @@ export default function Page() {
       for (let attempt = 0; attempt < attemptCount; attempt += 1) {
         const attemptPrompt = attempt === 0
           ? prompt
-          : getA2UIVisualRetryPrompt(prompt);
+          : getCompleteA2UIVisualRetryPrompt(prompt);
         const result = await streamAttempt(attemptPrompt);
-        const completion = assessA2UIVisualCompletion(prompt, result.a2ui ?? []);
+        const completedSurfaces = result.a2ui
+          ?? getCompleteA2UISurfaces(result.content);
+        const completion = assessA2UIVisualCompletion(prompt, completedSurfaces);
         const hasAnotherAttempt = attempt + 1 < attemptCount;
 
         if (visualRequest && !completion.complete && hasAnotherAttempt) {
           const rejected = result.rejectedEvents > 0
             ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} were rejected.`
             : '';
-          setError(`The first visual was incomplete.${rejected} Retrying once...`);
+          setError(`The first complete A2UI visual was incomplete.${rejected} Retrying once...`);
           continue;
         }
 
         updateMessage(assistantMessageId, {
           content: result.a2ui ? '' : result.content,
           modelContent: result.content,
-          a2ui: result.a2ui ?? lastRenderableA2UI,
+          a2ui: result.a2ui,
         });
 
         if (visualRequest && !completion.complete) {

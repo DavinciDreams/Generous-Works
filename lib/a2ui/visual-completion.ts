@@ -10,7 +10,6 @@ const VISUAL_COMPONENT_TYPES = new Set([
   'DataTable',
   'Geospatial',
   'ImageGallery',
-  'JSONViewer',
   'KnowledgeGraph',
   'Latex',
   'Maps',
@@ -42,6 +41,10 @@ interface A2UIComponentEntry {
 
 export function isVisualRequest(prompt: string): boolean {
   return VISUAL_REQUEST_PATTERN.test(prompt);
+}
+
+export function getA2UIRenderFormat(prompt: string): 'a2ui-jsonl' | undefined {
+  return isVisualRequest(prompt) ? undefined : 'a2ui-jsonl';
 }
 
 export function getA2UIComponentTypes(messages: readonly A2UIMessage[]): string[] {
@@ -76,6 +79,6 @@ export function assessA2UIVisualCompletion(
   };
 }
 
-export function getA2UIVisualRetryPrompt(prompt: string): string {
-  return `${prompt}\n\nThe previous A2UI stream was incomplete. Return JSONL only and build the requested visual, not just a title or prose. The final surface must contain at least one suitable visual component such as ThreeScene, SVGPreview, Latex, Mermaid, Charts, KnowledgeGraph, or NodeEditor, with all required props valid for the Generous catalog.`;
+export function getCompleteA2UIVisualRetryPrompt(prompt: string): string {
+  return `${prompt}\n\nThe previous complete A2UI response did not contain a valid visual. Return one complete A2UI surface using the fenced JSON form from the Generous catalog, not JSONL and not just a title or prose. Include at least one suitable visual component such as ThreeScene, SVGPreview, Latex, Mermaid, Charts, KnowledgeGraph, or NodeEditor, with all required props valid.`;
 }
