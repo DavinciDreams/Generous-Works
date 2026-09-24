@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { POST } from './route';
 
-const { galaxyAccessMock } = vi.hoisted(() => ({ galaxyAccessMock: vi.fn() }));
+const { galaxyAccessMock, zhipuModelMock, createZhipuMock } = vi.hoisted(() => {
+  const zhipuModelMock = vi.fn(() => ({ provider: 'mock-zhipu-model' }));
+  return {
+    galaxyAccessMock: vi.fn(),
+    zhipuModelMock,
+    createZhipuMock: vi.fn(() => zhipuModelMock),
+  };
+});
 
 vi.mock('@clerk/nextjs/server', () => ({
   auth: vi.fn(),
@@ -16,7 +23,7 @@ vi.mock('@/lib/integrations/galaxy-access', () => ({
 }));
 
 vi.mock('zhipu-ai-provider', () => ({
-  createZhipu: vi.fn(() => vi.fn()),
+  createZhipu: createZhipuMock,
 }));
 
 vi.mock('ai', () => ({
@@ -153,6 +160,52 @@ describe('POST /api/chat — validation', () => {
         }),
       })
     );
+    expect(zhipuModelMock).toHaveBeenCalledWith(
+      process.env.ZHIPU_MODEL || 'glm-4.7',
+      { thinking: { type: 'disabled' } },
+    );
+  });
+
+  it('records completion metadata without logging generated content', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'user_123' } as any);
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    type FinishEvent = {
+      finishReason: string;
+      rawFinishReason?: string;
+      text: string;
+      reasoningText?: string;
+      usage: { inputTokens?: number; outputTokens?: number };
+    };
+    let onFinish: ((event: FinishEvent) => void) | undefined;
+    vi.mocked(streamText).mockImplementation((options) => {
+      onFinish = options.onFinish as unknown as typeof onFinish;
+      return {
+        toTextStreamResponse: () => new Response('test'),
+      } as ReturnType<typeof streamText>;
+    });
+
+    await POST(makeRequest({ prompt: 'Hello', renderFormat: 'a2ui-jsonl' }) as any);
+    onFinish?.({
+      finishReason: 'length',
+      rawFinishReason: 'length',
+      text: '',
+      reasoningText: 'private reasoning',
+      usage: { inputTokens: 12, outputTokens: 4000 },
+    });
+
+    expect(info).toHaveBeenCalledWith('Chat API: Streaming finished:', {
+      provider: 'zhipu',
+      model: process.env.ZHIPU_MODEL || 'glm-4.7',
+      renderFormat: 'a2ui-jsonl',
+      finishReason: 'length',
+      rawFinishReason: 'length',
+      textChars: 0,
+      reasoningChars: 17,
+      inputTokens: 12,
+      outputTokens: 4000,
+    });
+    expect(info.mock.calls.flat()).not.toContain('private reasoning');
+    info.mockRestore();
   });
 
   it('clamps temperature 999 to 2 before forwarding to the AI provider', async () => {
