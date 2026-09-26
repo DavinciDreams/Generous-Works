@@ -9,15 +9,17 @@ import Link from "next/link";
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { cn } from '@/lib/utils';
 
-import {
-  GenerativeMessage,
-  parseMessageContent,
-} from "@/components/ai-elements/generative-message";
+import { parseMessageContent } from "@/components/ai-elements/generative-message";
+import { getBlockLabel, HybridRenderer } from "@/components/ai-elements/hybrid-renderer";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
-import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
 import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
-import { InfiniteConversationCanvas } from '@/components/infinite-conversation-canvas';
+import {
+  ArtifactCanvas,
+  getCanvasArtifactId,
+  type CanvasArtifactItem,
+} from '@/components/artifact-canvas';
+import { DockedChat, splitMessageBlocks } from '@/components/docked-chat';
 import {
   consumeA2UIJsonl,
   createA2UIJsonlAccumulator,
@@ -336,57 +338,43 @@ export default function Page() {
     }
   }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
 
-  const canvasItems = useMemo(() => messages.flatMap((message, index) => {
-    if (message.role === 'system') return [];
+  const [focusRequest, setFocusRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const focusArtifact = useCallback((id: string) => {
+    setFocusRequest((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+  }, []);
 
-    const isStreaming = isLoading
-      && message.role === "assistant"
-      && index === messages.length - 1;
+  const jsxComponents = componentBindings as unknown as Parameters<typeof HybridRenderer>[0]['jsxComponents'];
 
-    return [{
-      id: message.id,
-      role: message.role,
-      isStreaming,
-      timestamp: message.timestamp,
-      body: (
-        <>
-          <GenerativeMessage
-            className="my-0"
-            message={{
-              id: message.id,
-              role: message.role,
-              content: message.content,
-              a2ui: message.a2ui,
-              timestamp: message.timestamp,
-            }}
+  const canvasItems = useMemo<CanvasArtifactItem[]>(() => messages.flatMap((message, index) => {
+    if (message.role !== 'assistant') return [];
+
+    const isStreaming = isLoading && index === messages.length - 1;
+    const { visuals } = splitMessageBlocks(message, isStreaming);
+
+    return visuals.map((block) => {
+      const { name, emoji } = getBlockLabel(block);
+      return {
+        id: getCanvasArtifactId(message.id, block.id),
+        turnId: message.id,
+        label: name,
+        emoji,
+        isStreaming,
+        body: (
+          <HybridRenderer
+            blocks={[block]}
+            jsxComponents={jsxComponents}
             isStreaming={isStreaming}
-            components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
           />
-          {message.role === 'assistant' ? (
-            <GalaxySurfaceControls
-              messageId={message.id}
-              content={message.content}
-              a2ui={message.a2ui}
-              isStreaming={isStreaming}
-              writesConfigured={galaxySurfaceWritesConfigured}
-              accessAllowed={galaxyAccessAllowed}
-            />
-          ) : null}
-        </>
-      ),
-    }];
-  }), [
-    galaxyAccessAllowed,
-    galaxySurfaceWritesConfigured,
-    isLoading,
-    messages,
-  ]);
+        ),
+      };
+    });
+  }), [isLoading, jsxComponents, messages]);
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {/* Components navigation bar */}
       <div className="shrink-0 border-b border-border bg-background">
-        <div className="mx-auto max-w-5xl px-4">
+        <div className="px-3">
           <div className="flex items-center justify-between h-9">
             <div className="flex items-center gap-1">
               {/* New chat */}
@@ -517,68 +505,69 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Infinite conversation canvas */}
-      <div className="min-h-0 flex-1">
-        <InfiniteConversationCanvas
-          items={canvasItems}
-          error={error}
-          emptyState={(
-            <div className="max-w-sm space-y-4 rounded-3xl border border-border/70 bg-background/80 px-8 py-9 text-center shadow-2xl backdrop-blur-xl">
-              <div
-                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-xl"
-                style={{ background: 'linear-gradient(135deg, #0097b2, #7ed952)' }}
-              >
-                ✦
+      {/* Docked chat + artifact canvas */}
+      <div className="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
+        <aside
+          aria-label="Chat"
+          className="h-[45%] min-h-0 shrink-0 border-t border-border bg-background md:h-auto md:w-[400px] md:border-r md:border-t-0 lg:w-[440px]"
+        >
+          <DockedChat
+            messages={messages}
+            isLoading={isLoading}
+            jsxComponents={jsxComponents}
+            galaxySurfaceWritesConfigured={galaxySurfaceWritesConfigured}
+            galaxyAccessAllowed={galaxyAccessAllowed}
+            onFocusArtifact={focusArtifact}
+            error={error}
+            footer={(
+              <div className="overflow-hidden rounded-xl border border-primary/20 bg-card/80 shadow-lg backdrop-blur">
+                <div className="flex items-center border-b border-border/60 px-3 py-2">
+                  <button
+                    type="button"
+                    disabled={galaxyBrainStatus !== 'connected'}
+                    onClick={() => setUseGalaxyBrain((enabled) => !enabled)}
+                    className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title={
+                      galaxyBrainStatus === 'connected'
+                        ? 'Include relevant experiments and hypotheses from Galaxy Brain'
+                        : galaxyBrainStatus === 'checking'
+                          ? 'Checking Galaxy Brain connection'
+                          : galaxyBrainStatus === 'unconfigured'
+                            ? 'Add the Galaxy Brain URL and read-only agent token in Vercel'
+                            : galaxyBrainStatus === 'unlinked'
+                              ? 'Connect Galaxy with your Nostr identity'
+                            : 'Galaxy Brain is configured but unavailable'
+                    }
+                  >
+                    <span
+                      className={cn(
+                        'h-2 w-2 rounded-full',
+                        galaxyBrainStatus === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                      )}
+                    />
+                    Galaxy Brain
+                    {useGalaxyBrain && <span className="font-medium text-primary">on</span>}
+                  </button>
+                </div>
+                <PromptInput onSubmit={handleSubmit}>
+                  <PromptInputTextarea placeholder="Ask for a chart, a map, slides, a 3D scene…" />
+                </PromptInput>
               </div>
-              <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
-                Ask for anything.
-              </h2>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Every prompt and generated artifact lands on a canvas you can pan, zoom, and rearrange.
-              </p>
-            </div>
-          )}
-        />
-      </div>
+            )}
+          />
+        </aside>
 
-      {/* Prompt input */}
-      <div className="shrink-0 px-4 py-4 border-t border-border bg-background/85 backdrop-blur-xl">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-xl overflow-hidden bg-card/80 backdrop-blur"
-            style={{ border: '1px solid rgba(0, 151, 178, 0.2)', boxShadow: '0 0 0 1px rgba(0,151,178,0.05), 0 8px 32px rgba(0,0,0,0.15)' }}>
-            <div className="flex items-center border-b border-border/60 px-3 py-2">
-              <button
-                type="button"
-                disabled={galaxyBrainStatus !== 'connected'}
-                onClick={() => setUseGalaxyBrain((enabled) => !enabled)}
-                className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                title={
-                  galaxyBrainStatus === 'connected'
-                    ? 'Include relevant experiments and hypotheses from Galaxy Brain'
-                    : galaxyBrainStatus === 'checking'
-                      ? 'Checking Galaxy Brain connection'
-                      : galaxyBrainStatus === 'unconfigured'
-                        ? 'Add the Galaxy Brain URL and read-only agent token in Vercel'
-                        : galaxyBrainStatus === 'unlinked'
-                          ? 'Connect Galaxy with your Nostr identity'
-                        : 'Galaxy Brain is configured but unavailable'
-                }
-              >
-                <span
-                  className={cn(
-                    'h-2 w-2 rounded-full',
-                    galaxyBrainStatus === 'connected' ? 'bg-emerald-500' : 'bg-muted-foreground/40',
-                  )}
-                />
-                Galaxy Brain
-                {useGalaxyBrain && <span className="font-medium text-primary">on</span>}
-              </button>
-            </div>
-            <PromptInput onSubmit={handleSubmit}>
-              <PromptInputTextarea placeholder="Ask for anything — a chart, a map, slides, a document, a 3D scene…" />
-            </PromptInput>
-          </div>
-        </div>
+        <main className="relative min-h-0 flex-1">
+          <ArtifactCanvas
+            items={canvasItems}
+            focusRequest={focusRequest}
+            emptyState={(
+              <div className="max-w-xs text-center text-sm leading-relaxed text-muted-foreground">
+                Visuals you generate will appear here. Drag or scroll to pan; pinch or Ctrl+scroll to zoom.
+              </div>
+            )}
+          />
+        </main>
       </div>
     </div>
   );
