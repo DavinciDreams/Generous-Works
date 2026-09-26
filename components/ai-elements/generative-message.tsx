@@ -250,6 +250,35 @@ export const parseMessageContent = (content: string): ContentBlock[] => {
   return blocks;
 };
 
+/**
+ * Remove a trailing, still-open code fence from streaming content so the
+ * partial JSX/JSON does not flash as raw code while it is being generated.
+ */
+export const trimPendingCodeFence = (
+  content: string,
+): { content: string; pending: boolean } => {
+  const fences = content.match(/```/g)?.length ?? 0;
+  if (fences % 2 === 0) return { content, pending: false };
+
+  return { content: content.slice(0, content.lastIndexOf('```')), pending: true };
+};
+
+/**
+ * Derive every renderable block for a message: blocks parsed from Markdown
+ * content followed by surfaces received through the A2UI JSONL stream.
+ */
+export const getMessageBlocks = (
+  content: string,
+  a2ui?: A2UIMessage[],
+): ContentBlock[] => [
+  ...parseMessageContent(content),
+  ...(a2ui ?? []).map((spec, index) => ({
+    type: 'a2ui' as const,
+    spec,
+    id: `a2ui-stream-${spec.surfaceUpdate?.surfaceId ?? index}`,
+  })),
+];
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -284,13 +313,7 @@ export const GenerativeMessage = memo(
       }
 
       // Otherwise, parse content for mixed blocks
-      const blocks = parseMessageContent(content);
-      const streamedSurfaces = (a2ui ?? []).map((spec, index) => ({
-        type: 'a2ui' as const,
-        spec,
-        id: `a2ui-stream-${spec.surfaceUpdate?.surfaceId ?? index}`,
-      }));
-      return [...blocks, ...streamedSurfaces];
+      return getMessageBlocks(content, a2ui);
     }, [a2ui, content, jsx, id]);
 
     // Don't render for system messages
