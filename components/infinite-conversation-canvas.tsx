@@ -327,7 +327,7 @@ export function InfiniteConversationCanvas({
         />
         <Panel position="top-left" className="m-3">
           <div className="rounded-lg border border-border/80 bg-background/90 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-            Drag cards Â· pan the background Â· scroll to zoom
+            Drag cards · pan the background · scroll to zoom
           </div>
         </Panel>
         <Panel position="top-right" className="m-3">
