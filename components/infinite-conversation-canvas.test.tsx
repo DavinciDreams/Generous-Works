@@ -4,7 +4,37 @@ import { render, screen } from "@testing-library/react";
 import {
   InfiniteConversationCanvas,
   getDefaultCanvasPosition,
+  syncConversationNodes,
 } from "@/components/infinite-conversation-canvas";
+
+describe("syncConversationNodes", () => {
+  const prompt = { id: "prompt", role: "user" as const, body: "Build a map" };
+  const response = { id: "response", role: "assistant" as const, body: "Here is your map" };
+
+  it("keeps measured sizes when items update, so cards stay visible", () => {
+    const [first, second] = syncConversationNodes([], [prompt, { ...response, isStreaming: true }], {});
+    const measuredNodes = [
+      { ...first, measured: { width: 340, height: 129 } },
+      { ...second, measured: { width: 720, height: 609 } },
+    ];
+
+    const updated = syncConversationNodes(measuredNodes, [prompt, response], {});
+
+    expect(updated.map((node) => node.measured)).toEqual([
+      { width: 340, height: 129 },
+      { width: 720, height: 609 },
+    ]);
+    expect(updated[1].zIndex).toBe(1);
+    expect(updated[1].data.item).toBe(response);
+  });
+
+  it("places new items from stored positions before falling back to defaults", () => {
+    const nodes = syncConversationNodes([], [prompt, response], { response: { x: 10, y: 20 } });
+
+    expect(nodes[0].position).toEqual({ x: 80, y: 80 });
+    expect(nodes[1].position).toEqual({ x: 10, y: 20 });
+  });
+});
 
 describe("getDefaultCanvasPosition", () => {
   it("places a prompt to the left of its response", () => {
