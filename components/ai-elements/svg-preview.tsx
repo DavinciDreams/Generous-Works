@@ -51,6 +51,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 // --- Types ---
@@ -98,57 +99,86 @@ export const useSVGPreview = () => {
 
 // --- Utilities ---
 
-const validateSVG = (svg: string): boolean => {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svg, "image/svg+xml");
-    const parserError = doc.querySelector("parsererror");
-    return !parserError;
-  } catch {
-    return false;
-  }
-};
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
 
-const extractSVGDimensions = (
-  svg: string
-): { width?: string; height?: string } => {
-  const widthMatch = svg.match(/width=["']([^"']+)["']/);
-  const heightMatch = svg.match(/height=["']([^"']+)["']/);
-  return {
-    height: heightMatch?.[1],
-    width: widthMatch?.[1],
-  };
-};
+/** A drawing ready to load as an image, and whether it declares its own size. */
+export interface SVGImage {
+  src: string;
+  sized: boolean;
+}
 
 /**
- * The SVG as an image source.
+ * The SVG as an image.
  *
  * A preview used to be inserted into the page as markup, so an SVG carrying
  * `<image onerror=...>` ran code in this origin, and a `<style>` inside it
  * restyled the whole page. SVG is untrusted here: it comes from model output
  * and, once surfaces are saved, from anyone who can write to Galaxy. Loaded as
- * an image it is the browser's own sandbox instead — no script or event handler
- * runs, its styles cannot reach the page, and it cannot fetch anything — while
- * still drawing `<style>` blocks and animations faithfully.
+ * an image it is the browser's own sandbox instead: no script or event handler
+ * runs, its styles cannot reach the page, and it cannot fetch anything.
  *
- * An image is a standalone XML document, so the SVG namespace must be declared
- * on the root even though inline HTML never needed it.
+ * An image must be strict XML, which inline SVG never had to be. So the source
+ * is first read by the forgiving HTML parser, as inline SVG always was: `&deg;`
+ * and `&nbsp;` resolve, sloppy markup is repaired, and a `<svg` inside a
+ * comment stays a comment. The parsed drawing is then written back out as XML,
+ * which declares its namespaces itself. A DOMParser document has no browsing
+ * context, so nothing in it runs or loads along the way.
+ *
+ * An image cannot inherit the page's text colour, so `currentColor` would be
+ * black on a dark page; `color` sets it unless the drawing sets its own.
  */
-export const svgImageSource = (svg: string): string => {
-  let document = svg;
-  const root = /<svg\b[^>]*>/i.exec(document);
-  if (root) {
-    let tag = root[0];
-    if (!/\sxmlns\s*=/.test(tag)) {
-      tag = tag.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+export const svgImage = (svg: string, color?: string): SVGImage | null => {
+  if (typeof DOMParser === "undefined") return null;
+  const root = new DOMParser().parseFromString(svg, "text/html").querySelector("svg");
+  if (!root || root.namespaceURI !== SVG_NAMESPACE) return null;
+
+  // Prefixed names would need namespace declarations the image may not get.
+  // `xlink:href` becomes plain `href`, which SVG 2 reads the same way, and
+  // editor metadata such as `inkscape:label` or `<sodipodi:namedview>` goes.
+  for (const element of [root, ...root.querySelectorAll("*")]) {
+    if (element.nodeName.includes(":")) {
+      element.remove();
+      continue;
     }
-    if (/\bxlink:/.test(document) && !/\sxmlns:xlink\s*=/.test(tag)) {
-      tag = tag.replace(/^<svg/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+    for (const attribute of [...element.attributes]) {
+      if (!attribute.name.includes(":") || attribute.name.startsWith("xml:")) continue;
+      if (attribute.namespaceURI === XLINK_NAMESPACE && attribute.localName === "href" && !element.hasAttribute("href")) {
+        element.setAttribute("href", attribute.value);
+      }
+      element.removeAttributeNode(attribute);
     }
-    document = document.slice(0, root.index) + tag + document.slice(root.index + root[0].length);
   }
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(document)}`;
+  if (color && !root.hasAttribute("color")) root.setAttribute("color", color);
+
+  const markup = new XMLSerializer().serializeToString(root);
+  return {
+    sized: root.hasAttribute("width") || root.hasAttribute("height"),
+    src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`,
+  };
 };
+
+/** A width or height given in pixels, as an `<img>` attribute takes it. */
+const pixels = (value: string | number | undefined): number | undefined => {
+  if (typeof value === "number") return value > 0 ? value : undefined;
+  const match = value?.trim().match(/^(\d+(?:\.\d+)?)(px)?$/);
+  return match ? Number(match[1]) : undefined;
+};
+
+const subscribeToTheme = (onChange: () => void) => {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributeFilter: ["class", "style", "data-theme"],
+    attributes: true,
+  });
+  return () => observer.disconnect();
+};
+const pageTextColor = () => getComputedStyle(document.body).color;
+const noPageOnServer = () => null;
+
+/** The page's text colour, following theme changes; null while server rendering. */
+const usePageTextColor = () =>
+  useSyncExternalStore(subscribeToTheme, pageTextColor, noPageOnServer);
 
 // --- Main Component ---
 
@@ -438,22 +468,30 @@ export const SVGPreviewContent = memo(
     ...props
   }: SVGPreviewContentProps) => {
     const { svg, title, mode, width, height, setError } = useSVGPreview();
-    const imageSource = useMemo(() => svgImageSource(svg), [svg]);
+    const color = usePageTextColor();
+    // Built only in the browser: the server has no parser, and renders a frame.
+    const image = useMemo(
+      () => (color === null ? null : svgImage(svg, color)),
+      [svg, color]
+    );
 
     // Show source if mode is "code" or showSource prop is true
     const shouldShowSource = mode === "code" || showSource;
 
-    // Extract dimensions from SVG if not provided - must be before early return
-    const dimensions = useMemo(() => extractSVGDimensions(svg), [svg]);
-    const svgWidth = width ?? dimensions.width ?? "100%";
-    const svgHeight = height ?? dimensions.height ?? "auto";
-
-    // Validate SVG when rendering preview mode
     useEffect(() => {
-      if (!shouldShowSource && !validateSVG(svg)) {
+      if (!shouldShowSource && color !== null && image === null) {
         setError(new Error("Invalid SVG markup"));
       }
-    }, [svg, shouldShowSource, setError]);
+    }, [color, image, shouldShowSource, setError]);
+
+    // Sizes go on as attributes. Only the drawing's root says how big it is,
+    // and an image already knows that, so nothing is read out of the markup.
+    const pixelWidth = pixels(width);
+    const pixelHeight = pixels(height);
+    const fillsWidth =
+      pixelWidth === undefined &&
+      ((typeof width === "string" && width.trim().endsWith("%")) ||
+        (pixelHeight === undefined && image !== null && !image.sized));
 
     if (shouldShowSource) {
       return (
@@ -477,7 +515,8 @@ export const SVGPreviewContent = memo(
             origin, so script inside the SVG would run with full access to it.
           */}
           <iframe
-            className="border-0"
+            className="max-w-full border-0"
+            height={pixelHeight}
             sandbox=""
             srcDoc={`<!DOCTYPE html>
 <html>
@@ -489,8 +528,8 @@ export const SVGPreviewContent = memo(
 </head>
 <body>${svg}</body>
 </html>`}
-            style={{ height: svgHeight, width: svgWidth }}
             title="SVG Preview"
+            width={pixelWidth ?? "100%"}
           />
         </div>
       );
@@ -505,12 +544,20 @@ export const SVGPreviewContent = memo(
         )}
         {...props}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL cannot go through the image optimizer, and the image boundary is the point */}
-        <img
-          src={imageSource}
-          alt={title || "SVG preview"}
-          style={{ height: svgHeight, width: svgWidth, maxWidth: "100%" }}
-        />
+        {image && (
+          // eslint-disable-next-line @next/next/no-img-element -- a data: URL cannot go through the image optimizer, and the image boundary is the point
+          <img
+            alt={title || "SVG preview"}
+            className={cn(
+              "max-w-full",
+              pixelHeight === undefined && "h-auto",
+              fillsWidth && "w-full"
+            )}
+            height={pixelHeight}
+            src={image.src}
+            width={pixelWidth}
+          />
+        )}
       </div>
     );
   }

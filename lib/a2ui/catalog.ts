@@ -1891,15 +1891,22 @@ export const specializedCatalog: ComponentCatalog = {
 
   SVGPreview: {
     type: 'SVGPreview',
-    description: `SVG graphics preview component with source view toggle. Displays SVG
-    content with validation. Supports:
-    - Inline SVG rendering
-    - Source code view
-    - Copy to clipboard
-    - Download as .svg file
-    - Custom width/height
-    - Isolated iframe rendering for security
-    Note: SVG content must be valid XML. Invalid SVG will show an error message.`,
+    description: `Static SVG drawing, with a source view, copy and .svg download.
+    The drawing is shown as an image, not inserted into the page, so:
+    - Nothing in it runs or responds: no script, event handlers, links, hover
+      tooltips or animation triggered by interaction.
+    - It cannot load anything: no external images, fonts or url(http...).
+      Use system font families (sans-serif, serif, monospace).
+    - currentColor follows the page's text colour, so it works in dark mode.
+    Write it so it also survives being saved to Galaxy:
+    - One well-formed XML <svg> element with a viewBox, under 20,000 characters,
+      with no DOCTYPE or entity declarations.
+    - Characters such as ° or × written directly or as numeric references
+      (&#176;), not HTML entities like &deg;.
+    - Styling as presentation attributes (fill, stroke, font-size) rather than
+      <style> blocks or class names, which Galaxy does not keep.
+    - Gradients, markers and clip paths referenced as url(#id) within the drawing.
+    width and height (pixels) cap the displayed size; the aspect ratio is kept.`,
     props: ['svg', 'title', 'filename', 'width', 'height'],
     examples: svgPreviewExamples
   },

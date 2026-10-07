@@ -59,13 +59,13 @@ describe('Galaxy surface contract', () => {
   it('rejects prototype-pollution keys at any property depth', () => {
     const polluted = researchBoard();
     polluted.surfaceUpdate.components[0].component = {
-      Card: JSON.parse('{"data":{"__proto__":{"polluted":true}}}'),
+      Markdown: JSON.parse('{"data":{"__proto__":{"polluted":true}}}'),
     };
     expect(() => toGalaxySurfaceSpec(polluted)).toThrow(/not allowed/);
 
     const constructor = researchBoard();
     constructor.surfaceUpdate.components[0].component = {
-      Card: { data: { constructor: { prototype: { polluted: true } } } },
+      Markdown: { data: { constructor: { prototype: { polluted: true } } } },
     };
     expect(() => toGalaxySurfaceSpec(constructor)).toThrow(/not allowed/);
   });
@@ -81,7 +81,7 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(cycle)).toThrow(/cycle/);
 
     const invalidNumber = researchBoard();
-    invalidNumber.surfaceUpdate.components[0].component = { Card: { score: Infinity } };
+    invalidNumber.surfaceUpdate.components[0].component = { Charts: { data: { score: Infinity } } };
     expect(() => toGalaxySurfaceSpec(invalidNumber)).toThrow(/non-finite/);
   });
 
@@ -125,6 +125,55 @@ describe('Galaxy surface contract', () => {
     for (const [svg, reason] of refusals) {
       expect(() => toGalaxySurfaceSpec(withSvg({ svg })), svg.slice(0, 20)).toThrow(reason);
     }
+  });
+
+  it('does not let a prop that is left behind block the save', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: 'javascript: a primer'.padEnd(600, '.') }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('agrees with Galaxy on what an SVG document is', () => {
+    expect(() => toGalaxySurfaceSpec(withSvg({ svg: '<?XML version="1.0"?><svg/>' }))).toThrow(
+      /single SVG document/,
+    );
+    const commented = `<!-- a -- b -->\n<!---->\n${CIRCLE}`;
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: commented })))).toEqual({
+      SVGPreview: { svg: commented },
+    });
+    // Galaxy counts code points: 19,989 emoji are 39,978 UTF-16 units.
+    const wide = `<svg>${'😀'.repeat(19_989)}</svg>`;
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: wide })))).toEqual({ SVGPreview: { svg: wide } });
+    expect(() => toGalaxySurfaceSpec(withSvg({ svg: `<svg>${'😀'.repeat(19_990)}</svg>` }))).toThrow(
+      /is 20,001 characters/,
+    );
+    const emojiTitle = '🧪'.repeat(500);
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: emojiTitle })))).toEqual({
+      SVGPreview: { svg: CIRCLE, title: emojiTitle },
+    });
+  });
+
+  it('checks stacked comments in linear time', () => {
+    for (const svg of ['<!---->'.repeat(2_800) + 'x', `<!--${'-'.repeat(19_000)}`, '<!--<!--'.repeat(2_400) + 'x']) {
+      const started = performance.now();
+      expect(() => toGalaxySurfaceSpec(withSvg({ svg }))).toThrow(GalaxySurfaceContractError);
+      expect(performance.now() - started).toBeLessThan(250);
+    }
+  });
+
+  it('leaves behind props Galaxy does not take, on every component', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components[0].component = { Title: { text: 'Research Board', color: 'red' } };
+    message.surfaceUpdate.components.push({ id: 'panel', component: { Card: { title: 'Panel', elevation: 2 } } });
+
+    const components = toGalaxySurfaceSpec(message).surfaceUpdate.components;
+    expect(components[0].component).toEqual({ Title: { text: 'Research Board' } });
+    expect(components.find((component) => component.id === 'panel')?.component).toEqual({ Card: {} });
+  });
+
+  it('still refuses behaviour on a prop that would be left behind', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components[0].component = { Title: { text: 'x', onHover: 'steal()' } };
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/onHover is not allowed/);
   });
 
   it('applies the same checks to a surface coming back from Galaxy', () => {
