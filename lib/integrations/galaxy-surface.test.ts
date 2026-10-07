@@ -85,6 +85,35 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(invalidNumber)).toThrow(/non-finite/);
   });
 
+  it('promotes SVG diagrams, which Galaxy redraws from an allowlist', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({
+      id: 'contour',
+      component: {
+        SVGPreview: {
+          svg: '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /></svg>',
+          title: 'Contour',
+          filename: 'contour.svg',
+          width: 480,
+          height: '320px',
+        },
+      },
+    });
+
+    const spec = toGalaxySurfaceSpec(message);
+    const contour = spec.surfaceUpdate.components.find((component) => component.id === 'contour');
+    expect(contour?.component).toEqual(message.surfaceUpdate.components[2].component);
+  });
+
+  it('still refuses components Galaxy cannot draw', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({
+      id: 'scene',
+      component: { ThreeScene: { data: {} } },
+    });
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/not approved for Galaxy Brain: ThreeScene/);
+  });
+
   it('revalidates the schema, catalog, and components before replay', () => {
     const stored = toGalaxySurfaceSpec(researchBoard());
     expect(toReplayableA2UIMessage(stored)).toEqual({

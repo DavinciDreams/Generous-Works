@@ -29,6 +29,7 @@ const APPROVED_COMPONENT_TYPES = new Set([
   'Separator',
   'Stack',
   'StatsDisplay',
+  'SVGPreview',
   'Text',
   'Timeline',
   'Title',
