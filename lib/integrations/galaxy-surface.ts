@@ -110,6 +110,51 @@ function validateBoundedValue(
   throw new GalaxySurfaceContractError(`${path} contains an unsupported value`);
 }
 
+/** Galaxy's bounds for SVGPreview, mirrored so a save fails here, clearly. */
+const SVG_TITLE_MAX = 500;
+const SVG_FILENAME_MAX = 200;
+const SVG_SIZE_PATTERN = /^[0-9]+(\.[0-9]+)?(px|%|em|rem)?$/;
+
+function galaxySvgSize(value: unknown): number | string | undefined {
+  if (typeof value === 'number' && value > 0 && value <= 4096) return value;
+  if (typeof value === 'string' && value.length <= 16 && SVG_SIZE_PATTERN.test(value)) return value;
+  return undefined;
+}
+
+/**
+ * Galaxy accepts only these five SVGPreview props, and only within its
+ * contract's bounds. The drawing itself is checked and refused with a message
+ * that says what is wrong: nothing here can repair it. The other props are
+ * cosmetic and written by the model, which the user cannot edit, so values
+ * Galaxy would refuse are dropped rather than failing an otherwise good save.
+ */
+function toGalaxySvgPreviewProps(props: Record<string, unknown>, path: string) {
+  const { svg, title, filename, width, height } = props;
+  if (typeof svg !== 'string' || svg.trim().length === 0) {
+    throw new GalaxySurfaceContractError(`${path}.svg must be a non-empty SVG document`);
+  }
+  if (svg.length > MAX_STRING_LENGTH) {
+    throw new GalaxySurfaceContractError(
+      `${path}.svg is ${svg.length.toLocaleString('en-US')} characters; Galaxy accepts SVG up to ${MAX_STRING_LENGTH.toLocaleString('en-US')}`,
+    );
+  }
+  if (/<!\s*(doctype|entity)/i.test(svg)) {
+    throw new GalaxySurfaceContractError(`${path}.svg must not declare a DOCTYPE or entities`);
+  }
+  if (!/^\s*(<\?xml[^>]*\?>\s*)?(<!--[\s\S]*?-->\s*)*<svg[\s>/]/i.test(svg)) {
+    throw new GalaxySurfaceContractError(`${path}.svg must be a single SVG document`);
+  }
+
+  const normalized: Record<string, unknown> = { svg };
+  if (typeof title === 'string' && title.length <= SVG_TITLE_MAX) normalized.title = title;
+  if (typeof filename === 'string' && filename.length <= SVG_FILENAME_MAX) normalized.filename = filename;
+  const galaxyWidth = galaxySvgSize(width);
+  if (galaxyWidth !== undefined) normalized.width = galaxyWidth;
+  const galaxyHeight = galaxySvgSize(height);
+  if (galaxyHeight !== undefined) normalized.height = galaxyHeight;
+  return normalized;
+}
+
 export function toReplayableA2UIMessage(spec: unknown): A2UIMessage {
   if (
     typeof spec !== 'object' ||
@@ -171,6 +216,7 @@ export function toGalaxySurfaceSpec(message: A2UIMessage): GalaxySurfaceSpec {
   const componentIds = new Set<string>();
   const childrenById = new Map<string, string[]>();
   const counter = { value: 0 };
+  const svgPreviewProps = new Map<string, Record<string, unknown>>();
 
   update.components.forEach((component, index) => {
     const path = `surfaceUpdate.components[${index}]`;
@@ -192,6 +238,12 @@ export function toGalaxySurfaceSpec(message: A2UIMessage): GalaxySurfaceSpec {
     }
     if (typeof props !== 'object' || props === null || Array.isArray(props)) {
       throw new GalaxySurfaceContractError(`${path}.component.${componentType} must be an object`);
+    }
+    if (componentType === 'SVGPreview') {
+      svgPreviewProps.set(
+        component.id,
+        toGalaxySvgPreviewProps(props as Record<string, unknown>, `${path}.component.SVGPreview`),
+      );
     }
     validateBoundedValue(props, `${path}.component.${componentType}`, 0, counter);
 
@@ -226,7 +278,10 @@ export function toGalaxySurfaceSpec(message: A2UIMessage): GalaxySurfaceSpec {
     catalog: GALAXY_SURFACE_CATALOG,
     surfaceUpdate: {
       ...(update.surfaceId === undefined ? {} : { surfaceId: update.surfaceId }),
-      components: update.components,
+      components: update.components.map((component) => {
+        const normalized = svgPreviewProps.get(component.id);
+        return normalized ? { ...component, component: { SVGPreview: normalized } } : component;
+      }),
     },
     bindings: [],
   };

@@ -85,24 +85,57 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(invalidNumber)).toThrow(/non-finite/);
   });
 
-  it('promotes SVG diagrams, which Galaxy redraws from an allowlist', () => {
+  const CIRCLE = '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /></svg>';
+  const withSvg = (props: Record<string, unknown>) => {
     const message = researchBoard();
-    message.surfaceUpdate.components.push({
-      id: 'contour',
-      component: {
-        SVGPreview: {
-          svg: '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /></svg>',
-          title: 'Contour',
-          filename: 'contour.svg',
-          width: 480,
-          height: '320px',
-        },
-      },
-    });
+    message.surfaceUpdate.components.push({ id: 'contour', component: { SVGPreview: props } });
+    return message;
+  };
+  const svgPropsIn = (spec: { surfaceUpdate?: { components: { id: string; component: unknown }[] } }) =>
+    spec.surfaceUpdate?.components.find((component) => component.id === 'contour')?.component;
 
-    const spec = toGalaxySurfaceSpec(message);
-    const contour = spec.surfaceUpdate.components.find((component) => component.id === 'contour');
-    expect(contour?.component).toEqual(message.surfaceUpdate.components[2].component);
+  it('promotes SVG diagrams with the props Galaxy accepts', () => {
+    const message = withSvg({ svg: CIRCLE, title: 'Contour', filename: 'contour.svg', width: 480, height: '320px' });
+    const before = structuredClone(message);
+
+    expect(svgPropsIn(toGalaxySurfaceSpec(message))).toEqual({
+      SVGPreview: { svg: CIRCLE, title: 'Contour', filename: 'contour.svg', width: 480, height: '320px' },
+    });
+    expect(message).toEqual(before);
+  });
+
+  it('drops cosmetic SVG props Galaxy would refuse instead of failing the save', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({
+      svg: CIRCLE,
+      width: 'auto',
+      height: '100vw',
+      showSource: true,
+      title: 'x'.repeat(501),
+    }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('refuses a drawing Galaxy would refuse, saying why', () => {
+    const refusals: [string, RegExp][] = [
+      ['<!DOCTYPE svg [<!ENTITY a "aaaa">]><svg>&a;</svg>', /DOCTYPE or entities/],
+      ['<html><svg></svg></html>', /single SVG document/],
+      ['   ', /non-empty SVG document/],
+      [`<svg>${'x'.repeat(20_000)}</svg>`, /is 20,011 characters; Galaxy accepts SVG up to 20,000/],
+    ];
+    for (const [svg, reason] of refusals) {
+      expect(() => toGalaxySurfaceSpec(withSvg({ svg })), svg.slice(0, 20)).toThrow(reason);
+    }
+  });
+
+  it('applies the same checks to a surface coming back from Galaxy', () => {
+    const stored = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE }));
+    const tampered = structuredClone(stored);
+    const svgComponent = tampered.surfaceUpdate.components.find((component) => component.id === 'contour');
+    (svgComponent!.component as { SVGPreview: { svg: string } }).SVGPreview.svg =
+      '<!DOCTYPE svg [<!ENTITY a "a">]><svg>&a;</svg>';
+
+    expect(() => toReplayableA2UIMessage(tampered)).toThrow(/DOCTYPE or entities/);
+    expect(svgPropsIn(toReplayableA2UIMessage(stored))).toEqual({ SVGPreview: { svg: CIRCLE } });
   });
 
   it('still refuses components Galaxy cannot draw', () => {

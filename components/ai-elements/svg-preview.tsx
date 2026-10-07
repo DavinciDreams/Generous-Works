@@ -120,6 +120,36 @@ const extractSVGDimensions = (
   };
 };
 
+/**
+ * The SVG as an image source.
+ *
+ * A preview used to be inserted into the page as markup, so an SVG carrying
+ * `<image onerror=...>` ran code in this origin, and a `<style>` inside it
+ * restyled the whole page. SVG is untrusted here: it comes from model output
+ * and, once surfaces are saved, from anyone who can write to Galaxy. Loaded as
+ * an image it is the browser's own sandbox instead — no script or event handler
+ * runs, its styles cannot reach the page, and it cannot fetch anything — while
+ * still drawing `<style>` blocks and animations faithfully.
+ *
+ * An image is a standalone XML document, so the SVG namespace must be declared
+ * on the root even though inline HTML never needed it.
+ */
+export const svgImageSource = (svg: string): string => {
+  let document = svg;
+  const root = /<svg\b[^>]*>/i.exec(document);
+  if (root) {
+    let tag = root[0];
+    if (!/\sxmlns\s*=/.test(tag)) {
+      tag = tag.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    if (/\bxlink:/.test(document) && !/\sxmlns:xlink\s*=/.test(tag)) {
+      tag = tag.replace(/^<svg/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+    }
+    document = document.slice(0, root.index) + tag + document.slice(root.index + root[0].length);
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(document)}`;
+};
+
 // --- Main Component ---
 
 export const SVGPreview = memo(
@@ -407,7 +437,8 @@ export const SVGPreviewContent = memo(
     className,
     ...props
   }: SVGPreviewContentProps) => {
-    const { svg, mode, width, height, setError } = useSVGPreview();
+    const { svg, title, mode, width, height, setError } = useSVGPreview();
+    const imageSource = useMemo(() => svgImageSource(svg), [svg]);
 
     // Show source if mode is "code" or showSource prop is true
     const shouldShowSource = mode === "code" || showSource;
@@ -441,8 +472,13 @@ export const SVGPreviewContent = memo(
           className={cn("relative flex items-center justify-center p-4", className)}
           {...props}
         >
+          {/*
+            An empty sandbox: without it a srcDoc frame shares this page's
+            origin, so script inside the SVG would run with full access to it.
+          */}
           <iframe
             className="border-0"
+            sandbox=""
             srcDoc={`<!DOCTYPE html>
 <html>
 <head>
@@ -469,9 +505,11 @@ export const SVGPreviewContent = memo(
         )}
         {...props}
       >
-        <div
-          dangerouslySetInnerHTML={{ __html: svg }}
-          style={{ height: svgHeight, width: svgWidth }}
+        {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL cannot go through the image optimizer, and the image boundary is the point */}
+        <img
+          src={imageSource}
+          alt={title || "SVG preview"}
+          style={{ height: svgHeight, width: svgWidth, maxWidth: "100%" }}
         />
       </div>
     );
