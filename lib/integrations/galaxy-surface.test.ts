@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SurfaceUpdate } from '@/lib/a2ui/types';
 
+import contract from './galaxy-surface-contract.json';
 import {
+  GALAXY_CONTRACT_DIGESTS,
   GalaxySurfaceContractError,
   deriveGalaxySurfaceTitle,
   galaxySurfaceToMessageContent,
@@ -174,6 +176,62 @@ describe('Galaxy surface contract', () => {
     const message = researchBoard();
     message.surfaceUpdate.components[0].component = { Title: { text: 'x', onHover: 'steal()' } };
     expect(() => toGalaxySurfaceSpec(message)).toThrow(/onHover is not allowed/);
+  });
+
+  it('drops an optional prop Galaxy would refuse, at any length', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: 'How javascript: URLs work' }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('refuses behaviour nested inside a prop that would be left behind', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({
+      id: 'panel',
+      component: { Card: { data: { onClick: 'steal()' } } },
+    });
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/data\.onClick is not allowed/);
+  });
+
+  it('sends Galaxy only the component keys it takes', () => {
+    const message = researchBoard();
+    Object.assign(message.surfaceUpdate.components[0], { weight: 1, style: { color: 'red' } });
+    const [title] = toGalaxySurfaceSpec(message).surfaceUpdate.components;
+    expect(Object.keys(title).sort()).toEqual(['component', 'id']);
+  });
+
+  it("holds props to Galaxy's schema: optional ones are dropped, required ones refused", () => {
+    const badge = researchBoard();
+    badge.surfaceUpdate.components[0].component = { Badge: { text: 'Live', variant: 'default' } };
+    expect(toGalaxySurfaceSpec(badge).surfaceUpdate.components[0].component).toEqual({
+      Badge: { text: 'Live' },
+    });
+
+    const empty = researchBoard();
+    empty.surfaceUpdate.components[0].component = { Badge: { text: '' } };
+    expect(() => toGalaxySurfaceSpec(empty)).toThrow(/Badge\.text must be at least 1 characters/);
+
+    const missing = researchBoard();
+    missing.surfaceUpdate.components[0].component = { Badge: { variant: 'filled' } };
+    expect(() => toGalaxySurfaceSpec(missing)).toThrow(/Badge\.text is required/);
+  });
+
+  it("carries Galaxy's contract unchanged, as the digests it was released with", async () => {
+    const { createHash } = await import('node:crypto');
+    const canonical = (value: unknown): string =>
+      Array.isArray(value)
+        ? `[${value.map(canonical).join(',')}]`
+        : value !== null && typeof value === 'object'
+          ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(',')}}`
+          : JSON.stringify(value);
+    const digest = (value: unknown) => createHash('sha256').update(canonical(value), 'utf8').digest('hex');
+
+    expect(GALAXY_CONTRACT_DIGESTS).toEqual({
+      algorithm: 'sha256',
+      schema: 'd147fafd26dd4be4cd41a1f504843366a01725a84a35668d565be4d210136729',
+      catalog: '60e2460ae227ccc42e3a44a2cda2740ec688ce57a68df972d67f8ab69c9d321f',
+    });
+    expect(digest(contract.schema)).toBe(GALAXY_CONTRACT_DIGESTS.schema);
+    expect(digest(contract.catalog)).toBe(GALAXY_CONTRACT_DIGESTS.catalog);
   });
 
   it('applies the same checks to a surface coming back from Galaxy', () => {

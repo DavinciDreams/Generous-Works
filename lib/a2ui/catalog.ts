@@ -118,7 +118,7 @@ const svgPreviewExamples: ComponentExample[] = [
       id: 'svgpreview-1',
       component: {
         SVGPreview: {
-          svg: '<svg width="100" height="100"><circle cx="50" cy="50" r="40" fill="blue" /></svg>',
+          svg: '<svg viewBox="0 0 100 100" width="100" height="100"><circle cx="50" cy="50" r="40" fill="blue" /></svg>',
           title: 'Blue Circle',
           filename: 'circle.svg'
         }

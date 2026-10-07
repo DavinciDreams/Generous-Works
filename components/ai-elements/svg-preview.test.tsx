@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { SVGPreview, SVGPreviewContent, svgImage } from './svg-preview';
+import { SVGPreview, SVGPreviewContent, SVGPreviewError, svgImage } from './svg-preview';
 
 // Each of these would run code in this origin, or restyle the page, if the
 // markup were inserted into the document.
@@ -94,8 +94,26 @@ describe('svgImage', () => {
   });
 
   it('takes its size only from the root', () => {
-    expect(svgImage('<svg viewBox="0 0 10 10"><rect height="2" stroke-width="3"/></svg>')?.sized).toBe(false);
-    expect(svgImage('<svg width="200" viewBox="0 0 10 10"/>')?.sized).toBe(true);
+    expect(svgImage('<svg viewBox="0 0 10 5"><rect height="2" stroke-width="3"/></svg>')).toMatchObject({
+      width: undefined,
+      height: undefined,
+      ratio: 2,
+    });
+    expect(svgImage('<svg width="200px" height="50" viewBox="0 0 10 10"/>')).toMatchObject({
+      width: 200,
+      height: 50,
+      ratio: 4,
+    });
+  });
+
+  it('lets a percentage-sized drawing take its proportions from the viewBox', () => {
+    const image = svgImage('<svg width="100%" height="100%" viewBox="0 0 400 100"><rect/></svg>');
+    expect(image).toMatchObject({ width: undefined, height: undefined, ratio: 4 });
+    expect(decoded(image!.src)).not.toMatch(/\s(width|height)=/);
+  });
+
+  it('reports a source that is not valid text instead of throwing', () => {
+    expect(svgImage('<svg><text>\uD83D</text></svg>')).toBeNull();
   });
 
   it('refuses source without a drawing', () => {
@@ -130,5 +148,48 @@ describe('SVGPreviewContent sizing', () => {
     expect(image?.getAttribute('width')).toBe('320');
     expect(image?.getAttribute('height')).toBe('200');
     expect(image?.getAttribute('style')).toBeNull();
+  });
+
+  it('fills the frame for the common width="100%" drawing', () => {
+    const image = imageFor('<svg width="100%" viewBox="0 0 400 100"><rect/></svg>');
+    expect(image?.classList.contains('w-full')).toBe(true);
+  });
+
+  it('converts em and rem, and treats zero as unset', () => {
+    expect(imageFor('<svg viewBox="0 0 1 1"/>', { width: '20rem' })?.getAttribute('width')).toBe('320');
+    expect(imageFor('<svg viewBox="0 0 1 1"/>', { width: '0', height: 0 })?.getAttribute('width')).toBeNull();
+  });
+
+  it('shows the error instead of crashing on a broken emoji', () => {
+    const { container } = render(
+      <SVGPreview svg={'<svg><text>\uD83D</text></svg>'}>
+        <SVGPreviewContent />
+        <SVGPreviewError />
+      </SVGPreview>,
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('Invalid SVG markup');
+  });
+});
+
+describe('SVGPreviewContent isolate', () => {
+  const frameFor = (svg: string) =>
+    render(
+      <SVGPreview svg={svg}>
+        <SVGPreviewContent isolate />
+      </SVGPreview>,
+    ).container.querySelector('iframe');
+
+  it("sizes the frame to the drawing's own size", () => {
+    const frame = frameFor('<svg width="600" height="400"/>');
+    expect(frame?.getAttribute('width')).toBe('600');
+    expect(frame?.getAttribute('height')).toBe('400');
+  });
+
+  it('keeps a viewBox-only drawing in proportion at full width', () => {
+    const frame = frameFor('<svg viewBox="0 0 400 300"/>');
+    expect(frame?.classList.contains('w-full')).toBe(true);
+    expect(frame?.getAttribute('height')).toBeNull();
+    expect(frame?.style.aspectRatio).not.toBe('');
   });
 });
