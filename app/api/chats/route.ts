@@ -11,7 +11,11 @@ export async function GET() {
 
   await ready;
   const rows = await sql`
-    SELECT id, title, messages, created_at AS "createdAt"
+    SELECT
+      id,
+      title,
+      created_at AS "createdAt",
+      jsonb_array_length(messages) AS "messageCount"
     FROM chats
     WHERE user_id = ${userId}
     ORDER BY created_at DESC

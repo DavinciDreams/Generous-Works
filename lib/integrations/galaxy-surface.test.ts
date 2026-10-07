@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SurfaceUpdate } from '@/lib/a2ui/types';
 
+import contract from './galaxy-surface-contract.json';
 import {
+  GALAXY_CONTRACT_DIGESTS,
   GalaxySurfaceContractError,
   deriveGalaxySurfaceTitle,
+  galaxySurfaceToMessageContent,
+  toReplayableA2UIMessage,
   toGalaxySurfaceSpec,
 } from './galaxy-surface';
 
@@ -54,6 +58,20 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(action)).toThrow(/not allowed/);
   });
 
+  it('rejects prototype-pollution keys at any property depth', () => {
+    const polluted = researchBoard();
+    polluted.surfaceUpdate.components[0].component = {
+      Markdown: JSON.parse('{"data":{"__proto__":{"polluted":true}}}'),
+    };
+    expect(() => toGalaxySurfaceSpec(polluted)).toThrow(/not allowed/);
+
+    const constructor = researchBoard();
+    constructor.surfaceUpdate.components[0].component = {
+      Markdown: { data: { constructor: { prototype: { polluted: true } } } },
+    };
+    expect(() => toGalaxySurfaceSpec(constructor)).toThrow(/not allowed/);
+  });
+
   it('rejects stale references, cycles, and non-finite data', () => {
     const missing = researchBoard();
     missing.surfaceUpdate.components[0].children = ['missing'];
@@ -65,7 +83,189 @@ describe('Galaxy surface contract', () => {
     expect(() => toGalaxySurfaceSpec(cycle)).toThrow(/cycle/);
 
     const invalidNumber = researchBoard();
-    invalidNumber.surfaceUpdate.components[0].component = { Card: { score: Infinity } };
+    invalidNumber.surfaceUpdate.components[0].component = { Charts: { data: { score: Infinity } } };
     expect(() => toGalaxySurfaceSpec(invalidNumber)).toThrow(/non-finite/);
+  });
+
+  const CIRCLE = '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /></svg>';
+  const withSvg = (props: Record<string, unknown>) => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({ id: 'contour', component: { SVGPreview: props } });
+    return message;
+  };
+  const svgPropsIn = (spec: { surfaceUpdate?: { components: { id: string; component: unknown }[] } }) =>
+    spec.surfaceUpdate?.components.find((component) => component.id === 'contour')?.component;
+
+  it('promotes SVG diagrams with the props Galaxy accepts', () => {
+    const message = withSvg({ svg: CIRCLE, title: 'Contour', filename: 'contour.svg', width: 480, height: '320px' });
+    const before = structuredClone(message);
+
+    expect(svgPropsIn(toGalaxySurfaceSpec(message))).toEqual({
+      SVGPreview: { svg: CIRCLE, title: 'Contour', filename: 'contour.svg', width: 480, height: '320px' },
+    });
+    expect(message).toEqual(before);
+  });
+
+  it('drops cosmetic SVG props Galaxy would refuse instead of failing the save', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({
+      svg: CIRCLE,
+      width: 'auto',
+      height: '100vw',
+      showSource: true,
+      title: 'x'.repeat(501),
+    }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('refuses a drawing Galaxy would refuse, saying why', () => {
+    const refusals: [string, RegExp][] = [
+      ['<!DOCTYPE svg [<!ENTITY a "aaaa">]><svg>&a;</svg>', /DOCTYPE or entities/],
+      ['<html><svg></svg></html>', /single SVG document/],
+      ['   ', /non-empty SVG document/],
+      [`<svg>${'x'.repeat(20_000)}</svg>`, /is 20,011 characters; Galaxy accepts SVG up to 20,000/],
+    ];
+    for (const [svg, reason] of refusals) {
+      expect(() => toGalaxySurfaceSpec(withSvg({ svg })), svg.slice(0, 20)).toThrow(reason);
+    }
+  });
+
+  it('does not let a prop that is left behind block the save', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: 'javascript: a primer'.padEnd(600, '.') }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('agrees with Galaxy on what an SVG document is', () => {
+    expect(() => toGalaxySurfaceSpec(withSvg({ svg: '<?XML version="1.0"?><svg/>' }))).toThrow(
+      /single SVG document/,
+    );
+    const commented = `<!-- a -- b -->\n<!---->\n${CIRCLE}`;
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: commented })))).toEqual({
+      SVGPreview: { svg: commented },
+    });
+    // Galaxy counts code points: 19,989 emoji are 39,978 UTF-16 units.
+    const wide = `<svg>${'😀'.repeat(19_989)}</svg>`;
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: wide })))).toEqual({ SVGPreview: { svg: wide } });
+    expect(() => toGalaxySurfaceSpec(withSvg({ svg: `<svg>${'😀'.repeat(19_990)}</svg>` }))).toThrow(
+      /is 20,001 characters/,
+    );
+    const emojiTitle = '🧪'.repeat(500);
+    expect(svgPropsIn(toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: emojiTitle })))).toEqual({
+      SVGPreview: { svg: CIRCLE, title: emojiTitle },
+    });
+  });
+
+  it('checks stacked comments in linear time', () => {
+    for (const svg of ['<!---->'.repeat(2_800) + 'x', `<!--${'-'.repeat(19_000)}`, '<!--<!--'.repeat(2_400) + 'x']) {
+      const started = performance.now();
+      expect(() => toGalaxySurfaceSpec(withSvg({ svg }))).toThrow(GalaxySurfaceContractError);
+      expect(performance.now() - started).toBeLessThan(250);
+    }
+  });
+
+  it('leaves behind props Galaxy does not take, on every component', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components[0].component = { Title: { text: 'Research Board', color: 'red' } };
+    message.surfaceUpdate.components.push({ id: 'panel', component: { Card: { title: 'Panel', elevation: 2 } } });
+
+    const components = toGalaxySurfaceSpec(message).surfaceUpdate.components;
+    expect(components[0].component).toEqual({ Title: { text: 'Research Board' } });
+    expect(components.find((component) => component.id === 'panel')?.component).toEqual({ Card: {} });
+  });
+
+  it('still refuses behaviour on a prop that would be left behind', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components[0].component = { Title: { text: 'x', onHover: 'steal()' } };
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/onHover is not allowed/);
+  });
+
+  it('drops an optional prop Galaxy would refuse, at any length', () => {
+    const spec = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE, title: 'How javascript: URLs work' }));
+    expect(svgPropsIn(spec)).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('refuses behaviour nested inside a prop that would be left behind', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({
+      id: 'panel',
+      component: { Card: { data: { onClick: 'steal()' } } },
+    });
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/data\.onClick is not allowed/);
+  });
+
+  it('sends Galaxy only the component keys it takes', () => {
+    const message = researchBoard();
+    Object.assign(message.surfaceUpdate.components[0], { weight: 1, style: { color: 'red' } });
+    const [title] = toGalaxySurfaceSpec(message).surfaceUpdate.components;
+    expect(Object.keys(title).sort()).toEqual(['component', 'id']);
+  });
+
+  it("holds props to Galaxy's schema: optional ones are dropped, required ones refused", () => {
+    const badge = researchBoard();
+    badge.surfaceUpdate.components[0].component = { Badge: { text: 'Live', variant: 'default' } };
+    expect(toGalaxySurfaceSpec(badge).surfaceUpdate.components[0].component).toEqual({
+      Badge: { text: 'Live' },
+    });
+
+    const empty = researchBoard();
+    empty.surfaceUpdate.components[0].component = { Badge: { text: '' } };
+    expect(() => toGalaxySurfaceSpec(empty)).toThrow(/Badge\.text must be at least 1 characters/);
+
+    const missing = researchBoard();
+    missing.surfaceUpdate.components[0].component = { Badge: { variant: 'filled' } };
+    expect(() => toGalaxySurfaceSpec(missing)).toThrow(/Badge\.text is required/);
+  });
+
+  it("carries Galaxy's contract unchanged, as the digests it was released with", async () => {
+    const { createHash } = await import('node:crypto');
+    const canonical = (value: unknown): string =>
+      Array.isArray(value)
+        ? `[${value.map(canonical).join(',')}]`
+        : value !== null && typeof value === 'object'
+          ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(',')}}`
+          : JSON.stringify(value);
+    const digest = (value: unknown) => createHash('sha256').update(canonical(value), 'utf8').digest('hex');
+
+    expect(GALAXY_CONTRACT_DIGESTS).toEqual({
+      algorithm: 'sha256',
+      schema: 'd147fafd26dd4be4cd41a1f504843366a01725a84a35668d565be4d210136729',
+      catalog: '60e2460ae227ccc42e3a44a2cda2740ec688ce57a68df972d67f8ab69c9d321f',
+    });
+    expect(digest(contract.schema)).toBe(GALAXY_CONTRACT_DIGESTS.schema);
+    expect(digest(contract.catalog)).toBe(GALAXY_CONTRACT_DIGESTS.catalog);
+  });
+
+  it('applies the same checks to a surface coming back from Galaxy', () => {
+    const stored = toGalaxySurfaceSpec(withSvg({ svg: CIRCLE }));
+    const tampered = structuredClone(stored);
+    const svgComponent = tampered.surfaceUpdate.components.find((component) => component.id === 'contour');
+    (svgComponent!.component as { SVGPreview: { svg: string } }).SVGPreview.svg =
+      '<!DOCTYPE svg [<!ENTITY a "a">]><svg>&a;</svg>';
+
+    expect(() => toReplayableA2UIMessage(tampered)).toThrow(/DOCTYPE or entities/);
+    expect(svgPropsIn(toReplayableA2UIMessage(stored))).toEqual({ SVGPreview: { svg: CIRCLE } });
+  });
+
+  it('still refuses components Galaxy cannot draw', () => {
+    const message = researchBoard();
+    message.surfaceUpdate.components.push({
+      id: 'scene',
+      component: { ThreeScene: { data: {} } },
+    });
+    expect(() => toGalaxySurfaceSpec(message)).toThrow(/not approved for Galaxy Brain: ThreeScene/);
+  });
+
+  it('revalidates the schema, catalog, and components before replay', () => {
+    const stored = toGalaxySurfaceSpec(researchBoard());
+    expect(toReplayableA2UIMessage(stored)).toEqual({
+      surfaceUpdate: stored.surfaceUpdate,
+    });
+    expect(galaxySurfaceToMessageContent(stored)).toContain('```json');
+
+    expect(() => toReplayableA2UIMessage({ ...stored, schema: 'gb.surface.v0' })).toThrow(
+      /unsupported schema or catalog/,
+    );
+    const unsafe = structuredClone(stored);
+    unsafe.surfaceUpdate.components[0].component = { JSX: { code: '<Card />' } };
+    expect(() => toReplayableA2UIMessage(unsafe)).toThrow(/not approved/);
   });
 });

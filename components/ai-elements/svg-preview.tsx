@@ -48,9 +48,11 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 // --- Types ---
@@ -98,27 +100,130 @@ export const useSVGPreview = () => {
 
 // --- Utilities ---
 
-const validateSVG = (svg: string): boolean => {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svg, "image/svg+xml");
-    const parserError = doc.querySelector("parsererror");
-    return !parserError;
-  } catch {
-    return false;
-  }
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
+
+/**
+ * A drawing ready to load as an image. `width` and `height` are the root's own
+ * size in pixels, when it gives one; `ratio` is its width over its height,
+ * from that size or its viewBox.
+ */
+export interface SVGImage {
+  src: string;
+  width?: number;
+  height?: number;
+  ratio?: number;
+}
+
+/** A length an image can use as its intrinsic size: plain pixels. */
+const ABSOLUTE_LENGTH = /^\s*(\d+(?:\.\d+)?)(px)?\s*$/;
+const absoluteLength = (value: string | null): number | undefined => {
+  const match = value === null ? null : ABSOLUTE_LENGTH.exec(value);
+  const length = match ? Number(match[1]) : 0;
+  return length > 0 ? length : undefined;
 };
 
-const extractSVGDimensions = (
-  svg: string
-): { width?: string; height?: string } => {
-  const widthMatch = svg.match(/width=["']([^"']+)["']/);
-  const heightMatch = svg.match(/height=["']([^"']+)["']/);
-  return {
-    height: heightMatch?.[1],
-    width: widthMatch?.[1],
-  };
+const viewBoxRatio = (value: string | null): number | undefined => {
+  const box = value?.trim().split(/[\s,]+/).map(Number);
+  if (!box || box.length !== 4 || box.some((n) => !Number.isFinite(n))) return undefined;
+  return box[2] > 0 && box[3] > 0 ? box[2] / box[3] : undefined;
 };
+
+/**
+ * The SVG as an image.
+ *
+ * A preview used to be inserted into the page as markup, so an SVG carrying
+ * `<image onerror=...>` ran code in this origin, and a `<style>` inside it
+ * restyled the whole page. SVG is untrusted here: it comes from model output
+ * and, once surfaces are saved, from anyone who can write to Galaxy. Loaded as
+ * an image it is the browser's own sandbox instead: no script or event handler
+ * runs, its styles cannot reach the page, and it cannot fetch anything.
+ *
+ * An image must be strict XML, which inline SVG never had to be. So the source
+ * is first read by the forgiving HTML parser, as inline SVG always was: `&deg;`
+ * and `&nbsp;` resolve, sloppy markup is repaired, and a `<svg` inside a
+ * comment stays a comment. The parsed drawing is then written back out as XML,
+ * which declares its namespaces itself. A DOMParser document has no browsing
+ * context, so nothing in it runs or loads along the way.
+ *
+ * An image cannot inherit the page's text colour, so `currentColor` would be
+ * black on a dark page; `color` sets it unless the drawing sets its own.
+ */
+export const svgImage = (svg: string, color?: string): SVGImage | null => {
+  if (typeof DOMParser === "undefined") return null;
+  const root = new DOMParser().parseFromString(svg, "text/html").querySelector("svg");
+  if (!root || root.namespaceURI !== SVG_NAMESPACE) return null;
+
+  // Prefixed names would need namespace declarations the image may not get.
+  // `xlink:href` becomes plain `href`, which SVG 2 reads the same way, and
+  // editor metadata such as `inkscape:label` or `<sodipodi:namedview>` goes.
+  for (const element of [root, ...root.querySelectorAll("*")]) {
+    if (element.nodeName.includes(":")) {
+      element.remove();
+      continue;
+    }
+    for (const attribute of [...element.attributes]) {
+      if (!attribute.name.includes(":") || attribute.name.startsWith("xml:")) continue;
+      if (attribute.namespaceURI === XLINK_NAMESPACE && attribute.localName === "href" && !element.hasAttribute("href")) {
+        element.setAttribute("href", attribute.value);
+      }
+      element.removeAttributeNode(attribute);
+    }
+  }
+  if (color && !root.hasAttribute("color")) root.setAttribute("color", color);
+
+  // `width="100%"` means "fill wherever I am drawn", which an image cannot
+  // know; left in, the browser falls back to 300x150. Without it the image
+  // takes its proportions from the viewBox and fills its frame.
+  const width = absoluteLength(root.getAttribute("width"));
+  const height = absoluteLength(root.getAttribute("height"));
+  if (width === undefined) root.removeAttribute("width");
+  if (height === undefined) root.removeAttribute("height");
+  const ratio = width && height ? width / height : viewBoxRatio(root.getAttribute("viewBox"));
+
+  let src: string;
+  try {
+    src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(root))}`;
+  } catch {
+    // Half of a surrogate pair cannot be encoded: the source is not valid text.
+    return null;
+  }
+  return { height, ratio, src, width };
+};
+
+/**
+ * A width or height as `<img>` and `<iframe>` attributes take it: pixels.
+ * `em` and `rem` are converted at the default 16px; zero means unset.
+ */
+const pixels = (value: string | number | undefined): number | undefined => {
+  if (typeof value === "number") return value > 0 ? value : undefined;
+  const match = value?.trim().match(/^(\d+(?:\.\d+)?)(px|em|rem)?$/);
+  const size = match ? Number(match[1]) * (match[2]?.endsWith("em") ? 16 : 1) : 0;
+  return size > 0 ? size : undefined;
+};
+
+/**
+ * The page's text colour, read once and again only when the theme changes:
+ * reading computed style on every render would force a style recalculation.
+ */
+let pageColor: string | null = null;
+const subscribeToTheme = (onChange: () => void) => {
+  const observer = new MutationObserver(() => {
+    pageColor = null;
+    onChange();
+  });
+  observer.observe(document.documentElement, {
+    attributeFilter: ["class", "style", "data-theme"],
+    attributes: true,
+  });
+  return () => observer.disconnect();
+};
+const pageTextColor = () => (pageColor ??= getComputedStyle(document.body).color);
+const noPageOnServer = () => null;
+
+/** The page's text colour, following theme changes; null while server rendering. */
+const usePageTextColor = () =>
+  useSyncExternalStore(subscribeToTheme, pageTextColor, noPageOnServer);
 
 // --- Main Component ---
 
@@ -407,22 +512,31 @@ export const SVGPreviewContent = memo(
     className,
     ...props
   }: SVGPreviewContentProps) => {
-    const { svg, mode, width, height, setError } = useSVGPreview();
+    const { svg, title, mode, width, height, setError } = useSVGPreview();
+    const color = usePageTextColor();
+    // Built only in the browser: the server has no parser, and renders a frame.
+    const image = useMemo(
+      () => (color === null ? null : svgImage(svg, color)),
+      [svg, color]
+    );
 
     // Show source if mode is "code" or showSource prop is true
     const shouldShowSource = mode === "code" || showSource;
 
-    // Extract dimensions from SVG if not provided - must be before early return
-    const dimensions = useMemo(() => extractSVGDimensions(svg), [svg]);
-    const svgWidth = width ?? dimensions.width ?? "100%";
-    const svgHeight = height ?? dimensions.height ?? "auto";
-
-    // Validate SVG when rendering preview mode
+    const invalid = !shouldShowSource && color !== null && image === null;
+    const reportInvalid = useEffectEvent(() => setError(new Error("Invalid SVG markup")));
     useEffect(() => {
-      if (!shouldShowSource && !validateSVG(svg)) {
-        setError(new Error("Invalid SVG markup"));
-      }
-    }, [svg, shouldShowSource, setError]);
+      if (invalid) reportInvalid();
+    }, [invalid]);
+
+    // Sizes go on as attributes. Only the drawing's root says how big it is,
+    // and an image already knows that, so nothing is read out of the markup.
+    const pixelWidth = pixels(width);
+    const pixelHeight = pixels(height);
+    const fillsWidth =
+      pixelWidth === undefined &&
+      ((typeof width === "string" && width.trim().endsWith("%")) ||
+        (pixelHeight === undefined && image !== null && image.width === undefined));
 
     if (shouldShowSource) {
       return (
@@ -435,14 +549,27 @@ export const SVGPreviewContent = memo(
     }
 
     if (isolate) {
-      // Render in iframe for isolation
+      // A frame has no size of its own, so it takes the drawing's: its root
+      // size, or else its proportions at the frame's width.
+      const frameWidth = pixelWidth ?? image?.width;
+      const ratio = image?.ratio;
+      const frameHeight =
+        pixelHeight ??
+        (pixelWidth === undefined ? image?.height : undefined) ??
+        (frameWidth !== undefined && ratio ? frameWidth / ratio : undefined);
       return (
         <div
           className={cn("relative flex items-center justify-center p-4", className)}
           {...props}
         >
+          {/*
+            An empty sandbox: without it a srcDoc frame shares this page's
+            origin, so script inside the SVG would run with full access to it.
+          */}
           <iframe
-            className="border-0"
+            className={cn("max-w-full border-0", frameWidth === undefined && "w-full")}
+            height={frameHeight ?? (ratio ? undefined : 300)}
+            sandbox=""
             srcDoc={`<!DOCTYPE html>
 <html>
 <head>
@@ -453,8 +580,10 @@ export const SVGPreviewContent = memo(
 </head>
 <body>${svg}</body>
 </html>`}
-            style={{ height: svgHeight, width: svgWidth }}
+            // The drawing's own proportions, which no class can express.
+            style={frameHeight === undefined && ratio ? { aspectRatio: ratio } : undefined}
             title="SVG Preview"
+            width={frameWidth}
           />
         </div>
       );
@@ -469,10 +598,20 @@ export const SVGPreviewContent = memo(
         )}
         {...props}
       >
-        <div
-          dangerouslySetInnerHTML={{ __html: svg }}
-          style={{ height: svgHeight, width: svgWidth }}
-        />
+        {image && (
+          // eslint-disable-next-line @next/next/no-img-element -- a data: URL cannot go through the image optimizer, and the image boundary is the point
+          <img
+            alt={title || "SVG preview"}
+            className={cn(
+              "max-w-full",
+              pixelHeight === undefined && "h-auto",
+              fillsWidth && "w-full"
+            )}
+            height={pixelHeight}
+            src={image.src}
+            width={pixelWidth}
+          />
+        )}
       </div>
     );
   }

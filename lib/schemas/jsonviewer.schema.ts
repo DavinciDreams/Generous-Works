@@ -46,12 +46,14 @@ export type JSONViewerData = z.infer<typeof JSONViewerDataSchema>;
  * JSON Viewer display options
  */
 export const JSONViewerOptionsSchema = z.object({
+  mode: z.enum(['default', 'compact']).optional(),
   height: z.union([z.number(), z.string()]).optional(),
   width: z.union([z.number(), z.string()]).optional(),
   theme: JSONViewerThemeSchema.optional(),
   displayDataTypes: z.boolean().optional(), // Show data type labels
   displayObjectSize: z.boolean().optional(), // Show object/array size
   enableClipboard: z.boolean().optional(), // Enable copy to clipboard
+  maxStringLength: z.number().int().positive().max(100_000).optional(),
 }).optional();
 
 export type JSONViewerOptions = z.infer<typeof JSONViewerOptionsSchema>;

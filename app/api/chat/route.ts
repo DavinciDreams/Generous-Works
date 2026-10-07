@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
+import { isVisualRequest } from '@/lib/a2ui/visual-completion';
 import { getGalaxyBrainContext } from '@/lib/integrations/galaxy-brain';
+import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
@@ -723,6 +725,44 @@ You are helpful, concise, and focused on generating high-quality, functional UI 
 }
 
 /**
+ * A line-framed transport prompt for clients that can reconcile A2UI updates.
+ * This intentionally avoids the mixed markdown/JSX instructions above: every
+ * newline becomes a protocol boundary and must therefore contain valid JSON.
+ */
+function getA2UIStreamSystemPrompt(): string {
+  const catalogPrompt = getCatalogPrompt();
+
+  return `You generate live interfaces using Generous' A2UI v0.8 component catalog.
+
+${catalogPrompt}
+
+## Required A2UI JSONL transport
+
+Output newline-delimited JSON only. Do not emit prose, markdown, code fences, comments, or blank-line explanations.
+
+Each physical line must be one complete JSON object containing one or more of:
+- surfaceUpdate
+- dataModelUpdate
+- beginRendering
+
+Use one stable surfaceId for a UI, normally "main". Use stable component ids so later surfaceUpdate events replace the same components instead of duplicating them.
+
+Stream in this order:
+1. Emit one small first line containing both surfaceUpdate and beginRendering for a valid root, so the client can paint immediately.
+2. Emit additional surfaceUpdate lines as more content becomes available. This client accepts dataModelUpdate events, but visible values should be placed directly in component props.
+
+When the user asks for a visualization, chart, graph, diagram, map, timeline, scene, or other visual result, a title or Text-only surface is never complete. Before ending the stream, emit at least one suitable non-text visual component from the catalog with all required props. The minimal example below is for prose responses only.
+
+For a prose answer, render it with the Text component. Component props must exactly match the catalog examples, including typed literal values where shown.
+
+Minimal valid stream example:
+{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Working..."},"usageHint":{"literalString":"body"}}}}]},"beginRendering":{"surfaceId":"main","root":"root"}}
+{"surfaceUpdate":{"surfaceId":"main","components":[{"id":"root","component":{"Text":{"text":{"literalString":"Finished."},"usageHint":{"literalString":"body"}}}}]}}
+
+Every line must remain independently parseable while it is streaming.`;
+}
+
+/**
  * POST /api/chat
  * 
  * Handles chat requests with streaming support for both text and UI components.
@@ -733,6 +773,7 @@ You are helpful, concise, and focused on generating high-quality, functional UI 
  * - stream: Enable streaming (default: true)
  * - temperature: Optional temperature for generation (default: 0.7)
  * - maxTokens: Optional max tokens (default: 4000)
+ * - renderFormat: text (legacy mixed response) or a2ui-jsonl (reconciled UI stream)
  */
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
@@ -746,6 +787,7 @@ const chatRequestSchema = z.object({
   temperature: z.number().optional().default(0.7),
   maxTokens: z.number().optional().default(4000),
   useGalaxyBrain: z.boolean().optional().default(false),
+  renderFormat: z.enum(['text', 'a2ui-jsonl']).optional().default('text'),
 });
 
 export async function POST(req: NextRequest) {
@@ -766,7 +808,22 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const { messages, prompt, stream, temperature, maxTokens, useGalaxyBrain } = parseResult.data;
+    const {
+      messages,
+      prompt,
+      stream,
+      temperature,
+      maxTokens,
+      useGalaxyBrain,
+      renderFormat,
+    } = parseResult.data;
+
+    if (useGalaxyBrain && !(await getGalaxyBrainAccess(userId)).allowed) {
+      return new Response(JSON.stringify({ error: 'Galaxy Brain access is not allowed' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const clampedTemperature = Math.min(Math.max(Number(temperature) || 0.7, 0), 2);
     const clampedMaxTokens = Math.min(Math.max(Math.trunc(Number(maxTokens) || 4000), 1), 8000);
@@ -783,12 +840,16 @@ export async function POST(req: NextRequest) {
     // Resolve provider: prefer vLLM (local DGX) when VLLM_BASE_URL is set,
     // fall back to Zhipu/Z.AI otherwise.
     let aiModel;
+    let providerName: 'vllm' | 'zhipu';
+    let modelId: string;
     if (process.env.VLLM_BASE_URL) {
       const vllm = createOpenAI({
         baseURL: process.env.VLLM_BASE_URL,
         apiKey: process.env.VLLM_API_KEY || "none",
       });
-      aiModel = vllm(process.env.VLLM_MODEL || "default");
+      providerName = 'vllm';
+      modelId = process.env.VLLM_MODEL || "default";
+      aiModel = vllm(modelId);
     } else if (process.env.ZHIPU_API_KEY) {
       // Lazy-import so the package isn't required when vLLM is active
       const { createZhipu } = await import("zhipu-ai-provider");
@@ -796,7 +857,12 @@ export async function POST(req: NextRequest) {
         baseURL: process.env.ZHIPU_BASE_URL,
         apiKey: process.env.ZHIPU_API_KEY,
       });
-      aiModel = zhipu(process.env.ZHIPU_MODEL || "glm-4.7");
+      providerName = 'zhipu';
+      modelId = process.env.ZHIPU_MODEL || "glm-4.7";
+      // Generous needs visible streamed text. Zhipu thinking tokens arrive as
+      // reasoning deltas, which toTextStreamResponse intentionally omits and
+      // can otherwise consume the output budget before any UI JSON is sent.
+      aiModel = zhipu(modelId, { thinking: { type: 'disabled' } });
     } else {
       console.error("Chat API: No AI provider configured");
       return new Response(
@@ -810,6 +876,9 @@ export async function POST(req: NextRequest) {
     const latestUserPrompt = [...preparedMessages]
       .reverse()
       .find((message) => message.role === 'user')?.content ?? prompt ?? '';
+    const effectiveRenderFormat = renderFormat === 'a2ui-jsonl' && !isVisualRequest(latestUserPrompt)
+      ? 'a2ui-jsonl'
+      : 'text';
     let galaxyBrainContext = '';
 
     if (useGalaxyBrain) {
@@ -825,16 +894,38 @@ export async function POST(req: NextRequest) {
     if (stream) {
       const result = streamText({
         model: aiModel,
-        system: getSystemPrompt() + galaxyBrainContext,
+        system: (effectiveRenderFormat === 'a2ui-jsonl'
+          ? getA2UIStreamSystemPrompt()
+          : getSystemPrompt()) + galaxyBrainContext,
         messages: preparedMessages,
         temperature: clampedTemperature,
         maxOutputTokens: clampedMaxTokens,
         onError: ({ error }) => {
           console.error("Chat API: Streaming error:", error);
         },
+        onFinish: ({ finishReason, rawFinishReason, text, reasoningText, usage }) => {
+          console.info('Chat API: Streaming finished:', {
+            provider: providerName,
+            model: modelId,
+            renderFormat: effectiveRenderFormat,
+            finishReason,
+            rawFinishReason,
+            textChars: text.length,
+            reasoningChars: reasoningText?.length ?? 0,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+          });
+        },
       });
 
-      return result.toTextStreamResponse();
+      return result.toTextStreamResponse(effectiveRenderFormat === 'a2ui-jsonl' ? {
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+          'X-Generous-Render-Format': 'a2ui-jsonl',
+        },
+      } : undefined);
     }
 
     // Non-streaming fallback (for compatibility)

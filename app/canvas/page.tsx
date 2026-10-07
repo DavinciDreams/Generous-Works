@@ -2,18 +2,35 @@
 
 import type { FormEvent, ComponentType } from "react";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
 
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { cn } from '@/lib/utils';
 
-import { GenerativeMessage } from "@/components/ai-elements/generative-message";
+import {
+  GenerativeMessage,
+  parseMessageContent,
+} from "@/components/ai-elements/generative-message";
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
-import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
+import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
+import { InfiniteConversationCanvas } from '@/components/infinite-conversation-canvas';
+import {
+  consumeA2UIJsonl,
+  createA2UIJsonlAccumulator,
+  toFinalA2UIMessages,
+  toRenderableA2UIMessages,
+} from '@/lib/a2ui/jsonl-stream';
+import type { A2UIMessage } from '@/lib/a2ui/types';
+import {
+  assessA2UIVisualCompletion,
+  getA2UIRenderFormat,
+  getCompleteA2UIVisualRetryPrompt,
+  isVisualRequest,
+} from '@/lib/a2ui/visual-completion';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui/card";
@@ -89,6 +106,21 @@ const navGroups = [
   { label: "Forms", links: [{ href: "/forms-showcase", name: "Forms Showcase" }] },
 ];
 
+const STREAM_RENDER_INTERVAL_MS = 80;
+const MAX_VISUAL_ATTEMPTS = 2;
+
+interface StreamedChatAttempt {
+  a2ui?: A2UIMessage[];
+  content: string;
+  rejectedEvents: number;
+}
+
+function getCompleteA2UISurfaces(content: string): A2UIMessage[] {
+  return parseMessageContent(content).flatMap((block) =>
+    block.type === 'a2ui' ? [block.spec] : [],
+  );
+}
+
 export default function Page() {
   const { messages, addMessage, updateMessage } = useMessages();
   const { isLoading, error, setLoading, setError } = useAppState();
@@ -99,8 +131,10 @@ export default function Page() {
   const deleteChat = useGenerativeUIStore((state) => state.deleteChat);
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'error'>('checking');
+  const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unlinked' | 'unconfigured' | 'error'>('checking');
   const [galaxySurfaceWritesConfigured, setGalaxySurfaceWritesConfigured] = useState(false);
+  const [galaxyAccessAllowed, setGalaxyAccessAllowed] = useState(false);
+  const [galaxyConnectUrl, setGalaxyConnectUrl] = useState('/api/galaxy-brain/connect/start');
   const [useGalaxyBrain, setUseGalaxyBrain] = useState(false);
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
@@ -114,10 +148,15 @@ export default function Page() {
           configured?: boolean;
           connected?: boolean;
           surfaceWritesConfigured?: boolean;
+          accessAllowed?: boolean;
+          connectUrl?: string;
         };
         if (!active) return;
         setGalaxySurfaceWritesConfigured(Boolean(status.surfaceWritesConfigured));
-        if (status.connected) setGalaxyBrainStatus('connected');
+        setGalaxyAccessAllowed(Boolean(status.accessAllowed));
+        if (typeof status.connectUrl === 'string') setGalaxyConnectUrl(status.connectUrl);
+        if (!status.accessAllowed) setGalaxyBrainStatus('unlinked');
+        else if (status.connected) setGalaxyBrainStatus('connected');
         else if (!status.configured) setGalaxyBrainStatus('unconfigured');
         else setGalaxyBrainStatus('error');
       })
@@ -143,44 +182,205 @@ export default function Page() {
 
     setLoading(true);
 
+    let lastRenderableA2UI: A2UIMessage[] | undefined;
+
     try {
-      const apiMessages = messages
-        .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0)
-        .map((msg) => ({ role: msg.role, content: msg.content }));
+      const conversationMessages = messages
+        .map((msg) => ({ role: msg.role, content: msg.modelContent ?? msg.content }))
+        .filter((msg) => typeof msg.content === 'string' && msg.content.trim().length > 0);
+      const visualRequest = isVisualRequest(prompt);
+      const attemptCount = visualRequest ? MAX_VISUAL_ATTEMPTS : 1;
+      const renderFormat = getA2UIRenderFormat(prompt);
 
-      apiMessages.push({ role: "user", content: prompt });
+      const streamAttempt = async (attemptPrompt: string): Promise<StreamedChatAttempt> => {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...conversationMessages, { role: "user", content: attemptPrompt }],
+            stream: true,
+            useGalaxyBrain,
+            ...(renderFormat ? { renderFormat } : {}),
+          }),
+        });
 
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, stream: true, useGalaxyBrain }),
-      });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(errorData.error || "Failed to get response");
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to get response");
-      }
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('The response stream was unavailable');
+        }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullContent = "";
+        const decoder = new TextDecoder();
+        let fullContent = "";
+        let lastRenderedAt = 0;
+        let structuredStream = createA2UIJsonlAccumulator();
+        let lastAcceptedEventCount = 0;
+        const responseFormat = response.headers.get('X-Generous-Render-Format')
+          ?? (response.headers.get('Content-Type')?.includes('application/x-ndjson')
+            ? 'a2ui-jsonl'
+            : null);
 
-      if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          fullContent += decoder.decode(value, { stream: true });
-          updateMessage(assistantMessageId, { content: fullContent });
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+
+          if (responseFormat === 'a2ui-jsonl') {
+            structuredStream = consumeA2UIJsonl(structuredStream, chunk);
+            if (structuredStream.acceptedEvents !== lastAcceptedEventCount) {
+              const a2ui = toRenderableA2UIMessages(structuredStream);
+              if (a2ui.length > 0) {
+                lastRenderableA2UI = a2ui;
+                updateMessage(assistantMessageId, { content: '', a2ui });
+              }
+              lastAcceptedEventCount = structuredStream.acceptedEvents;
+            }
+            continue;
+          }
+
+          const now = performance.now();
+          if (now - lastRenderedAt >= STREAM_RENDER_INTERVAL_MS) {
+            updateMessage(assistantMessageId, { content: fullContent });
+            lastRenderedAt = now;
+          }
         }
+
+        const finalChunk = decoder.decode();
+        fullContent += finalChunk;
+
+        if (responseFormat !== 'a2ui-jsonl') {
+          return { content: fullContent, rejectedEvents: 0 };
+        }
+
+        structuredStream = consumeA2UIJsonl(structuredStream, finalChunk, { flush: true });
+        const a2ui = toFinalA2UIMessages(structuredStream);
+        if (a2ui.length > 0) {
+          lastRenderableA2UI = a2ui;
+          return {
+            a2ui,
+            content: fullContent,
+            rejectedEvents: structuredStream.errors.length,
+          };
+        }
+
+        if (fullContent.trim()) {
+          // Providers can occasionally ignore the requested wire format. Keep
+          // the text available, but let visual completion decide whether it is
+          // sufficient for the user's request.
+          return {
+            content: fullContent,
+            rejectedEvents: structuredStream.errors.length,
+          };
+        }
+
+        throw new Error('The model returned an empty response');
+      };
+
+      for (let attempt = 0; attempt < attemptCount; attempt += 1) {
+        const attemptPrompt = attempt === 0
+          ? prompt
+          : getCompleteA2UIVisualRetryPrompt(prompt);
+        const result = await streamAttempt(attemptPrompt);
+        const completedSurfaces = result.a2ui
+          ?? getCompleteA2UISurfaces(result.content);
+        const completion = assessA2UIVisualCompletion(prompt, completedSurfaces);
+        const hasAnotherAttempt = attempt + 1 < attemptCount;
+
+        if (visualRequest && !completion.complete && hasAnotherAttempt) {
+          const rejected = result.rejectedEvents > 0
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} ${result.rejectedEvents === 1 ? 'was' : 'were'} rejected.`
+            : '';
+          setError(`The first complete A2UI visual was incomplete.${rejected} Retrying once...`);
+          continue;
+        }
+
+        updateMessage(assistantMessageId, {
+          content: result.a2ui ? '' : result.content,
+          modelContent: result.content,
+          a2ui: result.a2ui,
+        });
+
+        if (visualRequest && !completion.complete) {
+          const componentSummary = completion.componentTypes.length > 0
+            ? ` Received only: ${completion.componentTypes.join(', ')}.`
+            : '';
+          const rejected = result.rejectedEvents > 0
+            ? ` ${result.rejectedEvents} structured update${result.rejectedEvents === 1 ? '' : 's'} ${result.rejectedEvents === 1 ? 'was' : 'were'} rejected.`
+            : '';
+          setError(`Generous could not complete the requested visual after one retry.${componentSummary}${rejected}`);
+        } else {
+          setError(null);
+        }
+
+        break;
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
-      updateMessage(assistantMessageId, { content: `I apologize, but I encountered an error: ${errorMessage}` });
+      if (lastRenderableA2UI) {
+        updateMessage(assistantMessageId, { a2ui: lastRenderableA2UI });
+      } else {
+        updateMessage(assistantMessageId, {
+          content: `I apologize, but I encountered an error: ${errorMessage}`,
+          modelContent: undefined,
+          a2ui: undefined,
+        });
+      }
     } finally {
       setLoading(false);
     }
   }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
+
+  const canvasItems = useMemo(() => messages.flatMap((message, index) => {
+    if (message.role === 'system') return [];
+
+    const isStreaming = isLoading
+      && message.role === "assistant"
+      && index === messages.length - 1;
+
+    return [{
+      id: message.id,
+      role: message.role,
+      isStreaming,
+      timestamp: message.timestamp,
+      body: (
+        <>
+          <GenerativeMessage
+            className="my-0"
+            message={{
+              id: message.id,
+              role: message.role,
+              content: message.content,
+              a2ui: message.a2ui,
+              timestamp: message.timestamp,
+            }}
+            isStreaming={isStreaming}
+            components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
+          />
+          {message.role === 'assistant' ? (
+            <GalaxySurfaceControls
+              messageId={message.id}
+              content={message.content}
+              a2ui={message.a2ui}
+              isStreaming={isStreaming}
+              writesConfigured={galaxySurfaceWritesConfigured}
+              accessAllowed={galaxyAccessAllowed}
+            />
+          ) : null}
+        </>
+      ),
+    }];
+  }), [
+    galaxyAccessAllowed,
+    galaxySurfaceWritesConfigured,
+    isLoading,
+    messages,
+  ]);
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
@@ -204,6 +404,20 @@ export default function Page() {
 
               {/* Artifact canvas shelf */}
               <ArtifactShelf jsxComponents={componentBindings as unknown as Parameters<typeof ArtifactShelf>[0]['jsxComponents']} />
+
+              <GalaxySurfaceLibrary
+                connected={galaxyBrainStatus === 'connected'}
+                writesConfigured={galaxySurfaceWritesConfigured}
+              />
+
+              {galaxyBrainStatus === 'unlinked' && (
+                <a
+                  href={galaxyConnectUrl}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Connect Galaxy
+                </a>
+              )}
 
               {/* Chat history */}
               {savedChats.length > 0 && (
@@ -237,13 +451,16 @@ export default function Page() {
                               <button
                                 type="button"
                                 className="flex-1 text-left min-w-0"
-                                onClick={() => { loadChat(chat.id); setHistoryOpen(false); }}
+                                onClick={() => {
+                                  setHistoryOpen(false);
+                                  void loadChat(chat.id);
+                                }}
                               >
                                 <div className="text-xs font-medium text-foreground truncate">{chat.title}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">
                                   {new Date(chat.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                   {' · '}
-                                  {chat.messages.length} messages
+                                  {chat.messageCount} messages
                                 </div>
                               </button>
                               <button
@@ -300,68 +517,29 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Messages area */}
-      <Conversation className="flex-1">
-        <ConversationContent className="overflow-y-auto">
-          <div className="px-4 py-8">
-            <div className="mx-auto max-w-3xl space-y-8">
-              {messages.length === 0 ? (
-                <div className="flex min-h-[40vh] items-center justify-center">
-                  <div className="text-center space-y-4">
-                    <div
-                      className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-xl mb-2"
-                      style={{ background: 'linear-gradient(135deg, #0097b2, #7ed952)' }}
-                    >
-                      ✦
-                    </div>
-                    <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
-                      Ask for anything.
-                    </h2>
-                    <p className="text-muted-foreground max-w-xs leading-relaxed text-sm">
-                      Charts, 3D scenes, maps, code, timelines, slides, docs — watch it render live.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                messages.map((message, index) => {
-                  const isStreaming = isLoading && message.role === "assistant" && index === messages.length - 1;
-                  return (
-                    <div key={message.id}>
-                      <GenerativeMessage
-                        message={{ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp }}
-                        isStreaming={isStreaming}
-                        components={componentBindings as unknown as Parameters<typeof GenerativeMessage>[0]['components']}
-                      />
-                      {message.role === 'assistant' && (
-                        <GalaxySurfaceControls
-                          messageId={message.id}
-                          content={message.content}
-                          isStreaming={isStreaming}
-                          writesConfigured={galaxySurfaceWritesConfigured}
-                        />
-                      )}
-                    </div>
-                  );
-                })
-              )}
-
-              {isLoading && (
-                <div className="flex items-center gap-3 text-muted-foreground">
-                  <Spinner />
-                  <span className="text-sm">Generating response...</span>
-                </div>
-              )}
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+      {/* Infinite conversation canvas */}
+      <div className="min-h-0 flex-1">
+        <InfiniteConversationCanvas
+          items={canvasItems}
+          error={error}
+          emptyState={(
+            <div className="max-w-sm space-y-4 rounded-3xl border border-border/70 bg-background/80 px-8 py-9 text-center shadow-2xl backdrop-blur-xl">
+              <div
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-xl"
+                style={{ background: 'linear-gradient(135deg, #0097b2, #7ed952)' }}
+              >
+                ✦
+              </div>
+              <h2 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-poppins)' }}>
+                Ask for anything.
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Every prompt and generated artifact lands on a canvas you can pan, zoom, and rearrange.
+              </p>
             </div>
-          </div>
-        </ConversationContent>
-      </Conversation>
+          )}
+        />
+      </div>
 
       {/* Prompt input */}
       <div className="shrink-0 px-4 py-4 border-t border-border bg-background/85 backdrop-blur-xl">
@@ -381,6 +559,8 @@ export default function Page() {
                       ? 'Checking Galaxy Brain connection'
                       : galaxyBrainStatus === 'unconfigured'
                         ? 'Add the Galaxy Brain URL and read-only agent token in Vercel'
+                        : galaxyBrainStatus === 'unlinked'
+                          ? 'Connect Galaxy with your Nostr identity'
                         : 'Galaxy Brain is configured but unavailable'
                 }
               >
