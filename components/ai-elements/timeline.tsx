@@ -1,10 +1,11 @@
 "use client";
 /**
  * @module Timeline
- * @description AI-powered interactive timeline component built on TimelineJS3.
- * Renders chronological events with rich media support (images, video, audio),
- * configurable navigation, zoom levels, and era markers. Supports both human
- * and cosmological time scales.
+ * @description AI-powered interactive timeline component built on HistropediaJS.
+ * Draws events as cards on a zoomable canvas axis, from milliseconds to billions
+ * of years, with eras as time bands and groups as lanes. Selecting an event shows
+ * its full text and media below the canvas. Data keeps the TimelineJS3 shape the
+ * AI catalog and saved surfaces already use.
  *
  * Uses a compound component pattern: Timeline (root), TimelineHeader, TimelineContent,
  * TimelineError, and action buttons.
@@ -28,12 +29,14 @@
  */
 
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
+import type { Timeline as HistropediaTimeline } from "histropediajs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
   CheckIcon,
   CopyIcon,
+  ExternalLinkIcon,
   MaximizeIcon,
   MinimizeIcon,
 } from "lucide-react";
@@ -45,14 +48,22 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import {
+  looksLikeImage,
+  safeHttpUrl,
+  themeOptions,
+  toHistropediaModel,
+  toPlainText,
+  type HistropediaModel,
+  type PlacedEvent,
+  type TimelineTheme,
+} from "./timeline-histropedia";
 
-// Import TimelineJS3
-import "@knight-lab/timelinejs/dist/css/timeline.css";
-
-// --- Types (Matching TimelineJS3 format) ---
+// --- Types (TimelineJS3 data format, rendered with HistropediaJS) ---
 
 /** A date object matching TimelineJS3 date format with year, month, day, and time components. */
 export interface TimelineDate {
@@ -116,7 +127,11 @@ export interface TimelineData {
   scale?: "human" | "cosmological";
 }
 
-/** Configuration options for the Timeline renderer and navigation. */
+/**
+ * Configuration options for the Timeline renderer and navigation. Histropedia
+ * honours `height`, `width`, `start_at_slide` and `start_at_end`; the other
+ * TimelineJS options are accepted so existing data still validates.
+ */
 export interface TimelineOptions {
   height?: number | string;
   width?: number | string;
@@ -134,7 +149,12 @@ export interface TimelineOptions {
   [key: string]: unknown;
 }
 
-/** Imperative handle exposed by the Timeline component via ref for navigation control. */
+/**
+ * Imperative handle exposed by the Timeline component via ref for navigation
+ * control. Slide indexes follow TimelineJS: the title slide (when `data.title`
+ * is set) is 0, then the dated events in chronological order. Going to the
+ * title slide fits every event in view.
+ */
 export interface TimelineRef {
   goTo: (slideIndex: number) => void;
   goToId: (id: string) => void;
@@ -157,7 +177,7 @@ interface TimelineContextValue {
   setFullscreen: (fullscreen: boolean) => void;
   copyToClipboard: () => Promise<void>;
   timelineRef: React.RefObject<TimelineRef | null>;
-  timelineInstanceRef: React.RefObject<any>;
+  timelineInstanceRef: React.RefObject<TimelineRef | null>;
   timelineId: string;
 }
 
@@ -188,7 +208,7 @@ export const Timeline = forwardRef<TimelineRef, TimelineProps>(
     const [error, setError] = useState<string | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [copied, setCopied] = useState(false);
-    const timelineInstanceRef = useRef<any>(null);
+    const timelineInstanceRef = useRef<TimelineRef | null>(null);
     const timelineRef = useRef<TimelineRef | null>(null);
     // Generate ID only on client to avoid hydration mismatch
     const [timelineId] = useState(() =>
@@ -372,6 +392,40 @@ TimelineFullscreenButton.displayName = "TimelineFullscreenButton";
 
 // --- Timeline Content ---
 
+/** Canvas height when neither `options.height` nor fullscreen sets one. */
+const DEFAULT_CANVAS_HEIGHT = 460;
+
+const cssLength = (value: number | string) =>
+  typeof value === "number" ? `${value}px` : value;
+
+/** Resolves the theme variables the canvas draws with; a canvas can't read CSS itself. */
+function readTheme(element: HTMLElement): TimelineTheme {
+  const style = getComputedStyle(element);
+  const token = (name: string, fallback: string) =>
+    style.getPropertyValue(name).trim() || fallback;
+  return {
+    card: token("--card", "#ffffff"),
+    cardForeground: token("--card-foreground", "#111111"),
+    muted: token("--muted", "#e5e5e5"),
+    mutedForeground: token("--muted-foreground", "#666666"),
+    border: token("--border", "#dddddd"),
+    primary: token("--primary", "#0097b2"),
+  };
+}
+
+/**
+ * Histropedia has no public teardown, and its drag tracker listens on
+ * `window`. Release it so an unmounted timeline isn't kept alive.
+ */
+function disposeHistropedia(timeline: HistropediaTimeline) {
+  timeline.disableZoomByWheel();
+  // Private field: the only handle on the window listeners in histropediajs 1.6.
+  const internals = timeline as unknown as {
+    _dragPointerTracker?: { destroy: () => void };
+  };
+  internals._dragPointerTracker?.destroy();
+}
+
 export const TimelineContent = memo(
   forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
     ({ className, ...props }, ref) => {
@@ -387,112 +441,188 @@ export const TimelineContent = memo(
       } = useTimelineContext();
 
       const containerRef = useRef<HTMLDivElement>(null);
-      const [isInitialized, setIsInitialized] = useState(false);
       const [isMounted, setIsMounted] = useState(false);
+      const [selectedId, setSelectedId] = useState<string | null>(null);
+
+      const model: HistropediaModel = useMemo(() => toHistropediaModel(data), [data]);
+      // Rebuild the canvas when the content changes, not on every new object identity.
+      const dataKey = useMemo(() => JSON.stringify(data), [data]);
+      const startAtSlide = options?.start_at_slide;
+      const startAtEnd = options?.start_at_end === true;
+      const hasEvents = model.events.length > 0;
 
       // Only render on client to avoid SSR issues
       useEffect(() => {
         setIsMounted(true);
       }, []);
 
-      // Initialize TimelineJS3 when container is mounted
       useEffect(() => {
-        if (typeof window === "undefined" || !containerRef.current || isInitialized) {
+        const container = containerRef.current;
+        if (!isMounted || !container || !hasEvents) {
           return;
         }
 
-        const initTimeline = async () => {
+        let cancelled = false;
+        let timeline: HistropediaTimeline | null = null;
+        let resizeObserver: ResizeObserver | null = null;
+        let themeObserver: MutationObserver | null = null;
+
+        const titleOffset = data.title ? 1 : 0;
+        const lastSlide = model.events.length - 1 + titleOffset;
+        let currentSlide = 0;
+        const indexOfId = (id: string) => model.events.findIndex((event) => event.id === id);
+
+        // Histropedia always has one active (front-most) card, so the overview
+        // selects the first event rather than leaving the panel and canvas out of step.
+        const showOverview = (animate: boolean) => {
+          if (!timeline) return;
+          timeline.fitArticles({ padding: 40, animation: { active: animate } });
+          timeline.select(model.events[0].id);
+          setSelectedId(model.events[0].id);
+          currentSlide = 0;
+        };
+
+        const focusEvent = (eventIndex: number, animate: boolean) => {
+          const event = model.events[eventIndex];
+          if (!timeline || !event) return;
+          currentSlide = eventIndex + titleOffset;
+          timeline.select(event.id);
+          setSelectedId(event.id);
+          timeline.setStartDate(model.articles[eventIndex].from, {
+            padding: Math.round(timeline.getWidth() / 2),
+            animation: { active: animate, duration: 600 },
+          });
+        };
+
+        const goTo = (slideIndex: number, animate = true) => {
+          if (titleOffset && slideIndex === 0) {
+            showOverview(animate);
+          } else {
+            focusEvent(slideIndex - titleOffset, animate);
+          }
+        };
+
+        const controller: TimelineRef = {
+          goTo: (slideIndex) => goTo(slideIndex),
+          goToId: (id) => {
+            const index = indexOfId(id);
+            if (index >= 0) focusEvent(index, true);
+          },
+          goToNext: () => goTo(Math.min(currentSlide + 1, lastSlide)),
+          goToPrev: () => goTo(Math.max(currentSlide - 1, 0)),
+          goToStart: () => goTo(0),
+          goToEnd: () => goTo(lastSlide),
+          getData: (slideIndex) =>
+            titleOffset && slideIndex === 0
+              ? data.title ?? null
+              : model.events[slideIndex - titleOffset]?.slide ?? null,
+          getDataById: (id) => model.events[indexOfId(id)]?.slide ?? null,
+        };
+
+        const init = async () => {
           try {
-            // Ensure container has dimensions before initializing
-            const container = containerRef.current;
-            if (!container) return;
+            // Dynamic import keeps the canvas library out of the server bundle
+            const { Timeline: Histropedia } = await import("histropediajs");
+            if (cancelled) return;
 
-            // Wait for container to have dimensions
-            const checkDimensions = () => {
-              return container.offsetWidth > 0 && container.offsetHeight > 0;
-            };
+            const theme = themeOptions(readTheme(container));
+            timeline = new Histropedia(container, {
+              ...theme,
+              width: Math.max(container.clientWidth, 1),
+              height: Math.max(container.clientHeight, 1),
+              article: { ...theme.article, draggable: false },
+              on: {
+                "article-select": (article) => {
+                  const id = String(article.id);
+                  const index = indexOfId(id);
+                  if (index >= 0) currentSlide = index + titleOffset;
+                  setSelectedId(id);
+                },
+              },
+            });
 
-            if (!checkDimensions()) {
-              console.warn("Container not ready, waiting for dimensions...");
-              // Wait a bit for layout
-              await new Promise(resolve => setTimeout(resolve, 100));
-              if (!checkDimensions()) {
-                setError("Timeline container has no dimensions");
-                return;
-              }
+            if (model.lanes.length > 0) timeline.loadLanes(model.lanes);
+            if (model.timeBands.length > 0) timeline.loadTimeBands(model.timeBands);
+            timeline.load(model.articles);
+
+            if (typeof startAtSlide === "number" && startAtSlide >= 0 && startAtSlide <= lastSlide) {
+              goTo(startAtSlide, false);
+            } else if (startAtEnd) {
+              goTo(lastSlide, false);
+            } else {
+              showOverview(false);
             }
 
-            // Dynamic import to avoid SSR issues
-            const { Timeline: TLTimeline } = await import("@knight-lab/timelinejs");
-
-            if (!timelineInstanceRef.current && containerRef.current) {
-              // Create Timeline instance
-              timelineInstanceRef.current = new (TLTimeline as any)(
-                timelineId,
-                data,
-                options
-              );
-
-              // Create ref API
-              timelineRef.current = {
-                goTo: (slideIndex: number) => timelineInstanceRef.current?.goTo(slideIndex),
-                goToId: (id: string) => timelineInstanceRef.current?.goToId(id),
-                goToNext: () => timelineInstanceRef.current?.goToNext(),
-                goToPrev: () => timelineInstanceRef.current?.goToPrev(),
-                goToStart: () => timelineInstanceRef.current?.goToStart(),
-                goToEnd: () => timelineInstanceRef.current?.goToEnd(),
-                getData: (slideIndex: number) =>
-                  timelineInstanceRef.current?.getData(slideIndex) || null,
-                getDataById: (id: string) =>
-                  timelineInstanceRef.current?.getDataById(id) || null,
-              };
-
-              setIsInitialized(true);
+            if (typeof ResizeObserver !== "undefined") {
+              resizeObserver = new ResizeObserver(() => {
+                const { clientWidth, clientHeight } = container;
+                if (timeline && clientWidth > 0 && clientHeight > 0) {
+                  timeline.setSize(clientWidth, clientHeight);
+                }
+              });
+              resizeObserver.observe(container);
             }
+
+            // Dark mode is a class on <html>; recolour the canvas when it flips.
+            themeObserver = new MutationObserver(() => {
+              if (!timeline) return;
+              timeline.setOption(themeOptions(readTheme(container)));
+              timeline.redraw();
+            });
+            themeObserver.observe(document.documentElement, {
+              attributes: true,
+              attributeFilter: ["class", "style", "data-theme"],
+            });
+
+            timelineInstanceRef.current = controller;
+            timelineRef.current = controller;
           } catch (err) {
+            if (cancelled) return;
             console.error("Failed to initialize timeline:", err);
             setError(err instanceof Error ? err.message : "Failed to initialize timeline");
           }
         };
 
-        // Small delay to ensure layout is complete
-        const timer = setTimeout(initTimeline, 50);
+        void init();
 
-        // Cleanup
         return () => {
-          clearTimeout(timer);
-          if (timelineInstanceRef.current) {
-            timelineInstanceRef.current = null;
-            timelineRef.current = null;
-            setIsInitialized(false);
-          }
+          cancelled = true;
+          resizeObserver?.disconnect();
+          themeObserver?.disconnect();
+          if (timeline) disposeHistropedia(timeline);
+          timeline = null;
+          container.replaceChildren();
+          timelineInstanceRef.current = null;
+          timelineRef.current = null;
+          setSelectedId(null);
         };
+      // model and data are derived from dataKey; setError and refs are stable.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [isMounted, timelineId]);
+      }, [isMounted, dataKey, hasEvents, startAtSlide, startAtEnd]);
 
       if (error) {
         return <TimelineError error={error} />;
       }
 
-      const height = options?.height || (fullscreen ? "100%" : 600);
+      const height = options?.height || (fullscreen ? undefined : DEFAULT_CANVAS_HEIGHT);
       const width = options?.width || "100%";
+      const sizeStyle = {
+        width: cssLength(width),
+        height: height === undefined ? undefined : cssLength(height),
+      };
+      const fillsHeight = height === undefined && "min-h-0 flex-1";
 
       // Don't render timeline container until mounted on client
       if (!isMounted) {
         return (
           <div
             ref={ref}
-            className={cn("relative flex-1 p-4", className)}
+            className={cn("relative flex min-h-0 flex-1 flex-col p-4", className)}
             {...props}
           >
             <div
-              style={{
-                width: typeof width === "number" ? `${width}px` : width,
-                height: typeof height === "number" ? `${height}px` : height,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className={cn("flex items-center justify-center text-muted-foreground text-sm", fillsHeight)}
+              style={sizeStyle}
             >
               Loading timeline...
             </div>
@@ -500,20 +630,38 @@ export const TimelineContent = memo(
         );
       }
 
+      const selectedEvent = model.events.find((event) => event.id === selectedId) ?? null;
+      const intro = toPlainText(data.title?.text?.text);
+
       return (
         <div
           ref={ref}
-          className={cn("relative flex-1 p-4", className)}
+          className={cn("relative flex min-h-0 flex-1 flex-col gap-3 p-4", className)}
           {...props}
         >
-          <div
-            ref={containerRef}
-            id={timelineId}
-            style={{
-              width: typeof width === "number" ? `${width}px` : width,
-              height: typeof height === "number" ? `${height}px` : height,
-            }}
-          />
+          {intro && (
+            <p className="whitespace-pre-line text-muted-foreground text-sm">{intro}</p>
+          )}
+          {hasEvents ? (
+            <>
+              <div
+                ref={containerRef}
+                id={timelineId}
+                role="region"
+                aria-label={`Timeline of ${model.events.length} events`}
+                className={cn("relative overflow-hidden [&_canvas]:block", fillsHeight)}
+                style={sizeStyle}
+              />
+              {selectedEvent && <TimelineEventDetails event={selectedEvent} />}
+            </>
+          ) : (
+            <div
+              className={cn("flex items-center justify-center text-muted-foreground text-sm", fillsHeight)}
+              style={sizeStyle}
+            >
+              No dated events to show.
+            </div>
+          )}
         </div>
       );
     }
@@ -521,6 +669,57 @@ export const TimelineContent = memo(
 );
 
 TimelineContent.displayName = "TimelineContent";
+
+// --- Timeline Event Details ---
+
+/**
+ * Cards on the canvas show only a headline, date and image, so the selected
+ * event's full text and media are shown here. Text is rendered as plain text,
+ * never as HTML, because timeline data can come from the model or from Galaxy.
+ */
+const TimelineEventDetails = ({ event }: { event: PlacedEvent }) => {
+  const { slide, headline: heading, dateLabel } = event;
+  const body = toPlainText(slide.text?.text);
+  const mediaUrl = safeHttpUrl(slide.media?.url);
+  const imageUrl = mediaUrl && looksLikeImage(mediaUrl) ? mediaUrl : undefined;
+  const linkUrl = safeHttpUrl(slide.media?.link) ?? (imageUrl ? undefined : mediaUrl);
+  const caption = toPlainText(slide.media?.caption);
+  const credit = toPlainText(slide.media?.credit);
+
+  return (
+    <div aria-live="polite" className="flex max-h-56 gap-4 overflow-y-auto border-t pt-3">
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary remote URLs from timeline data
+        <img
+          src={imageUrl}
+          alt={slide.media?.alt || caption || heading}
+          className="h-28 w-auto max-w-[40%] shrink-0 rounded-md object-cover"
+        />
+      )}
+      <div className="min-w-0 space-y-1">
+        {dateLabel && <p className="text-muted-foreground text-xs">{dateLabel}</p>}
+        <h4 className="font-semibold">{heading}</h4>
+        {body && <p className="whitespace-pre-line text-sm">{body}</p>}
+        {(caption || credit) && (
+          <p className="text-muted-foreground text-xs">
+            {[caption, credit].filter(Boolean).join(" — ")}
+          </p>
+        )}
+        {linkUrl && (
+          <a
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary text-sm hover:underline"
+          >
+            Open media
+            <ExternalLinkIcon className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // --- Timeline Error ---
 
@@ -551,7 +750,7 @@ export const TimelineControls = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
-  console.warn("TimelineControls is deprecated with TimelineJS3 - controls are built-in");
+  console.warn("TimelineControls is deprecated - the timeline canvas has built-in zoom and pan");
   return null;
 });
 

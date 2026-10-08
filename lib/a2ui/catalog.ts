@@ -1847,12 +1847,13 @@ const questionFlowExamples: ComponentExample[] = [
 export const specializedCatalog: ComponentCatalog = {
   Timeline: {
     type: 'Timeline',
-    description: `Interactive timeline visualization using TimelineJS. Displays chronological events
-    with dates, headlines, text descriptions, and optional media (images). Supports:
-    - Event markers on timeline
-    - Zoom and navigation
-    - Rich media (images with captions)
-    - Date formatting (years, months, days)
+    description: `Interactive zoomable timeline (HistropediaJS). Draws each event as a card on a
+    canvas axis the user can pan and zoom, from days to billions of years. Supports:
+    - Events with start_date (required to be placed) and optional end_date for periods
+    - Headline on the card; text, image media, caption and credit shown when an event is selected
+    - Image media URLs become card pictures; other media URLs become an "Open media" link
+    - eras drawn as shaded time bands; events sharing a "group" drawn in their own lane
+    - Deep time: negative years for BCE, e.g. { year: -66000000 } for 66 million years ago
     - Unique IDs for each event (required for proper rendering)`,
     props: ['data', 'options'],
     examples: timelineExamples

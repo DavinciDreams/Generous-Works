@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   Timeline,
@@ -16,29 +16,41 @@ import {
 import { useRef, useEffect } from 'react';
 
 
-// Mock TimelineJS3 library
-vi.mock('@knight-lab/timelinejs', () => ({
-  Timeline: class MockTimeline {
-    constructor(id: string, data: TimelineData, options: any) {
-      // Mock implementation
+// Mock HistropediaJS: happy-dom has no canvas, so record what the component asks for
+interface MockHistropedia {
+  articles: Array<{ id: string; title: string }>;
+  select: Mock;
+  setStartDate: Mock;
+  fitArticles: Mock;
+  _dragPointerTracker: { destroy: Mock };
+}
+
+const histropedia = vi.hoisted(() => ({ instances: [] as MockHistropedia[] }));
+
+vi.mock('histropediajs', () => ({
+  Timeline: class implements MockHistropedia {
+    articles: Array<{ id: string; title: string }> = [];
+    select = vi.fn();
+    setStartDate = vi.fn();
+    fitArticles = vi.fn();
+    _dragPointerTracker = { destroy: vi.fn() };
+    constructor() {
+      histropedia.instances.push(this);
     }
-    goTo(slideIndex: number) {}
-    goToId(id: string) {}
-    goToNext() {}
-    goToPrev() {}
-    goToStart() {}
-    goToEnd() {}
-    getData(slideIndex: number) {
-      return null;
+    load(articles: Array<{ id: string; title: string }>) {
+      this.articles.push(...articles);
     }
-    getDataById(id: string) {
-      return null;
+    loadLanes() {}
+    loadTimeBands() {}
+    getWidth() {
+      return 800;
     }
+    setSize() {}
+    setOption() {}
+    redraw() {}
+    disableZoomByWheel() {}
   },
 }));
-
-// Mock CSS import
-vi.mock('@knight-lab/timelinejs/dist/css/timeline.css', () => ({}));
 
 const mockTimelineData: TimelineData = {
   title: {
@@ -76,6 +88,7 @@ const mockTimelineData: TimelineData = {
 describe('Timeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    histropedia.instances.length = 0;
     // Spy on the clipboard that vitest.setup.ts already installed
     vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
     vi.spyOn(navigator.clipboard, 'readText').mockResolvedValue('');
@@ -394,7 +407,8 @@ describe('Timeline', () => {
         </Timeline>
       );
 
-      expect(screen.getByText('Test Timeline')).toBeInTheDocument();
+      // In the header, and in the details panel while no event is selected
+      expect(screen.getByRole('heading', { level: 3, name: 'Test Timeline' })).toBeInTheDocument();
       expect(screen.getAllByRole('button')).toHaveLength(2);
     });
   });
@@ -457,6 +471,115 @@ describe('Timeline', () => {
         expect(typeof ref.getData).toBe('function');
         expect(typeof ref.getDataById).toBe('function');
       }
+    });
+
+    it('navigates slides with the title slide at index 0', async () => {
+      const ref = { current: null as TimelineRef | null };
+      const data: TimelineData = {
+        ...mockTimelineData,
+        events: [
+          { ...mockTimelineData.events[1], unique_id: 'later' },
+          { ...mockTimelineData.events[0], unique_id: 'earlier' },
+        ],
+      };
+      render(
+        <Timeline ref={ref} data={data}>
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      const canvas = histropedia.instances[0];
+      await waitFor(() => expect(ref.current?.getData(1)).not.toBeNull());
+
+      // Slides are chronological, as in TimelineJS
+      expect(ref.current?.getData(0)).toBe(data.title);
+      expect(ref.current?.getData(1)?.unique_id).toBe('earlier');
+      expect(ref.current?.getDataById('later')?.text?.headline).toBe('Event 2');
+
+      act(() => ref.current?.goToNext());
+      expect(canvas.select).toHaveBeenLastCalledWith('earlier');
+      expect(await screen.findByText('First event')).toBeInTheDocument();
+
+      act(() => ref.current?.goToEnd());
+      expect(canvas.select).toHaveBeenLastCalledWith('later');
+      expect(await screen.findByText('Second event')).toBeInTheDocument();
+    });
+  });
+
+  describe('Histropedia canvas', () => {
+    it('loads every dated event as an article and fits them in view', async () => {
+      render(
+        <Timeline data={mockTimelineData}>
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      const canvas = histropedia.instances[0];
+      expect(canvas.articles.map((article) => article.title)).toEqual(['Event 1', 'Event 2']);
+      expect(canvas.fitArticles).toHaveBeenCalled();
+      // The title slide's text introduces the timeline; the first event starts selected
+      expect(screen.getByText('A timeline for testing')).toBeInTheDocument();
+      expect(canvas.select).toHaveBeenLastCalledWith('event-0');
+      expect(await screen.findByText('First event')).toBeInTheDocument();
+    });
+
+    it('opens on start_at_slide', async () => {
+      render(
+        <Timeline data={mockTimelineData} options={{ start_at_slide: 2 }}>
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      expect(histropedia.instances[0].select).toHaveBeenCalledWith('event-1');
+      expect(await screen.findByText('Second event')).toBeInTheDocument();
+    });
+
+    it('shows an empty state instead of a blank canvas when no event has a date', async () => {
+      render(
+        <Timeline data={{ events: [{ text: { headline: 'Undated' } }] }}>
+          <TimelineContent />
+        </Timeline>
+      );
+      expect(await screen.findByText('No dated events to show.')).toBeInTheDocument();
+      expect(histropedia.instances).toHaveLength(0);
+    });
+
+    it('shows event text as plain text and only links http(s) media', async () => {
+      const ref = { current: null as TimelineRef | null };
+      render(
+        <Timeline
+          ref={ref}
+          data={{
+            events: [
+              {
+                unique_id: 'x',
+                start_date: { year: 1969 },
+                text: { headline: 'Landing', text: '<img src=x onerror="alert(1)">One small step' },
+                media: { url: 'javascript:alert(1)' },
+              },
+            ],
+          }}
+        >
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(ref.current?.getData(0)).not.toBeNull());
+      act(() => ref.current?.goTo(0));
+
+      expect(await screen.findByText('One small step')).toBeInTheDocument();
+      expect(document.querySelector('img[src="x"]')).toBeNull();
+      expect(screen.queryByText('Open media')).toBeNull();
+    });
+
+    it('releases the window listeners on unmount', async () => {
+      const { unmount } = render(
+        <Timeline data={mockTimelineData}>
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      unmount();
+      expect(histropedia.instances[0]._dragPointerTracker.destroy).toHaveBeenCalled();
     });
   });
 });
