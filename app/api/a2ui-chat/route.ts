@@ -4,6 +4,34 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { getCatalogPrompt } from "@/lib/a2ui/catalog";
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
+import { createContextCompactor, type Message } from "@/lib/context";
+import { ComponentRegistry } from "@/lib/components/component-registry";
+import type { UIComponent } from "@/lib/store";
+import { LLMResponseCache, type LLMMessage } from "@/lib/caching/llm-response-cache";
+import { ComponentGenerationCache } from "@/lib/caching/component-generation-cache";
+
+// ============================================================================
+// Module-level Cache Instances (Server-side)
+// ============================================================================
+
+/**
+ * LLM response cache instance for server-side caching
+ * Uses a larger size and TTL for server-side use
+ */
+const llmResponseCache = new LLMResponseCache(
+  100 * 1024 * 1024, // 100MB
+  1000, // 1000 entries
+  24 * 60 * 60 * 1000 // 24 hours TTL
+);
+
+/**
+ * Component generation cache instance for server-side caching
+ */
+const componentGenerationCache = new ComponentGenerationCache(
+  50 * 1024 * 1024, // 50MB
+  500, // 500 entries
+  60 * 60 * 1000 // 1 hour TTL
+);
 
 /**
  * System prompt for A2UI component generation
@@ -219,6 +247,8 @@ const a2uiRequestSchema = z.object({
     content: z.string().min(1),
   })).min(1),
   temperature: z.number().optional().default(0.7),
+  // Components already on the page, so the context compactor can reference them
+  uiComponents: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 export async function POST(req: NextRequest) {
@@ -238,20 +268,74 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const { messages, temperature } = parseResult.data;
+    const { messages, temperature, uiComponents } = parseResult.data;
+    // Shape is checked by the registry as each component is registered
+    const typedComponents = uiComponents as Record<string, UIComponent>;
 
     const clampedTemperature = Math.min(Math.max(Number(temperature) || 0.7, 0), 2);
 
     // Use ZAI (GLM-4.7) for reliable JSON generation
     const systemPrompt = getA2UISystemPrompt();
+    
+    // Check LLM response cache
+    const llmMessages = messages as LLMMessage[];
+    const cachedResponse = llmResponseCache.getResponse(llmMessages, systemPrompt);
+    
+    if (cachedResponse) {
+      console.log("[A2UI Chat] Cache HIT for LLM response");
+      console.log("[A2UI Chat] LLM cache stats:", JSON.stringify(llmResponseCache.getStats()));
+      console.log("[A2UI Chat] LLM cache hit rate:", `${llmResponseCache.getHitRate().toFixed(1)}%`);
+      
+      // Return cached response
+      return new Response(
+        JSON.stringify({ response: cachedResponse, cached: true }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } else {
+      console.log("[A2UI Chat] Cache MISS for LLM response");
+      console.log("[A2UI Chat] LLM cache stats:", JSON.stringify(llmResponseCache.getStats()));
+      console.log("[A2UI Chat] LLM cache hit rate:", `${llmResponseCache.getHitRate().toFixed(1)}%`);
+    }
+    
+    // Create component registry and register components
+    const registry = new ComponentRegistry();
+    const compactedComponents: Record<string, any> = {};
+    
+    // Register all UI components in the registry
+    for (const [id, component] of Object.entries(typedComponents)) {
+      const entry = registry.registerComponent(component);
+      compactedComponents[id] = entry.compactSpec;
+    }
+    
+    // Log registry statistics
+    const stats = registry.getStats();
+    console.log("[A2UI Chat] Component registry:");
+    console.log(`  Total components: ${stats.totalComponents}`);
+    console.log(`  Unique components: ${stats.uniqueComponents}`);
+    console.log(`  Duplicates avoided: ${stats.duplicatesAvoided}`);
+    console.log(`  Total estimated tokens: ${stats.totalEstimatedTokens.toLocaleString()}`);
+    
+    // Create context compactor and compact the context
+    const compactor = createContextCompactor();
+    // The compactor works on store messages, which carry ids; request messages don't
+    const storeMessages: Message[] = messages.map((message, index) => ({ id: `message-${index}`, ...message }));
+    const compactionResult = await compactor.compact(storeMessages, typedComponents, compactedComponents, systemPrompt);
+
+    // Log compression statistics
+    console.log("[A2UI Chat] Context compaction:");
+    console.log(`  Original tokens: ${compactionResult.originalTokenCount.total.toLocaleString()}`);
+    console.log(`  Compacted tokens: ${compactionResult.compactedTokenCount.total.toLocaleString()}`);
+    console.log(`  Compression ratio: ${(compactionResult.compressionRatio * 100).toFixed(1)}%`);
+    console.log(`  Messages compacted: ${compactionResult.messagesCompacted}`);
+    console.log(`  Was compacted: ${compactionResult.wasCompacted}`);
 
     const endpoint = `${process.env.ZHIPU_BASE_URL}/chat/completions`;
 
     const requestBody = {
       model: process.env.ZHIPU_MODEL,
       messages: [
-        { role: "system", content: systemPrompt },
-        ...messages
+        { role: "system", content: compactionResult.compactedSystemPrompt },
+        ...compactionResult.compactedMessages
       ],
       temperature: clampedTemperature,
       stream: true,
@@ -273,13 +357,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Pass through ZAI's stream directly - it's already in SSE format
-    return new Response(response.body, {
+    // Note: For streaming responses, we don't cache the full response here
+    // The client-side code should cache the final response
+    const streamResponse = new Response(response.body, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
+        "X-Cache-Status": "miss",
       },
     });
+    
+    return streamResponse;
 
   } catch (error) {
     console.error("[A2UI Chat] API error:", error);

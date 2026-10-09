@@ -8,7 +8,7 @@ import {
   NodeEditorTitle,
   type NodeEditorData,
 } from "@/components/ai-elements/node-editor";
-import { ChatSidebar } from "@/components/chat-sidebar";
+import { ChatSidebar } from "@/components/ui/chat-sidebar";
 
 const sampleData: NodeEditorData = {
   nodes: [
