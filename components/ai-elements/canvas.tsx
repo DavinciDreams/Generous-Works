@@ -1,32 +1,26 @@
-import type { Edge, Node, ReactFlowProps } from "@xyflow/react";
+import type { ReactFlowProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 
 import { Background, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-export type CanvasProps<
-  NodeType extends Node = Node,
-  EdgeType extends Edge = Edge,
-> = ReactFlowProps<NodeType, EdgeType> & {
+type CanvasProps = ReactFlowProps & {
   children?: ReactNode;
 };
 
 const deleteKeyCode = ["Backspace", "Delete"];
 
-export const Canvas = <
-  NodeType extends Node = Node,
-  EdgeType extends Edge = Edge,
->({ children, ...props }: CanvasProps<NodeType, EdgeType>) => (
-  <ReactFlow<NodeType, EdgeType>
+export const Canvas = ({ children, ...props }: CanvasProps) => (
+  <ReactFlow
     deleteKeyCode={deleteKeyCode}
     fitView
-    panOnDrag
+    panOnDrag={false}
     panOnScroll
-    selectionOnDrag={false}
+    selectionOnDrag={true}
     zoomOnDoubleClick={false}
     {...props}
   >
-    <Background bgColor="var(--background)" color="var(--border)" gap={24} size={1.25} />
+    <Background bgColor="var(--sidebar)" />
     {children}
   </ReactFlow>
 );
