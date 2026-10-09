@@ -1,0 +1,328 @@
+/* ============================================================================
+ * Responsive Styles for Draggable/Resizable Components
+ * Phase 9: Responsive Behavior Implementation
+ * ============================================================================ */
+
+/* ============================================================================
+ * Breakpoint Definitions
+ * ============================================================================ */
+
+:root {
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
+  --breakpoint-desktop: 1440px;
+  
+  --responsive-transition-duration: 300ms;
+  --responsive-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================================
+ * Touch-Friendly Controls
+ * ============================================================================ */
+
+/* Larger touch targets for mobile */
+@media (max-width: 768px) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    /* Minimum touch target size: 44x44px */
+    --touch-target-size: 44px;
+  }
+  
+  .draggable-wrapper .lock-toggle,
+  .resizable-wrapper .lock-toggle {
+    min-width: var(--touch-target-size);
+    min-height: var(--touch-target-size);
+    padding: 12px;
+  }
+  
+  .draggable-wrapper .lock-toggle svg,
+  .resizable-wrapper .lock-toggle svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+  /* Larger resize handles for touch */
+  .resize-handle {
+    min-width: 44px;
+    min-height: 44px;
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Tablet touch targets */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .draggable-wrapper .lock-toggle,
+  .resizable-wrapper .lock-toggle {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
+  }
+  
+  .resize-handle {
+    min-width: 40px;
+    min-height: 40px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* ============================================================================
+ * Responsive Component Sizing
+ * ============================================================================ */
+
+/* Mobile: Full width components */
+@media (max-width: 768px) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+  
+  .draggable-wrapper {
+    position: relative !important;
+    transform: none !important;
+  }
+}
+
+/* Tablet: Two-column layout */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    max-width: calc(50% - 10px);
+  }
+}
+
+/* Desktop: Three-column layout */
+@media (min-width: 1025px) and (max-width: 1439px) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    max-width: calc(33.333% - 10px);
+  }
+}
+
+/* Large Desktop: Four-column layout */
+@media (min-width: 1440px) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    max-width: calc(25% - 10px);
+  }
+}
+
+/* ============================================================================
+ * Responsive Animations and Transitions
+ * ============================================================================ */
+
+.draggable-wrapper,
+.resizable-wrapper {
+  transition: 
+    transform var(--responsive-transition-duration) var(--responsive-transition-timing),
+    width var(--responsive-transition-duration) var(--responsive-transition-timing),
+    height var(--responsive-transition-duration) var(--responsive-transition-timing),
+    box-shadow var(--responsive-transition-duration) var(--responsive-transition-timing);
+}
+
+/* Disable transitions during drag/resize */
+.draggable-wrapper.is-dragging,
+.resizable-wrapper.is-resizing {
+  transition: none !important;
+}
+
+/* ============================================================================
+ * Safe Area Support for Mobile Notches
+ * ============================================================================ */
+
+@supports (padding: env(safe-area-inset-top)) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ============================================================================
+ * Orientation-Specific Styles
+ * ============================================================================ */
+
+/* Portrait orientation */
+@media (orientation: portrait) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    /* Stack components vertically in portrait */
+    flex-direction: column;
+  }
+}
+
+/* Landscape orientation */
+@media (orientation: landscape) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    /* Allow horizontal layout in landscape */
+    flex-direction: row;
+  }
+}
+
+/* ============================================================================
+ * High DPI / Retina Display Support
+ * ============================================================================ */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .resize-handle {
+    border-width: 1px;
+  }
+  
+  .draggable-wrapper .lock-toggle svg,
+  .resizable-wrapper .lock-toggle svg {
+    /* Crisper icons on high DPI */
+    shape-rendering: crispEdges;
+  }
+}
+
+/* ============================================================================
+ * Reduced Motion Preference
+ * ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    transition: none !important;
+  }
+  
+  .resize-handle {
+    transition: none !important;
+  }
+}
+
+/* ============================================================================
+ * Print Styles
+ * ============================================================================ */
+
+@media print {
+  .draggable-wrapper,
+  .resizable-wrapper {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    height: auto !important;
+    box-shadow: none !important;
+  }
+  
+  .resize-handle,
+  .lock-toggle {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+ * Dark Mode Support
+ * ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .resize-handle {
+    background-color: hsl(var(--background));
+    border-color: hsl(var(--primary));
+  }
+  
+  .draggable-wrapper .lock-toggle,
+  .resizable-wrapper .lock-toggle {
+    background-color: hsla(var(--background), 0.9);
+  }
+}
+
+/* ============================================================================
+ * Focus Styles for Accessibility
+ * ============================================================================ */
+
+.lock-toggle:focus-visible,
+.resize-handle:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+ * Loading States
+ * ============================================================================ */
+
+.draggable-wrapper.is-loading,
+.resizable-wrapper.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ============================================================================
+ * Error States
+ * ============================================================================ */
+
+.draggable-wrapper.has-error,
+.resizable-wrapper.has-error {
+  border: 2px solid hsl(var(--destructive));
+}
+
+/* ============================================================================
+ * Responsive Grid Layout
+ * ============================================================================ */
+
+.responsive-grid {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .responsive-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1439px) {
+  .responsive-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1440px) {
+  .responsive-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ============================================================================
+ * Responsive Masonry Layout
+ * ============================================================================ */
+
+.responsive-masonry {
+  column-count: 1;
+  column-gap: 10px;
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .responsive-masonry {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1439px) {
+  .responsive-masonry {
+    column-count: 3;
+  }
+}
+
+@media (min-width: 1440px) {
+  .responsive-masonry {
+    column-count: 4;
+  }
+}
+
+.responsive-masonry > * {
+  break-inside: avoid;
+  margin-bottom: 10px;
+}

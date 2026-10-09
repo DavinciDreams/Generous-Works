@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { useCallback, useEffect, useState } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
+import { SaveIcon, FolderOpenIcon } from "lucide-react";
 
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { cn } from '@/lib/utils';
@@ -16,8 +17,11 @@ import {
 import { PromptInput, PromptInputTextarea, type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { ArtifactShelf } from "@/components/ai-elements/artifact-shelf";
+import { ClearActions } from "@/components/ai-elements/clear-actions";
 import { GalaxySurfaceControls } from '@/components/galaxy-surface-controls';
 import { GalaxySurfaceLibrary } from '@/components/galaxy-surface-library';
+import { SaveDialog } from "@/components/generations/save-dialog";
+import { SavedList } from "@/components/generations/saved-list";
 import {
   consumeA2UIJsonl,
   createA2UIJsonlAccumulator,
@@ -131,6 +135,8 @@ export default function Page() {
   const deleteChat = useGenerativeUIStore((state) => state.deleteChat);
   const [navOpen, setNavOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [savedListOpen, setSavedListOpen] = useState(false);
   const [galaxyBrainStatus, setGalaxyBrainStatus] = useState<'checking' | 'connected' | 'unlinked' | 'unconfigured' | 'error'>('checking');
   const [galaxySurfaceWritesConfigured, setGalaxySurfaceWritesConfigured] = useState(false);
   const [galaxyAccessAllowed, setGalaxyAccessAllowed] = useState(false);
@@ -437,6 +443,28 @@ export default function Page() {
               )}
             </div>
 
+            <div className="flex items-center gap-1">
+              {/* Saved generations */}
+              <button
+                type="button"
+                onClick={() => setSavedListOpen(!savedListOpen)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-accent"
+              >
+                <FolderOpenIcon className="w-3.5 h-3.5" />
+                Saved
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveDialogOpen(true)}
+                disabled={messages.length === 0}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <SaveIcon className="w-3.5 h-3.5" />
+                Save
+              </button>
+              <ClearActions />
+            </div>
+
             <button
               type="button"
               onClick={() => setNavOpen(!navOpen)}
@@ -575,6 +603,27 @@ export default function Page() {
           </div>
         </div>
       </div>
+
+      {/* Save Dialog */}
+      <SaveDialog
+        isOpen={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+      />
+
+      {/* Saved Generations Dialog */}
+      <Dialog open={savedListOpen} onOpenChange={setSavedListOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Saved Generations</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[600px]">
+            <SavedList
+              onLoadGeneration={() => setSavedListOpen(false)}
+              className="pr-4"
+            />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
