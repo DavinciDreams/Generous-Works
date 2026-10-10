@@ -139,6 +139,9 @@ export default function Page() {
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
 
+  // Bring back the conversation from before a reload (read after mount to match SSR)
+  useEffect(() => { useGenerativeUIStore.getState().restoreCurrentChat(); }, []);
+
   useEffect(() => {
     let active = true;
 

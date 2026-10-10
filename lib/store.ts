@@ -111,6 +111,7 @@ export interface StoreActions {
   
   // Saved chat actions
   fetchChats: () => Promise<void>;
+  restoreCurrentChat: () => void;
   saveCurrentChat: () => Promise<void>;
   loadChat: (id: string) => Promise<void>;
   deleteChat: (id: string) => Promise<void>;
@@ -267,6 +268,16 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       },
 
       /**
+       * Bring back the conversation that was on screen before a reload, unless
+       * a conversation has already started in this session.
+       */
+      restoreCurrentChat: () => {
+        if (get().messages.length > 0) return;
+        const messages = readCurrentChat();
+        if (messages.length > 0) set({ messages });
+      },
+
+      /**
        * Save the current messages as a named chat entry, persist to Postgres, then reset.
        */
       saveCurrentChat: async () => {
@@ -407,6 +418,75 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       getUIComponentsByType: (type) =>
         Object.values(get().uiComponents).filter((comp) => comp.type === type),
 }));
+
+// ============================================================================
+// Current Conversation Persistence
+// ============================================================================
+
+/** Browser storage key for the conversation on screen, restored after a reload. */
+export const CURRENT_CHAT_STORAGE_KEY = 'generous-current-chat';
+
+/** Long enough to be cancelled when a response starts streaming right after the prompt. */
+const CURRENT_CHAT_SAVE_DELAY_MS = 500;
+
+function isStoredMessage(value: unknown): value is Message {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as Record<string, unknown>;
+  return typeof message.id === 'string'
+    && typeof message.content === 'string'
+    && (message.role === 'user' || message.role === 'assistant' || message.role === 'system');
+}
+
+/** Reads the saved conversation; anything missing or malformed reads as no conversation. */
+export function readCurrentChat(): Message[] {
+  try {
+    const raw = localStorage.getItem(CURRENT_CHAT_STORAGE_KEY);
+    if (!raw) return [];
+    const messages = (JSON.parse(raw) as { messages?: unknown } | null)?.messages;
+    return Array.isArray(messages) && messages.every(isStoredMessage) ? messages : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCurrentChat(messages: Message[]) {
+  try {
+    if (messages.length === 0) {
+      localStorage.removeItem(CURRENT_CHAT_STORAGE_KEY);
+    } else {
+      localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, JSON.stringify({ version: 1, messages }));
+    }
+  } catch {
+    // Storage is full or blocked. Drop the older copy so a reload doesn't
+    // bring back a stale conversation; History in Postgres is unaffected.
+    try {
+      localStorage.removeItem(CURRENT_CHAT_STORAGE_KEY);
+    } catch {
+      // Storage is unavailable altogether.
+    }
+  }
+}
+
+/**
+ * Save the conversation once a response has finished, never while it streams:
+ * writing localStorage on every streamed chunk is what stalled the canvas
+ * before, so saves wait until loading is off and the messages have settled.
+ */
+if (typeof window !== 'undefined') {
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  useGenerativeUIStore.subscribe((state, previous) => {
+    if (state.isLoading) {
+      clearTimeout(saveTimer);
+      return;
+    }
+    if (state.messages === previous.messages && !previous.isLoading) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(
+      () => writeCurrentChat(useGenerativeUIStore.getState().messages),
+      CURRENT_CHAT_SAVE_DELAY_MS,
+    );
+  });
+}
 
 interface ArtifactStore {
   artifacts: Artifact[];

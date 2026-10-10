@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
+  CURRENT_CHAT_STORAGE_KEY,
+  readCurrentChat,
   useGenerativeUIStore,
   useArtifactStore,
   useMessages,
@@ -220,6 +222,97 @@ describe('chat persistence', () => {
       artifacts: [expect.objectContaining({ id: 'artifact-1', isOpen: false })],
     });
     expect(useArtifactStore.getState().artifacts[0].isOpen).toBe(false);
+  });
+});
+
+describe('current conversation persistence', () => {
+  const conversation: Message[] = [
+    { id: 'msg-1', role: 'user', content: 'Draw a chart' },
+    { id: 'msg-2', role: 'assistant', content: '', a2ui: [{ beginRendering: { surfaceId: 'main', root: 'root' } }] },
+  ];
+  const saved = () => JSON.parse(localStorage.getItem(CURRENT_CHAT_STORAGE_KEY) ?? 'null');
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    act(() => { vi.runOnlyPendingTimers(); });
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('saves the conversation once a response finishes, never while it streams', () => {
+    const store = useGenerativeUIStore.getState();
+    act(() => {
+      store.addMessage(conversation[0]);
+      store.addMessage({ id: 'msg-2', role: 'assistant', content: '' });
+      store.setLoading(true);
+    });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(saved()).toBeNull();
+
+    act(() => { store.updateMessage('msg-2', { a2ui: conversation[1].a2ui }); });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(saved()).toBeNull();
+
+    act(() => { store.setLoading(false); });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(saved()).toEqual({ version: 1, messages: conversation });
+  });
+
+  it('restores the saved conversation into an empty session', () => {
+    localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, JSON.stringify({ version: 1, messages: conversation }));
+
+    act(() => { useGenerativeUIStore.getState().restoreCurrentChat(); });
+
+    expect(useGenerativeUIStore.getState().messages).toEqual(conversation);
+  });
+
+  it('does not replace a conversation already in progress', () => {
+    localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, JSON.stringify({ version: 1, messages: conversation }));
+    const current: Message = { id: 'now', role: 'user', content: 'Already typing' };
+
+    act(() => {
+      useGenerativeUIStore.setState({ messages: [current] });
+      useGenerativeUIStore.getState().restoreCurrentChat();
+    });
+
+    expect(useGenerativeUIStore.getState().messages).toEqual([current]);
+  });
+
+  it('ignores missing or malformed saved data', () => {
+    for (const raw of ['not json', '{"messages":"nope"}', '{"messages":[{"id":1}]}', 'null']) {
+      localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, raw);
+      expect(readCurrentChat()).toEqual([]);
+    }
+    localStorage.removeItem(CURRENT_CHAT_STORAGE_KEY);
+    expect(readCurrentChat()).toEqual([]);
+  });
+
+  it('forgets the saved conversation when a new chat starts', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    act(() => { useGenerativeUIStore.setState({ messages: conversation }); });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(saved()).not.toBeNull();
+
+    await act(async () => { await useGenerativeUIStore.getState().saveCurrentChat(); });
+    act(() => { vi.advanceTimersByTime(1000); });
+
+    expect(saved()).toBeNull();
+  });
+
+  it('drops the older copy instead of throwing when storage is full', () => {
+    localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, JSON.stringify({ version: 1, messages: conversation }));
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    act(() => { useGenerativeUIStore.setState({ messages: [conversation[0]] }); });
+    expect(() => act(() => { vi.advanceTimersByTime(1000); })).not.toThrow();
+
+    setItem.mockRestore();
+    expect(saved()).toBeNull();
   });
 });
 
