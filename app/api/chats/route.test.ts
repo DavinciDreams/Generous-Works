@@ -12,7 +12,7 @@ vi.mock('@/lib/db', () => ({
   initChatsTable: initChatsTableMock,
 }));
 
-import { GET } from './route';
+import { GET, POST } from './route';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,6 +34,26 @@ describe('chat history route', () => {
     expect(response.status).toBe(200);
     expect(payload).toEqual([expect.objectContaining({ id: 'chat-1', messageCount: 42 })]);
     expect(payload[0]).not.toHaveProperty('messages');
+  });
+
+  it('saves a reopened chat back to the same row, only for its owner', async () => {
+    sqlMock.mockResolvedValue([]);
+
+    const response = await POST(new Request('http://localhost/api/chats', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: 'chat-1',
+        title: 'Earlier chat',
+        messages: [{ id: 'msg-1', role: 'user', content: 'Hi' }],
+        createdAt: 1,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    const query = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('?').replace(/\s+/g, ' ');
+    expect(query).toContain('ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, messages = EXCLUDED.messages');
+    expect(query).toContain('WHERE chats.user_id = EXCLUDED.user_id');
+    expect(sqlMock.mock.calls[0]).toContain('user-1');
   });
 
   it('does not query chats for an unauthenticated request', async () => {

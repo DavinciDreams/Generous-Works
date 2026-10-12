@@ -37,7 +37,9 @@ export async function POST(req: Request) {
   await sql`
     INSERT INTO chats (id, user_id, title, messages, created_at)
     VALUES (${id}, ${userId}, ${title}, ${JSON.stringify(messages)}, ${new Date(createdAt).toISOString()})
-    ON CONFLICT (id) DO NOTHING
+    ON CONFLICT (id) DO UPDATE
+      SET title = EXCLUDED.title, messages = EXCLUDED.messages
+      WHERE chats.user_id = EXCLUDED.user_id
   `;
   return NextResponse.json({ ok: true });
 }

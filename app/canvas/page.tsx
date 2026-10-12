@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 
 import { useMessages, useAppState, useGenerativeUIStore } from "@/lib/store";
 import { cn } from '@/lib/utils';
@@ -139,8 +140,25 @@ export default function Page() {
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
 
-  // Bring back the conversation from before a reload (read after mount to match SSR)
-  useEffect(() => { useGenerativeUIStore.getState().restoreCurrentChat(); }, []);
+  // Bring back this user's conversation from before a reload (after mount, to match SSR)
+  const { userId } = useAuth();
+  useEffect(() => {
+    if (userId) useGenerativeUIStore.getState().restoreCurrentChat(userId);
+  }, [userId]);
+
+  // A reload or closed tab right after a response still keeps it
+  useEffect(() => {
+    const save = () => useGenerativeUIStore.getState().checkpointCurrentChat();
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save();
+    };
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', saveWhenHidden);
+    return () => {
+      window.removeEventListener('pagehide', save);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -336,6 +354,8 @@ export default function Page() {
       }
     } finally {
       setLoading(false);
+      // One write per finished response, never per streamed chunk
+      useGenerativeUIStore.getState().checkpointCurrentChat();
     }
   }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
 

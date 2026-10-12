@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { A2UIMessage } from '@/lib/a2ui/types';
+import {
+  clearAllCurrentChats,
+  clearCurrentChat,
+  readCurrentChat,
+  writeCurrentChat,
+} from './current-chat-storage';
 
 // ============================================================================
 // Type Definitions
@@ -79,6 +85,12 @@ export interface StoreState {
   // Saved chat history
   savedChats: SavedChatSummary[];
 
+  // The History chat the conversation on screen is saved as, once it has one
+  currentChatId: string | null;
+
+  // Signed-in user whose conversation is on screen; browser copies are keyed by it
+  currentChatOwner: string | null;
+
   // UI Components state
   uiComponents: Record<string, UIComponent>; // Map of component ID to component
 
@@ -111,7 +123,9 @@ export interface StoreActions {
   
   // Saved chat actions
   fetchChats: () => Promise<void>;
-  restoreCurrentChat: () => void;
+  restoreCurrentChat: (userId: string) => void;
+  checkpointCurrentChat: () => void;
+  forgetSignedOutUser: () => void;
   saveCurrentChat: () => Promise<void>;
   loadChat: (id: string) => Promise<void>;
   deleteChat: (id: string) => Promise<void>;
@@ -144,6 +158,8 @@ export interface GenerativeUIStore extends StoreState, StoreActions {
 const initialState: StoreState = {
   messages: [],
   savedChats: [],
+  currentChatId: null,
+  currentChatOwner: null,
   uiComponents: {},
   isLoading: false,
   error: null,
@@ -189,7 +205,11 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       /**
        * Clear all messages from the conversation
        */
-      clearMessages: () => set({ messages: [] }),
+      clearMessages: () => {
+        const { currentChatOwner, currentChatId } = get();
+        if (currentChatOwner) clearCurrentChat(currentChatOwner, currentChatId);
+        set({ messages: [], currentChatId: null });
+      },
 
       // =====================
       // UI Component Actions
@@ -268,40 +288,77 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       },
 
       /**
-       * Bring back the conversation that was on screen before a reload, unless
-       * a conversation has already started in this session.
+       * Take over the browser copy for the signed-in user: bring back the
+       * conversation from before a reload, unless one is already under way.
+       * A conversation left in memory by a different user is dropped first.
        */
-      restoreCurrentChat: () => {
+      restoreCurrentChat: (userId) => {
+        const { currentChatOwner, messages } = get();
+        if (currentChatOwner !== userId) {
+          set({ currentChatOwner: userId });
+          if (currentChatOwner && messages.length > 0) {
+            set({ messages: [], currentChatId: null, uiComponents: {} });
+          }
+        }
         if (get().messages.length > 0) return;
-        const messages = readCurrentChat();
-        if (messages.length > 0) set({ messages });
+        const saved = readCurrentChat(userId);
+        if (saved) set({ messages: saved.messages, currentChatId: saved.chatId });
       },
 
       /**
-       * Save the current messages as a named chat entry, persist to Postgres, then reset.
+       * Save the conversation on screen to this browser now. Callers run it at
+       * the end of a response, after opening a chat, and when the page hides,
+       * so streamed chunks never write storage.
+       */
+      checkpointCurrentChat: () => {
+        const { currentChatOwner, messages } = get();
+        if (!currentChatOwner || messages.length === 0) return;
+        let { currentChatId } = get();
+        if (!currentChatId) {
+          currentChatId = crypto.randomUUID();
+          set({ currentChatId });
+        }
+        writeCurrentChat(currentChatOwner, { chatId: currentChatId, messages });
+      },
+
+      /**
+       * Nobody is signed in: drop the conversation from memory and every
+       * browser copy, so the next person on this browser can't see it.
+       */
+      forgetSignedOutUser: () => {
+        clearAllCurrentChats();
+        set({ messages: [], currentChatId: null, currentChatOwner: null, savedChats: [], uiComponents: {} });
+      },
+
+      /**
+       * Save the current messages to History, persist to Postgres, then start
+       * a new chat. A conversation opened from History is saved back to that
+       * chat rather than duplicated.
        */
       saveCurrentChat: async () => {
-        const { messages } = get();
+        const { messages, currentChatId, currentChatOwner } = get();
         if (messages.length === 0) return;
         const firstUser = messages.find((m) => m.role === 'user');
         const title = firstUser
           ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
           : 'Chat';
         const saved: SavedChat = {
-          id: crypto.randomUUID(),
+          id: currentChatId ?? crypto.randomUUID(),
           title,
           messages,
           createdAt: Date.now(),
           messageCount: messages.length,
         };
+        if (currentChatOwner) clearCurrentChat(currentChatOwner, currentChatId);
         set((state) => ({
           ...initialState,
+          currentChatOwner: state.currentChatOwner,
           savedChats: [{
             id: saved.id,
             title: saved.title,
             createdAt: saved.createdAt,
             messageCount: saved.messageCount,
-          }, ...state.savedChats],
+          }, ...state.savedChats.filter((chat) => chat.id !== saved.id)],
         }));
         try {
           await fetch('/api/chats', {
@@ -319,7 +376,7 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
        * The current session (if non-empty) is saved first.
        */
       loadChat: async (id) => {
-        const { savedChats, messages } = get();
+        const { savedChats, messages, currentChatId } = get();
         const summary = savedChats.find((c) => c.id === id);
         if (!summary) return;
 
@@ -340,12 +397,13 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
             ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
             : 'Chat';
           const current: SavedChat = {
-            id: crypto.randomUUID(),
+            id: currentChatId ?? crypto.randomUUID(),
             title,
             messages,
             createdAt: Date.now(),
             messageCount: messages.length,
           };
+          updatedChats = updatedChats.filter((c) => c.id !== current.id);
           updatedChats = [{
             id: current.id,
             title: current.title,
@@ -358,7 +416,15 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
             body: JSON.stringify(current),
           }).catch(() => {});
         }
-        set({ messages: chat.messages, savedChats: updatedChats, isLoading: false, error: null, uiComponents: {} });
+        set({
+          messages: chat.messages,
+          currentChatId: id,
+          savedChats: updatedChats,
+          isLoading: false,
+          error: null,
+          uiComponents: {},
+        });
+        get().checkpointCurrentChat();
       },
 
       /**
@@ -376,7 +442,11 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       /**
        * Reset the entire store to initial state
        */
-      reset: () => set(initialState),
+      reset: () => {
+        const { currentChatOwner, currentChatId } = get();
+        if (currentChatOwner) clearCurrentChat(currentChatOwner, currentChatId);
+        set({ ...initialState, currentChatOwner });
+      },
 
       // =====================
       // Selectors
@@ -418,75 +488,6 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       getUIComponentsByType: (type) =>
         Object.values(get().uiComponents).filter((comp) => comp.type === type),
 }));
-
-// ============================================================================
-// Current Conversation Persistence
-// ============================================================================
-
-/** Browser storage key for the conversation on screen, restored after a reload. */
-export const CURRENT_CHAT_STORAGE_KEY = 'generous-current-chat';
-
-/** Long enough to be cancelled when a response starts streaming right after the prompt. */
-const CURRENT_CHAT_SAVE_DELAY_MS = 500;
-
-function isStoredMessage(value: unknown): value is Message {
-  if (!value || typeof value !== 'object') return false;
-  const message = value as Record<string, unknown>;
-  return typeof message.id === 'string'
-    && typeof message.content === 'string'
-    && (message.role === 'user' || message.role === 'assistant' || message.role === 'system');
-}
-
-/** Reads the saved conversation; anything missing or malformed reads as no conversation. */
-export function readCurrentChat(): Message[] {
-  try {
-    const raw = localStorage.getItem(CURRENT_CHAT_STORAGE_KEY);
-    if (!raw) return [];
-    const messages = (JSON.parse(raw) as { messages?: unknown } | null)?.messages;
-    return Array.isArray(messages) && messages.every(isStoredMessage) ? messages : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCurrentChat(messages: Message[]) {
-  try {
-    if (messages.length === 0) {
-      localStorage.removeItem(CURRENT_CHAT_STORAGE_KEY);
-    } else {
-      localStorage.setItem(CURRENT_CHAT_STORAGE_KEY, JSON.stringify({ version: 1, messages }));
-    }
-  } catch {
-    // Storage is full or blocked. Drop the older copy so a reload doesn't
-    // bring back a stale conversation; History in Postgres is unaffected.
-    try {
-      localStorage.removeItem(CURRENT_CHAT_STORAGE_KEY);
-    } catch {
-      // Storage is unavailable altogether.
-    }
-  }
-}
-
-/**
- * Save the conversation once a response has finished, never while it streams:
- * writing localStorage on every streamed chunk is what stalled the canvas
- * before, so saves wait until loading is off and the messages have settled.
- */
-if (typeof window !== 'undefined') {
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  useGenerativeUIStore.subscribe((state, previous) => {
-    if (state.isLoading) {
-      clearTimeout(saveTimer);
-      return;
-    }
-    if (state.messages === previous.messages && !previous.isLoading) return;
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(
-      () => writeCurrentChat(useGenerativeUIStore.getState().messages),
-      CURRENT_CHAT_SAVE_DELAY_MS,
-    );
-  });
-}
 
 interface ArtifactStore {
   artifacts: Artifact[];
