@@ -1,25 +1,36 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
   useGenerativeUIStore,
+  useArtifactStore,
+  setArtifactOwner,
   useMessages,
   useUIComponents,
   useAppState,
   type Message,
   type UIComponent,
 } from './store';
+import { readCurrentChat } from './current-chat-storage';
 
 const initialState = {
   messages: [] as Message[],
+  savedChats: [],
+  currentChatId: null as string | null,
+  currentChatOwner: null as string | null,
   uiComponents: {} as Record<string, UIComponent>,
   isLoading: false,
   error: null as string | null,
 };
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
+  localStorage.clear();
   act(() => {
     useGenerativeUIStore.setState(initialState);
+    useArtifactStore.setState({ artifacts: [] });
   });
+  localStorage.clear();
 });
 
 describe('initial state', () => {
@@ -105,6 +116,433 @@ describe('clearMessages', () => {
     act(() => { result.current.clearMessages(); });
 
     expect(result.current.messages).toEqual([]);
+  });
+});
+
+describe('chat persistence', () => {
+  it('stores only lightweight chat summaries from the history endpoint', async () => {
+    const summaries = [{
+      id: 'chat-1',
+      title: 'Earlier chat',
+      createdAt: '2026-09-23T00:00:00.000Z',
+      messageCount: 12,
+    }];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => summaries,
+    }));
+
+    await act(async () => {
+      await useGenerativeUIStore.getState().fetchChats();
+    });
+
+    expect(useGenerativeUIStore.getState().savedChats).toEqual(summaries);
+    expect(useGenerativeUIStore.getState().savedChats[0]).not.toHaveProperty('messages');
+  });
+
+  it('loads a full chat only when the user opens it', async () => {
+    const messages: Message[] = [
+      { id: 'msg-1', role: 'user', content: 'Open me' },
+      { id: 'msg-2', role: 'assistant', content: 'Loaded' },
+    ];
+    useGenerativeUIStore.setState({
+      savedChats: [{ id: 'chat-1', title: 'Earlier chat', createdAt: 1, messageCount: 2 }],
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chat-1',
+        title: 'Earlier chat',
+        createdAt: 1,
+        messageCount: 2,
+        messages,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      await useGenerativeUIStore.getState().loadChat('chat-1');
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/chats/chat-1');
+    expect(useGenerativeUIStore.getState().messages).toEqual(messages);
+  });
+
+  it('does not write streaming messages to localStorage', () => {
+    useGenerativeUIStore.getState().addMessage({ id: 'msg-1', role: 'assistant', content: '' });
+    useGenerativeUIStore.getState().updateMessage('msg-1', { content: 'streamed content' });
+
+    expect(localStorage.getItem('generative-ui-storage')).toBeNull();
+  });
+
+  it('persists saved artifacts without reopening them on startup', async () => {
+    await act(async () => { await setArtifactOwner('user-a'); });
+    useArtifactStore.getState().saveArtifact({
+      name: 'Chart',
+      type: 'jsx',
+      content: '<Card />',
+      color: '#3b82f6',
+      emoji: '📊',
+    });
+
+    const persisted = JSON.parse(localStorage.getItem('generative-ui-storage:user-a') ?? '{}');
+    expect(persisted.state).toEqual({
+      artifacts: [expect.objectContaining({ name: 'Chart', isOpen: false })],
+    });
+    expect(persisted.state).not.toHaveProperty('messages');
+    expect(persisted.state).not.toHaveProperty('savedChats');
+    expect(useArtifactStore.getState().artifacts[0].isOpen).toBe(true);
+  });
+
+  it('migrates the legacy localStorage blob down to closed artifacts for the first user', async () => {
+    localStorage.setItem('generative-ui-storage', JSON.stringify({
+      version: 0,
+      state: {
+        messages: [{ id: 'old-message', role: 'user', content: 'large history' }],
+        savedChats: [{ id: 'old-chat', title: 'Old', messages: [] }],
+        uiComponents: { old: { id: 'old', type: 'Card', props: {} } },
+        artifacts: [{
+          id: 'artifact-1',
+          name: 'Saved card',
+          type: 'jsx',
+          content: '<Card />',
+          createdAt: 1,
+          isOpen: true,
+          windowX: 80,
+          windowY: 64,
+          color: '#3b82f6',
+          emoji: '📌',
+        }],
+      },
+    }));
+
+    await act(async () => { await setArtifactOwner('user-a'); });
+
+    expect(localStorage.getItem('generative-ui-storage')).toBeNull();
+    const persisted = JSON.parse(localStorage.getItem('generative-ui-storage:user-a') ?? '{}');
+    expect(persisted.version).toBe(2);
+    expect(persisted.state).toEqual({
+      artifacts: [expect.objectContaining({ id: 'artifact-1', isOpen: false })],
+    });
+    expect(useArtifactStore.getState().artifacts[0].isOpen).toBe(false);
+  });
+
+  it('keeps each user’s artifacts apart and shows none once signed out', async () => {
+    const save = (name: string) => useArtifactStore.getState().saveArtifact({
+      name, type: 'jsx', content: '<Card />', color: '#3b82f6', emoji: '📊',
+    });
+    const names = () => useArtifactStore.getState().artifacts.map((artifact) => artifact.name);
+
+    await act(async () => { await setArtifactOwner('user-a'); });
+    act(() => { save('A’s chart'); });
+    await act(async () => { await setArtifactOwner('user-b'); });
+    expect(names()).toEqual([]);
+    act(() => { save('B’s chart'); });
+
+    await act(async () => { await setArtifactOwner('user-a'); });
+    expect(names()).toEqual(['A’s chart']);
+
+    await act(async () => { useGenerativeUIStore.getState().forgetSignedOutUser(); });
+    await vi.waitFor(() => expect(names()).toEqual([]));
+    expect(JSON.parse(localStorage.getItem('generative-ui-storage:user-a') ?? '{}').state.artifacts)
+      .toEqual([expect.objectContaining({ name: 'A’s chart' })]);
+  });
+});
+
+describe('current conversation persistence', () => {
+  const conversation: Message[] = [
+    { id: 'msg-1', role: 'user', content: 'Draw a chart' },
+    { id: 'msg-2', role: 'assistant', content: '', a2ui: [{ beginRendering: { surfaceId: 'main', root: 'root' } }] },
+  ];
+  const key = (userId: string) => `generous-current-chat:${userId}`;
+  const stored = (storage: Storage, userId = 'user-a') => JSON.parse(storage.getItem(key(userId)) ?? 'null');
+  const store = () => useGenerativeUIStore.getState();
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+  });
+
+  it('only writes at a checkpoint, never while messages stream in', () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().addMessage(conversation[0]);
+      store().addMessage({ id: 'msg-2', role: 'assistant', content: '' });
+      store().setLoading(true);
+      store().updateMessage('msg-2', { a2ui: conversation[1].a2ui });
+    });
+    expect(stored(localStorage)).toBeNull();
+    expect(stored(sessionStorage)).toBeNull();
+
+    act(() => {
+      store().setLoading(false);
+      store().checkpointCurrentChat();
+    });
+
+    const chatId = store().currentChatId;
+    expect(chatId).toEqual(expect.any(String));
+    expect(stored(sessionStorage)).toEqual({ version: 2, chatId, messages: conversation });
+    expect(stored(localStorage)).toEqual({ version: 2, chatId, messages: conversation });
+  });
+
+  it('does not save a reply that is still streaming in', () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages([conversation[0], { id: 'msg-2', role: 'assistant', content: 'Half a reply' }]);
+      store().setLoading(true);
+      store().checkpointCurrentChat();
+    });
+
+    expect(stored(sessionStorage)).toBeNull();
+    expect(stored(localStorage)).toBeNull();
+  });
+
+  it('does not write again when nothing changed since the last checkpoint', () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      store().checkpointCurrentChat();
+    });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+    act(() => { store().checkpointCurrentChat(); });
+
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  it('restores this tab’s conversation ahead of another tab’s newer one', () => {
+    sessionStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'this-tab', messages: conversation }));
+    localStorage.setItem(key('user-a'), JSON.stringify({
+      version: 2, chatId: 'other-tab', messages: [{ id: 'x', role: 'user', content: 'Other tab' }],
+    }));
+
+    act(() => { store().restoreCurrentChat('user-a'); });
+
+    expect(store().messages).toEqual(conversation);
+    expect(store().currentChatId).toBe('this-tab');
+  });
+
+  it('falls back to the most recent conversation in a new tab', () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'recent', messages: conversation }));
+
+    act(() => { store().restoreCurrentChat('user-a'); });
+
+    expect(store().messages).toEqual(conversation);
+  });
+
+  it('never restores another user’s conversation', () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'a', messages: conversation }));
+
+    act(() => { store().restoreCurrentChat('user-b'); });
+
+    expect(store().messages).toEqual([]);
+  });
+
+  it('drops a different user’s conversation and History still in memory', () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      useGenerativeUIStore.setState({ savedChats: [{ id: 'a-chat', title: 'A’s chat', createdAt: 1, messageCount: 2 }] });
+      store().restoreCurrentChat('user-b');
+    });
+
+    expect(store().messages).toEqual([]);
+    expect(store().savedChats).toEqual([]);
+    expect(store().currentChatOwner).toBe('user-b');
+  });
+
+  it('does not replace a conversation already in progress, or rewrite it on restore', () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'saved', messages: conversation }));
+    const current: Message = { id: 'now', role: 'user', content: 'Already typing' };
+    const setItem = vi.spyOn(localStorage, 'setItem');
+
+    act(() => {
+      store().setMessages([current]);
+      store().restoreCurrentChat('user-a');
+    });
+
+    expect(store().messages).toEqual([current]);
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  it('forgets the conversation immediately when a new chat starts', async () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      store().checkpointCurrentChat();
+    });
+
+    await act(async () => { await store().saveCurrentChat(); });
+
+    expect(stored(sessionStorage)).toBeNull();
+    expect(stored(localStorage)).toBeNull();
+    act(() => { store().restoreCurrentChat('user-a'); });
+    expect(store().messages).toEqual([]);
+  });
+
+  it('keeps another tab’s newer conversation when this tab starts a new chat', async () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      store().checkpointCurrentChat();
+    });
+    const otherTab = { version: 2, chatId: 'other-tab', messages: [{ id: 'x', role: 'user', content: 'Other tab' }] };
+    localStorage.setItem(key('user-a'), JSON.stringify(otherTab));
+
+    await act(async () => { await store().saveCurrentChat(); });
+
+    expect(stored(localStorage)).toEqual(otherTab);
+  });
+
+  it('saves a chat opened from History back under its own id', async () => {
+    const opened = { id: 'chat-1', title: 'Earlier', createdAt: 1, messageCount: 2, messages: conversation };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => opened })
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      useGenerativeUIStore.setState({ savedChats: [{ id: 'chat-1', title: 'Earlier', createdAt: 1, messageCount: 2 }] });
+    });
+
+    await act(async () => { await store().loadChat('chat-1'); });
+    expect(stored(sessionStorage).chatId).toBe('chat-1');
+
+    act(() => { store().addMessage({ id: 'msg-3', role: 'user', content: 'Follow up' }); });
+    await act(async () => { await store().saveCurrentChat(); });
+
+    const posted = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(posted.id).toBe('chat-1');
+    expect(store().savedChats.filter((chat) => chat.id === 'chat-1')).toHaveLength(1);
+  });
+
+  it('keeps the chat on screen when it is opened again from History', async () => {
+    const followUps: Message[] = [...conversation, { id: 'msg-3', role: 'user', content: 'Not on the server yet' }];
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'chat-1', messages: followUps }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      useGenerativeUIStore.setState({ savedChats: [{ id: 'chat-1', title: 'Earlier', createdAt: 1, messageCount: 2 }] });
+    });
+
+    await act(async () => { await store().loadChat('chat-1'); });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(store().messages).toEqual(followUps);
+  });
+
+  it('leaves the chat on screen out of History', async () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'chat-1', messages: conversation }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { id: 'chat-1', title: 'On screen', createdAt: 2, messageCount: 2 },
+        { id: 'chat-2', title: 'Older', createdAt: 1, messageCount: 4 },
+      ],
+    }));
+    act(() => { store().restoreCurrentChat('user-a'); });
+
+    await act(async () => { await store().fetchChats(); });
+
+    expect(store().savedChats.map((chat) => chat.id)).toEqual(['chat-2']);
+  });
+
+  it('clears the chat on screen and its copies when it is deleted', async () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'chat-1', messages: conversation }));
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().checkpointCurrentChat();
+    });
+
+    await act(async () => { await store().deleteChat('chat-1'); });
+
+    expect(store().messages).toEqual([]);
+    expect(store().currentChatId).toBeNull();
+    expect(stored(sessionStorage)).toBeNull();
+    expect(stored(localStorage)).toBeNull();
+    act(() => { store().restoreCurrentChat('user-a'); });
+    expect(store().messages).toEqual([]);
+  });
+
+  it('drops another tab’s copy of a deleted chat but keeps the one on screen', async () => {
+    sessionStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'chat-1', messages: conversation }));
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'chat-2', messages: conversation }));
+    act(() => { store().restoreCurrentChat('user-a'); });
+
+    await act(async () => { await store().deleteChat('chat-2'); });
+
+    expect(stored(localStorage)).toBeNull();
+    expect(stored(sessionStorage).chatId).toBe('chat-1');
+    expect(store().messages).toEqual(conversation);
+  });
+
+  it('reloads History when the server saved the chat as a separate one', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, id: 'forked' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { id: 'forked', title: 'Draw a chart', createdAt: 2, messageCount: 2 },
+          { id: 'chat-1', title: 'Draw a chart', createdAt: 1, messageCount: 3 },
+        ],
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      useGenerativeUIStore.setState({ currentChatId: 'chat-1' });
+    });
+
+    await act(async () => { await store().saveCurrentChat(); });
+
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/chats');
+    expect(store().savedChats.map((chat) => chat.id)).toEqual(['forked', 'chat-1']);
+  });
+
+  it('clears every copy and the conversation in memory when nobody is signed in', () => {
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages(conversation);
+      store().checkpointCurrentChat();
+    });
+    localStorage.setItem(key('user-b'), JSON.stringify({ version: 2, chatId: 'b', messages: conversation }));
+    localStorage.setItem('unrelated', 'kept');
+
+    act(() => { store().forgetSignedOutUser(); });
+
+    expect(store().messages).toEqual([]);
+    expect(store().currentChatOwner).toBeNull();
+    expect(stored(localStorage)).toBeNull();
+    expect(stored(localStorage, 'user-b')).toBeNull();
+    expect(stored(sessionStorage)).toBeNull();
+    expect(localStorage.getItem('unrelated')).toBe('kept');
+  });
+
+  it('ignores missing or malformed saved data', () => {
+    for (const raw of ['not json', 'null', '{"version":1,"messages":[]}', '{"version":2,"chatId":"c","messages":[{"id":1}]}']) {
+      localStorage.setItem(key('user-a'), raw);
+      expect(readCurrentChat('user-a')).toBeNull();
+    }
+  });
+
+  it('drops the older copy instead of throwing when storage is full', () => {
+    localStorage.setItem(key('user-a'), JSON.stringify({ version: 2, chatId: 'old', messages: conversation }));
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    act(() => {
+      store().restoreCurrentChat('user-a');
+      store().setMessages([conversation[0]]);
+    });
+    expect(() => act(() => { store().checkpointCurrentChat(); })).not.toThrow();
+
+    setItem.mockRestore();
+    expect(stored(localStorage)).toBeNull();
   });
 });
 

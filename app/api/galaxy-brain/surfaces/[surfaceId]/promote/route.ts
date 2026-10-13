@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import { promoteGalaxySurface } from '@/lib/integrations/galaxy-brain';
+import { getGalaxyBrainAccess } from '@/lib/integrations/galaxy-access';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -17,6 +18,10 @@ export async function POST(
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const access = await getGalaxyBrainAccess(userId);
+  if (!access.allowed) {
+    return NextResponse.json({ error: 'Galaxy Brain access is not allowed' }, { status: 403 });
+  }
 
   const { surfaceId } = await params;
   if (!UUID_PATTERN.test(surfaceId)) {
@@ -45,6 +50,7 @@ export async function POST(
       idempotencyKey: body.idempotencyKey,
       provenance: {
         source: 'generous.canvas',
+        actor_ref: access.actorRef,
         note: 'Explicitly promoted from Generous after preview',
       },
     });

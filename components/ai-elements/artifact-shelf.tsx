@@ -2,7 +2,7 @@
 
 import type { ComponentType } from "react";
 import { useState } from "react";
-import { useGenerativeUIStore } from "@/lib/store";
+import { useArtifactStore } from "@/lib/store";
 import { ArtifactIcon } from "@/components/ai-elements/artifact-icon";
 import { ArtifactWindow } from "@/components/ai-elements/artifact-window";
 import { LayoutGrid } from "lucide-react";
@@ -13,10 +13,10 @@ interface ArtifactShelfProps {
 }
 
 export function ArtifactShelf({ jsxComponents }: ArtifactShelfProps) {
-  const artifacts = useGenerativeUIStore((s) => s.artifacts);
-  const openArtifact = useGenerativeUIStore((s) => s.openArtifact);
-  const closeArtifact = useGenerativeUIStore((s) => s.closeArtifact);
-  const deleteArtifact = useGenerativeUIStore((s) => s.deleteArtifact);
+  const artifacts = useArtifactStore((s) => s.artifacts);
+  const openArtifact = useArtifactStore((s) => s.openArtifact);
+  const closeArtifact = useArtifactStore((s) => s.closeArtifact);
+  const deleteArtifact = useArtifactStore((s) => s.deleteArtifact);
   const [panelOpen, setPanelOpen] = useState(false);
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function ArtifactShelf({ jsxComponents }: ArtifactShelfProps) {
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-accent"
       >
         <LayoutGrid className="w-3.5 h-3.5" />
-        Canvas
+        Artifacts
         <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-px text-[10px] font-medium text-primary leading-none">
           {artifacts.length}
         </span>

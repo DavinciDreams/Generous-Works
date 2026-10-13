@@ -9,7 +9,7 @@ import { motion, useDragControls, useMotionValue } from "motion/react";
 import { X, Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
 import { HybridRenderer } from "@/components/ai-elements/hybrid-renderer";
-import { useGenerativeUIStore } from "@/lib/store";
+import { useArtifactStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 interface ArtifactWindowProps {
@@ -22,7 +22,7 @@ interface ArtifactWindowProps {
 }
 
 export function ArtifactWindow({ artifact, zIndex, onClose, onFocus, jsxComponents }: ArtifactWindowProps) {
-  const updateArtifact = useGenerativeUIStore((s) => s.updateArtifact);
+  const updateArtifact = useArtifactStore((s) => s.updateArtifact);
   const dragControls = useDragControls();
   const x = useMotionValue(artifact.windowX);
   const y = useMotionValue(artifact.windowY);

@@ -9,8 +9,8 @@ export interface A2UIMessage {
   surfaceUpdate?: SurfaceUpdate;
   /** Update the data model (application state) */
   dataModelUpdate?: DataModelUpdate;
-  /** Signal to begin rendering */
-  beginRendering?: boolean;
+  /** Signal to begin rendering (the boolean form is Generous' legacy envelope). */
+  beginRendering?: boolean | BeginRendering;
 }
 
 export interface SurfaceUpdate {
@@ -33,13 +33,48 @@ export interface A2UIComponent {
   children?: string[];
 }
 
-export interface DataModelUpdate {
+/** Generous' original complete-message data model shape. */
+export interface LegacyDataModelUpdate {
   /** Path to the data (e.g., "/user/name") */
   path: string;
   /** Value to set at the path */
   value: unknown;
   /** Optional operation type */
   operation?: 'set' | 'delete' | 'merge';
+  /** Optional surface ID when the update is consumed as a stream event. */
+  surfaceId?: string;
+}
+
+/** A typed A2UI v0.8 value. */
+export interface A2UITypedValue {
+  valueString?: string;
+  valueNumber?: number;
+  valueBoolean?: boolean;
+  valueMap?: A2UIDataEntry[];
+  valueList?: A2UITypedValue[];
+}
+
+/** A typed entry, including the wrapped value form used by some v0.8 bridges. */
+export interface A2UIDataEntry extends A2UITypedValue {
+  key: string;
+  value?: A2UITypedValue;
+}
+
+/** A2UI v0.8 stream update. Data models are isolated by surface. */
+export interface StreamDataModelUpdate {
+  surfaceId?: string;
+  path?: string;
+  contents: A2UIDataEntry[];
+}
+
+export type DataModelUpdate = LegacyDataModelUpdate | StreamDataModelUpdate;
+
+/** A2UI v0.8 render signal. */
+export interface BeginRendering {
+  surfaceId?: string;
+  root: string;
+  catalogId?: string;
+  styles?: Record<string, unknown>;
 }
 
 /**
