@@ -96,6 +96,14 @@ export function clearCurrentChat(userId: string, chatId: string | null) {
   }
 }
 
+/** Drops this tab's and the shared copy of a chat that was deleted from History. */
+export function discardChatCopies(userId: string, chatId: string) {
+  const key = keyFor(userId);
+  for (const storage of [sessionStore(), localStore()]) {
+    if (read(storage, userId)?.chatId === chatId) remove(storage, key);
+  }
+}
+
 /** Removes every user's copies; used when nobody is signed in. */
 export function clearAllCurrentChats() {
   for (const storage of [sessionStore(), localStore()]) {

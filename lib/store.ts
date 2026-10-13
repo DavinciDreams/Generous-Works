@@ -4,6 +4,7 @@ import type { A2UIMessage } from '@/lib/a2ui/types';
 import {
   clearAllCurrentChats,
   clearCurrentChat,
+  discardChatCopies,
   readCurrentChat,
   writeCurrentChat,
 } from './current-chat-storage';
@@ -165,6 +166,43 @@ const initialState: StoreState = {
   error: null,
 };
 
+/** A conversation as it is saved to History. */
+function toSavedChat(messages: Message[], id: string): SavedChat {
+  const firstUser = messages.find((m) => m.role === 'user');
+  const title = firstUser
+    ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
+    : 'Chat';
+  return { id, title, messages, createdAt: Date.now(), messageCount: messages.length };
+}
+
+/** Puts a chat's summary at the top of History, replacing any older entry. */
+function withSummary(savedChats: SavedChatSummary[], chat: SavedChat): SavedChatSummary[] {
+  const { id, title, createdAt, messageCount } = chat;
+  return [{ id, title, createdAt, messageCount }, ...savedChats.filter((c) => c.id !== id)];
+}
+
+/**
+ * Saves a chat to Postgres. Resolves to the id it was saved under, which
+ * differs from the chat's own id when the server kept it as a separate chat.
+ */
+async function postChat(chat: SavedChat): Promise<string> {
+  try {
+    const response = await fetch('/api/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chat),
+    });
+    const result = response.ok ? await response.json() as { id?: unknown } : null;
+    return typeof result?.id === 'string' ? result.id : chat.id;
+  } catch {
+    // already in local state; Postgres sync failed silently
+    return chat.id;
+  }
+}
+
+/** The conversation last written to this browser, so unchanged ones aren't written again. */
+let lastCheckpoint: { owner: string; chatId: string; messages: Message[] } | null = null;
+
 /**
  * Create the transient application store. Messages and chat history are kept
  * out of synchronous localStorage so streaming updates stay cheap.
@@ -281,7 +319,8 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
           const res = await fetch('/api/chats');
           if (!res.ok) return;
           const rows: SavedChatSummary[] = await res.json();
-          set({ savedChats: rows });
+          // The chat on screen stays out of History while it's open, as after loadChat
+          set((state) => ({ savedChats: rows.filter((chat) => chat.id !== state.currentChatId) }));
         } catch {
           // silently ignore — user may be offline or unauthenticated
         }
@@ -290,35 +329,45 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       /**
        * Take over the browser copy for the signed-in user: bring back the
        * conversation from before a reload, unless one is already under way.
-       * A conversation left in memory by a different user is dropped first.
+       * A conversation and History left in memory by a different user are
+       * dropped first.
        */
       restoreCurrentChat: (userId) => {
-        const { currentChatOwner, messages } = get();
+        const { currentChatOwner } = get();
         if (currentChatOwner !== userId) {
           set({ currentChatOwner: userId });
-          if (currentChatOwner && messages.length > 0) {
-            set({ messages: [], currentChatId: null, uiComponents: {} });
+          if (currentChatOwner) {
+            set({ messages: [], currentChatId: null, uiComponents: {}, savedChats: [] });
           }
         }
         if (get().messages.length > 0) return;
         const saved = readCurrentChat(userId);
-        if (saved) set({ messages: saved.messages, currentChatId: saved.chatId });
+        if (saved) {
+          set({ messages: saved.messages, currentChatId: saved.chatId });
+          lastCheckpoint = { owner: userId, chatId: saved.chatId, messages: saved.messages };
+        }
       },
 
       /**
        * Save the conversation on screen to this browser now. Callers run it at
        * the end of a response, after opening a chat, and when the page hides,
-       * so streamed chunks never write storage.
+       * so streamed chunks never write storage. Mid-response it does nothing:
+       * the reply is incomplete, and storage still holds the conversation from
+       * before the prompt.
        */
       checkpointCurrentChat: () => {
-        const { currentChatOwner, messages } = get();
-        if (!currentChatOwner || messages.length === 0) return;
+        const { currentChatOwner, messages, isLoading } = get();
+        if (!currentChatOwner || messages.length === 0 || isLoading) return;
         let { currentChatId } = get();
         if (!currentChatId) {
           currentChatId = crypto.randomUUID();
           set({ currentChatId });
         }
+        if (lastCheckpoint?.owner === currentChatOwner
+          && lastCheckpoint.chatId === currentChatId
+          && lastCheckpoint.messages === messages) return;
         writeCurrentChat(currentChatOwner, { chatId: currentChatId, messages });
+        lastCheckpoint = { owner: currentChatOwner, chatId: currentChatId, messages };
       },
 
       /**
@@ -327,7 +376,9 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
        */
       forgetSignedOutUser: () => {
         clearAllCurrentChats();
+        lastCheckpoint = null;
         set({ messages: [], currentChatId: null, currentChatOwner: null, savedChats: [], uiComponents: {} });
+        void setArtifactOwner(null);
       },
 
       /**
@@ -338,37 +389,14 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
       saveCurrentChat: async () => {
         const { messages, currentChatId, currentChatOwner } = get();
         if (messages.length === 0) return;
-        const firstUser = messages.find((m) => m.role === 'user');
-        const title = firstUser
-          ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
-          : 'Chat';
-        const saved: SavedChat = {
-          id: currentChatId ?? crypto.randomUUID(),
-          title,
-          messages,
-          createdAt: Date.now(),
-          messageCount: messages.length,
-        };
+        const saved = toSavedChat(messages, currentChatId ?? crypto.randomUUID());
         if (currentChatOwner) clearCurrentChat(currentChatOwner, currentChatId);
         set((state) => ({
           ...initialState,
           currentChatOwner: state.currentChatOwner,
-          savedChats: [{
-            id: saved.id,
-            title: saved.title,
-            createdAt: saved.createdAt,
-            messageCount: saved.messageCount,
-          }, ...state.savedChats.filter((chat) => chat.id !== saved.id)],
+          savedChats: withSummary(state.savedChats, saved),
         }));
-        try {
-          await fetch('/api/chats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(saved),
-          });
-        } catch {
-          // already in local state; Postgres sync failed silently
-        }
+        if (await postChat(saved) !== saved.id) await get().fetchChats();
       },
 
       /**
@@ -376,9 +404,9 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
        * The current session (if non-empty) is saved first.
        */
       loadChat: async (id) => {
-        const { savedChats, messages, currentChatId } = get();
-        const summary = savedChats.find((c) => c.id === id);
-        if (!summary) return;
+        // Already on screen, and the server copy may be older than it
+        if (id === get().currentChatId && get().messages.length > 0) return;
+        if (!get().savedChats.some((c) => c.id === id)) return;
 
         let chat: SavedChat;
         try {
@@ -390,48 +418,34 @@ export const useGenerativeUIStore = create<GenerativeUIStore>((set, get) => ({
           return;
         }
 
-        let updatedChats = savedChats.filter((c) => c.id !== id);
-        if (messages.length > 0) {
-          const firstUser = messages.find((m) => m.role === 'user');
-          const title = firstUser
-            ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
-            : 'Chat';
-          const current: SavedChat = {
-            id: currentChatId ?? crypto.randomUUID(),
-            title,
-            messages,
-            createdAt: Date.now(),
-            messageCount: messages.length,
-          };
-          updatedChats = updatedChats.filter((c) => c.id !== current.id);
-          updatedChats = [{
-            id: current.id,
-            title: current.title,
-            createdAt: current.createdAt,
-            messageCount: current.messageCount,
-          }, ...updatedChats];
-          fetch('/api/chats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(current),
-          }).catch(() => {});
-        }
+        const { savedChats, messages, currentChatId } = get();
+        const current = messages.length > 0
+          ? toSavedChat(messages, currentChatId ?? crypto.randomUUID())
+          : null;
+        const otherChats = savedChats.filter((c) => c.id !== id);
         set({
           messages: chat.messages,
           currentChatId: id,
-          savedChats: updatedChats,
+          savedChats: current ? withSummary(otherChats, current) : otherChats,
           isLoading: false,
           error: null,
           uiComponents: {},
         });
         get().checkpointCurrentChat();
+        if (current && await postChat(current) !== current.id) await get().fetchChats();
       },
 
       /**
-       * Delete a saved chat from Postgres and local state.
+       * Delete a saved chat from Postgres and local state. Deleting the chat
+       * on screen clears it, so it isn't saved straight back to History.
        */
       deleteChat: async (id) => {
-        set((state) => ({ savedChats: state.savedChats.filter((c) => c.id !== id) }));
+        const { currentChatOwner } = get();
+        if (currentChatOwner) discardChatCopies(currentChatOwner, id);
+        set((state) => ({
+          savedChats: state.savedChats.filter((c) => c.id !== id),
+          ...(state.currentChatId === id ? { messages: [], currentChatId: null, uiComponents: {} } : {}),
+        }));
         try {
           await fetch(`/api/chats/${id}`, { method: 'DELETE' });
         } catch {
@@ -498,11 +512,16 @@ interface ArtifactStore {
   deleteArtifact: (id: string) => void;
 }
 
+const ARTIFACTS_KEY = 'generative-ui-storage';
+const artifactsKeyFor = (userId: string | null) => `${ARTIFACTS_KEY}:${userId ?? 'signed-out'}`;
+
 /**
- * Persist only user-saved artifacts. Reusing the legacy key lets the versioned
- * migration discard previously persisted chats, messages, and UI components.
- * Open windows are deliberately serialized as closed to avoid mounting every
- * saved artifact during startup.
+ * Persist only user-saved artifacts, kept apart per signed-in user so the next
+ * person on a shared browser can't see them. Nothing loads until
+ * setArtifactOwner says whose they are. The versioned migration discards
+ * chats, messages, and UI components persisted by older versions. Open windows
+ * are deliberately serialized as closed to avoid mounting every saved artifact
+ * during startup.
  */
 export const useArtifactStore = create<ArtifactStore>()(
   persist(
@@ -544,8 +563,14 @@ export const useArtifactStore = create<ArtifactStore>()(
         })),
     }),
     {
-      name: 'generative-ui-storage',
+      name: artifactsKeyFor(null),
+      skipHydration: true,
       version: 2,
+      // A user with nothing saved starts empty instead of keeping the last user's
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        artifacts: (persistedState as { artifacts?: Artifact[] } | undefined)?.artifacts ?? [],
+      }),
       migrate: (persistedState) => {
         const legacy = persistedState as { artifacts?: Artifact[] } | undefined;
         return {
@@ -560,6 +585,28 @@ export const useArtifactStore = create<ArtifactStore>()(
     }
   )
 );
+
+/**
+ * Shows this user's saved artifacts, or none when nobody is signed in.
+ * Artifacts saved before they were kept per user go to the first person who
+ * signs in on this browser.
+ */
+export function setArtifactOwner(userId: string | null) {
+  const name = artifactsKeyFor(userId);
+  if (userId) {
+    try {
+      const legacy = localStorage.getItem(ARTIFACTS_KEY);
+      if (legacy !== null) {
+        if (localStorage.getItem(name) === null) localStorage.setItem(name, legacy);
+        localStorage.removeItem(ARTIFACTS_KEY);
+      }
+    } catch {
+      // Storage is unavailable.
+    }
+  }
+  useArtifactStore.persist.setOptions({ name });
+  return useArtifactStore.persist.rehydrate();
+}
 
 // ============================================================================
 // Utility Hooks

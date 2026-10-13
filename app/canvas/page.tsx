@@ -2,7 +2,7 @@
 
 import type { FormEvent, ComponentType } from "react";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
@@ -138,10 +138,10 @@ export default function Page() {
   const [galaxyConnectUrl, setGalaxyConnectUrl] = useState('/api/galaxy-brain/connect/start');
   const [useGalaxyBrain, setUseGalaxyBrain] = useState(false);
 
-  useEffect(() => { fetchChats(); }, [fetchChats]);
+  const { userId } = useAuth();
+  useEffect(() => { if (userId) fetchChats(); }, [fetchChats, userId]);
 
   // Bring back this user's conversation from before a reload (after mount, to match SSR)
-  const { userId } = useAuth();
   useEffect(() => {
     if (userId) useGenerativeUIStore.getState().restoreCurrentChat(userId);
   }, [userId]);
@@ -188,10 +188,22 @@ export default function Page() {
     return () => { active = false; };
   }, []);
 
+  // The response streaming in; replaced when another starts, dropped when the user moves to another chat
+  const streamRef = useRef<AbortController | null>(null);
+  const stopStreaming = useCallback(() => {
+    streamRef.current?.abort();
+    streamRef.current = null;
+    setLoading(false);
+  }, [setLoading]);
+
   const handleSubmit = useCallback(async (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const prompt = message.text.trim();
     if (!prompt) return;
+
+    streamRef.current?.abort();
+    const stream = new AbortController();
+    streamRef.current = stream;
 
     setError(null);
 
@@ -223,6 +235,7 @@ export default function Page() {
             useGalaxyBrain,
             ...(renderFormat ? { renderFormat } : {}),
           }),
+          signal: stream.signal,
         });
 
         if (!response.ok) {
@@ -307,6 +320,7 @@ export default function Page() {
           ? prompt
           : getCompleteA2UIVisualRetryPrompt(prompt);
         const result = await streamAttempt(attemptPrompt);
+        if (stream.signal.aborted) return;
         const completedSurfaces = result.a2ui
           ?? getCompleteA2UISurfaces(result.content);
         const completion = assessA2UIVisualCompletion(prompt, completedSurfaces);
@@ -341,6 +355,7 @@ export default function Page() {
         break;
       }
     } catch (err) {
+      if (stream.signal.aborted) return;
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(errorMessage);
       if (lastRenderableA2UI) {
@@ -353,9 +368,13 @@ export default function Page() {
         });
       }
     } finally {
-      setLoading(false);
-      // One write per finished response, never per streamed chunk
-      useGenerativeUIStore.getState().checkpointCurrentChat();
+      // A stream that was replaced or stopped leaves loading to whoever took over
+      if (streamRef.current === stream) {
+        streamRef.current = null;
+        setLoading(false);
+        // One write per finished response, never per streamed chunk
+        useGenerativeUIStore.getState().checkpointCurrentChat();
+      }
     }
   }, [messages, addMessage, updateMessage, setLoading, setError, useGalaxyBrain]);
 
@@ -415,7 +434,10 @@ export default function Page() {
               {/* New chat */}
               <button
                 type="button"
-                onClick={saveCurrentChat}
+                onClick={() => {
+                  stopStreaming();
+                  void saveCurrentChat();
+                }}
                 disabled={messages.length === 0}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -476,6 +498,7 @@ export default function Page() {
                                 className="flex-1 text-left min-w-0"
                                 onClick={() => {
                                   setHistoryOpen(false);
+                                  stopStreaming();
                                   void loadChat(chat.id);
                                 }}
                               >
