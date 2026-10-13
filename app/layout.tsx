@@ -3,6 +3,7 @@ import { Geist_Mono, Poppins, Inter } from "next/font/google";
 import { ClerkProvider, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { SignInTrigger } from "@/components/auth/sign-in-trigger";
+import { UserBrowserData } from "@/components/auth/user-browser-data";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import "./globals.css";
 
@@ -150,6 +151,8 @@ export default function RootLayout({
               </SignedIn>
             </div>
           </header>
+
+          <UserBrowserData />
 
           {/* Page content */}
           <div className="flex-1 min-h-0 overflow-auto relative">
