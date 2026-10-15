@@ -94,35 +94,26 @@ When generating UIs, you MUST respond with valid A2UI JSON messages in this exac
         "id": "tech-companies-timeline",
         "component": {
           "Timeline": {
-            "data": {
-              "title": {
-                "text": {
-                  "headline": "Major Tech Companies",
-                  "text": "Founding dates of influential technology companies"
-                }
+            "title": "Major Tech Companies",
+            "height": 500,
+            "events": [
+              {
+                "id": "apple",
+                "title": "Apple Inc.",
+                "description": "Founded by Steve Jobs, Steve Wozniak, and Ronald Wayne",
+                "start": { "year": 1976, "month": 4, "day": 1, "precision": "day" },
+                "importance": 5,
+                "category": "Hardware"
               },
-              "events": [
-                {
-                  "unique_id": "apple",
-                  "start_date": { "year": 1976 },
-                  "text": {
-                    "headline": "Apple Inc.",
-                    "text": "Founded by Steve Jobs, Steve Wozniak, and Ronald Wayne"
-                  }
-                },
-                {
-                  "unique_id": "microsoft",
-                  "start_date": { "year": 1975 },
-                  "text": {
-                    "headline": "Microsoft",
-                    "text": "Founded by Bill Gates and Paul Allen"
-                  }
-                }
-              ]
-            },
-            "options": {
-              "height": 500
-            }
+              {
+                "id": "microsoft",
+                "title": "Microsoft",
+                "description": "Founded by Bill Gates and Paul Allen",
+                "start": { "year": 1975, "month": 4, "day": 4, "precision": "day" },
+                "importance": 5,
+                "category": "Software"
+              }
+            ]
           }
         }
       }

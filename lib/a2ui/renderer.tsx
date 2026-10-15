@@ -490,7 +490,8 @@ export function renderA2UIComponent(
           <div key={componentId} data-a2ui-id={componentId} data-a2ui-type={componentType}>
             <Timeline {...timelineProps}>
               <TimelineHeader>
-                <TimelineTitle>Timeline</TimelineTitle>
+                {/* The timeline's title, falling back to "Timeline" */}
+                <TimelineTitle />
                 <TimelineActions>
                   <TimelineCopyButton />
                   <TimelineFullscreenButton />

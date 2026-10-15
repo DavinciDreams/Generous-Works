@@ -10,6 +10,7 @@ import {
   toReplayableA2UIMessage,
   toGalaxySurfaceSpec,
 } from './galaxy-surface';
+import { assertSupportedSchema, schemaError } from './galaxy-props-schema';
 
 const researchBoard = (): { surfaceUpdate: SurfaceUpdate } => ({
   surfaceUpdate: {
@@ -228,7 +229,7 @@ describe('Galaxy surface contract', () => {
     expect(GALAXY_CONTRACT_DIGESTS).toEqual({
       algorithm: 'sha256',
       schema: 'd147fafd26dd4be4cd41a1f504843366a01725a84a35668d565be4d210136729',
-      catalog: '60e2460ae227ccc42e3a44a2cda2740ec688ce57a68df972d67f8ab69c9d321f',
+      catalog: '56932cc303c3384c01a51b61f39d70b0eeb4b3c4a4ea058523fce9b03c0601fa',
     });
     expect(digest(contract.schema)).toBe(GALAXY_CONTRACT_DIGESTS.schema);
     expect(digest(contract.catalog)).toBe(GALAXY_CONTRACT_DIGESTS.catalog);
@@ -267,5 +268,110 @@ describe('Galaxy surface contract', () => {
     const unsafe = structuredClone(stored);
     unsafe.surfaceUpdate.components[0].component = { JSX: { code: '<Card />' } };
     expect(() => toReplayableA2UIMessage(unsafe)).toThrow(/not approved/);
+  });
+});
+
+const timelineSurface = (props: Record<string, unknown>): { surfaceUpdate: SurfaceUpdate } => ({
+  surfaceUpdate: {
+    surfaceId: 'history',
+    components: [{ id: 'timeline', component: { Timeline: props } }],
+  },
+});
+const timelinePropsIn = (spec: { surfaceUpdate?: { components: Array<{ component: unknown }> } }) =>
+  (spec.surfaceUpdate!.components[0].component as { Timeline: Record<string, unknown> }).Timeline;
+
+describe('Galaxy surface contract: Timeline', () => {
+  it('sends the current shape as it is', () => {
+    const props = {
+      title: 'Space',
+      events: [
+        {
+          id: 'apollo-11',
+          title: 'Apollo 11',
+          start: { year: 1969, month: 7, day: 20, precision: 'day' },
+          importance: 5,
+          category: 'Crewed',
+          tags: ['Moon'],
+          media: { url: 'https://example.com/aldrin.jpg' },
+          link: { url: 'https://en.wikipedia.org/wiki/Apollo_11' },
+          style: { card: 'rounded', color: 'chart-2', font: 'serif' },
+        },
+      ],
+      eras: [{ title: 'Space Race', start: { year: 1955, precision: 'year' }, end: { year: 1975, precision: 'year' } }],
+    };
+    expect(timelinePropsIn(toGalaxySurfaceSpec(timelineSurface(props)))).toEqual(props);
+  });
+
+  it('converts the legacy TimelineJS shape to the current one', () => {
+    const spec = toGalaxySurfaceSpec(timelineSurface({
+      data: {
+        title: { text: { headline: 'History' } },
+        events: [{ unique_id: 'x', start_date: { year: 1969 }, text: { headline: '<b>Landing</b>' } }],
+      },
+      options: { height: 500 },
+    }));
+    expect(timelinePropsIn(spec)).toEqual({
+      title: 'History',
+      height: 500,
+      events: [{ id: 'x', title: 'Landing', start: { year: 1969, precision: 'year' } }],
+    });
+  });
+
+  it('converts table input to events', () => {
+    const spec = toGalaxySurfaceSpec(timelineSurface({
+      table: {
+        columns: ['Name', 'When', 'Rank'],
+        rows: [['Moon landing', '1969-07-20', 5], ['Undated', 'someday', 1]],
+        map: { title: 'Name', start: 'When', importance: 'Rank' },
+      },
+    }));
+    expect(timelinePropsIn(spec)).toEqual({
+      events: [{ id: 'row-0', title: 'Moon landing', start: { year: 1969, month: 7, day: 20, precision: 'day' }, importance: 5 }],
+    });
+  });
+
+  it('drops unsafe links and colours rather than sending them', () => {
+    const unsafe = ['javascript', 'alert(1)'].join(':');
+    const spec = toGalaxySurfaceSpec(timelineSurface({
+      events: [{ id: 'a', title: 'A', start: { year: 1 }, link: { url: unsafe }, style: { color: 'red' } }],
+    }));
+    expect(timelinePropsIn(spec)).toEqual({ events: [{ id: 'a', title: 'A', start: { year: 1, precision: 'year' } }] });
+  });
+
+  it('still refuses behaviour inside timeline props', () => {
+    expect(() => toGalaxySurfaceSpec(timelineSurface({ events: [], onSelect: 'x' }))).toThrow(/not allowed/);
+  });
+
+  it('replays a stored legacy timeline in the current shape', () => {
+    const stored = {
+      schema: 'gb.surface.v1',
+      catalog: { id: 'generous.a2ui', version: '1' },
+      surfaceUpdate: timelineSurface({ data: { events: [{ start_date: { year: 2000 }, text: { headline: 'Y2K' } }] } }).surfaceUpdate,
+      bindings: [],
+    };
+    expect(timelinePropsIn(toReplayableA2UIMessage(stored))).toEqual({
+      events: [{ id: 'event-0', title: 'Y2K', start: { year: 2000, precision: 'year' } }],
+    });
+  });
+});
+
+describe("Galaxy prop schemas: local $ref", () => {
+  const root = {
+    $defs: { year: { type: 'integer', maximum: 3000 } },
+    type: 'object',
+    properties: { start: { $ref: '#/$defs/year' } },
+  };
+
+  it('follows a reference into $defs', () => {
+    expect(schemaError({ start: 1969 }, root, 'p')).toBeNull();
+    expect(schemaError({ start: 5000 }, root, 'p')).toBe('p.start must be at most 3000');
+    expect(schemaError({ start: 'x' }, root, 'p')).toBe('p.start must be integer');
+  });
+
+  it('refuses references it cannot resolve when loading a schema', () => {
+    expect(() => assertSupportedSchema(root, 'p')).not.toThrow();
+    expect(() => assertSupportedSchema({ $ref: '#/$defs/missing', $defs: {} }, 'p')).toThrow(/not a local definition/);
+    expect(() => assertSupportedSchema({ $ref: 'https://example.com/schema' }, 'p')).toThrow(/not a local definition/);
+    expect(() => assertSupportedSchema({ properties: { a: { $defs: {} } } }, 'p')).toThrow(/only declare \$defs at its root/);
   });
 });

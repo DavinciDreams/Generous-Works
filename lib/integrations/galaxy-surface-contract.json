@@ -1185,164 +1185,565 @@
         }
       },
       "Timeline": {
-        "description": "Bounded TimelineJS event sequence with declarative dates and media URLs.",
+        "description": "Zoomable timeline of dated events: picture cards on an axis, stacked by importance, coloured by category, with per-card styling (card shape, colour, font), subtitles, tags for filtering, periods (end dates), shaded eras and an optional read-more link per event. Give events directly, or a spreadsheet-style table (columns, rows and a map from timeline fields to column names) that is converted into events. Plain text only. Dates state their precision. The legacy TimelineJS shape (data.events with start_date and text.headline) is still accepted for surfaces saved before this shape existed.",
         "bindingTargets": [
+          "events",
+          "eras",
+          "table",
+          "table.rows",
           "data",
           "data.events"
         ],
         "propsSchema": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "data"
-          ],
-          "properties": {
-            "data": {
+          "$defs": {
+            "date": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "events"
+                "year"
               ],
               "properties": {
-                "events": {
-                  "type": "array",
-                  "maxItems": 500,
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "unique_id": {
-                        "type": "string",
-                        "maxLength": 128
-                      },
-                      "start_date": {
-                        "type": "object",
-                        "required": [
-                          "year"
-                        ],
-                        "properties": {
-                          "year": {
-                            "type": "integer"
-                          },
-                          "month": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 12
-                          },
-                          "day": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 31
-                          },
-                          "display_date": {
-                            "type": "string",
-                            "maxLength": 500
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "end_date": {
-                        "type": "object"
-                      },
-                      "text": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "properties": {
-                          "headline": {
-                            "type": "string",
-                            "maxLength": 1000
-                          },
-                          "text": {
-                            "type": "string",
-                            "maxLength": 10000
-                          }
-                        }
-                      },
-                      "media": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                          "url"
-                        ],
-                        "properties": {
-                          "url": {
-                            "type": "string",
-                            "maxLength": 2000
-                          },
-                          "caption": {
-                            "type": "string",
-                            "maxLength": 2000
-                          },
-                          "credit": {
-                            "type": "string",
-                            "maxLength": 1000
-                          },
-                          "alt": {
-                            "type": "string",
-                            "maxLength": 1000
-                          }
-                        }
-                      },
-                      "group": {
-                        "type": "string",
-                        "maxLength": 500
-                      },
-                      "display_date": {
-                        "type": "string",
-                        "maxLength": 500
-                      },
-                      "autolink": {
-                        "type": "boolean"
-                      }
-                    }
-                  }
+                "year": {
+                  "type": "integer",
+                  "minimum": -14000000000,
+                  "maximum": 100000
                 },
-                "scale": {
+                "month": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                },
+                "day": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 31
+                },
+                "precision": {
                   "enum": [
-                    "human",
-                    "cosmological"
+                    "billion-years",
+                    "million-years",
+                    "millennium",
+                    "century",
+                    "decade",
+                    "year",
+                    "month",
+                    "day"
                   ]
                 }
               }
             },
-            "options": {
+            "event": {
               "type": "object",
-              "maxProperties": 16,
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "title",
+                "start"
+              ],
               "properties": {
-                "height": {
-                  "type": [
-                    "number",
-                    "string"
-                  ]
-                },
-                "width": {
-                  "type": [
-                    "number",
-                    "string"
-                  ]
-                },
-                "language": {
+                "id": {
                   "type": "string",
-                  "maxLength": 20
+                  "minLength": 1,
+                  "maxLength": 128
                 },
-                "start_at_end": {
-                  "type": "boolean"
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
                 },
-                "start_at_slide": {
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "start": {
+                  "$ref": "#/$defs/date"
+                },
+                "end": {
+                  "$ref": "#/$defs/date"
+                },
+                "dateLabel": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "importance": {
                   "type": "integer",
-                  "minimum": 0,
-                  "maximum": 499
+                  "minimum": 1,
+                  "maximum": 5
                 },
-                "timenav_position": {
-                  "enum": [
-                    "top",
-                    "bottom"
-                  ]
+                "category": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "media": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "url"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "pattern": "^https?://"
+                    },
+                    "caption": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "credit": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "alt": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  }
+                },
+                "link": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "url"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "pattern": "^https?://"
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  }
+                },
+                "subtitle": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "tags": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "style": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "card": {
+                      "enum": [
+                        "classic",
+                        "rounded",
+                        "note",
+                        "image",
+                        "dark"
+                      ]
+                    },
+                    "color": {
+                      "$ref": "#/$defs/color"
+                    },
+                    "font": {
+                      "enum": [
+                        "sans",
+                        "serif",
+                        "script",
+                        "mono",
+                        "display"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "era": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "start",
+                "end"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "start": {
+                  "$ref": "#/$defs/date"
+                },
+                "end": {
+                  "$ref": "#/$defs/date"
+                },
+                "category": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "color": {
+                  "$ref": "#/$defs/color"
+                }
+              }
+            },
+            "timeline": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 160,
+                  "maximum": 1600
+                },
+                "events": {
+                  "type": "array",
+                  "maxItems": 500,
+                  "items": {
+                    "$ref": "#/$defs/event"
+                  }
+                },
+                "eras": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "$ref": "#/$defs/era"
+                  }
+                },
+                "table": {
+                  "$ref": "#/$defs/table"
                 }
               },
-              "additionalProperties": false
+              "oneOf": [
+                {
+                  "required": [
+                    "events"
+                  ],
+                  "not": {
+                    "required": [
+                      "table"
+                    ]
+                  }
+                },
+                {
+                  "required": [
+                    "table"
+                  ],
+                  "not": {
+                    "required": [
+                      "events"
+                    ]
+                  }
+                }
+              ]
+            },
+            "color": {
+              "type": "string",
+              "maxLength": 20,
+              "pattern": "^(#[0-9a-fA-F]{6}|chart-[1-5]|primary|secondary|muted|accent|destructive)$"
+            },
+            "table": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "columns",
+                "rows",
+                "map"
+              ],
+              "properties": {
+                "columns": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 50,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "rows": {
+                  "type": "array",
+                  "maxItems": 500,
+                  "items": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": [
+                        "string",
+                        "number",
+                        "null"
+                      ],
+                      "maxLength": 10000
+                    }
+                  }
+                },
+                "map": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "title",
+                    "start"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "subtitle": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "start": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "end": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "dateLabel": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "importance": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "category": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "group": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "tags": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "image": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "imageCaption": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "imageCredit": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "link": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "linkLabel": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "color": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    }
+                  }
+                }
+              }
             }
-          }
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timeline"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "data"
+              ],
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "events"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "maxItems": 500,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "unique_id": {
+                            "type": "string",
+                            "maxLength": 128
+                          },
+                          "start_date": {
+                            "type": "object",
+                            "required": [
+                              "year"
+                            ],
+                            "properties": {
+                              "year": {
+                                "type": "integer"
+                              },
+                              "month": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 12
+                              },
+                              "day": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 31
+                              },
+                              "display_date": {
+                                "type": "string",
+                                "maxLength": 500
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "end_date": {
+                            "type": "object"
+                          },
+                          "text": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "headline": {
+                                "type": "string",
+                                "maxLength": 1000
+                              },
+                              "text": {
+                                "type": "string",
+                                "maxLength": 10000
+                              }
+                            }
+                          },
+                          "media": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "url"
+                            ],
+                            "properties": {
+                              "url": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "caption": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "credit": {
+                                "type": "string",
+                                "maxLength": 1000
+                              },
+                              "alt": {
+                                "type": "string",
+                                "maxLength": 1000
+                              }
+                            }
+                          },
+                          "group": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "display_date": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "autolink": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "scale": {
+                      "enum": [
+                        "human",
+                        "cosmological"
+                      ]
+                    }
+                  }
+                },
+                "options": {
+                  "type": "object",
+                  "maxProperties": 16,
+                  "properties": {
+                    "height": {
+                      "type": [
+                        "number",
+                        "string"
+                      ]
+                    },
+                    "width": {
+                      "type": [
+                        "number",
+                        "string"
+                      ]
+                    },
+                    "language": {
+                      "type": "string",
+                      "maxLength": 20
+                    },
+                    "start_at_end": {
+                      "type": "boolean"
+                    },
+                    "start_at_slide": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 499
+                    },
+                    "timenav_position": {
+                      "enum": [
+                        "top",
+                        "bottom"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          ]
         }
       },
       "Title": {
@@ -1438,6 +1839,6 @@
   "digests": {
     "algorithm": "sha256",
     "schema": "d147fafd26dd4be4cd41a1f504843366a01725a84a35668d565be4d210136729",
-    "catalog": "60e2460ae227ccc42e3a44a2cda2740ec688ce57a68df972d67f8ab69c9d321f"
+    "catalog": "56932cc303c3384c01a51b61f39d70b0eeb4b3c4a4ea058523fce9b03c0601fa"
   }
 }

@@ -1,4 +1,4 @@
-import type { TimelineData } from "./timeline";
+import type { TimelineEvent, TimelineEra, TimelineTable } from "./timeline";
 
 import {
   Timeline,
@@ -10,410 +10,198 @@ import {
   TimelineTitle,
 } from "./timeline";
 
-// Example 1: Simple timeline with a few events
-export function SimpleTimeline() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 2020,
-          month: 1,
-          day: 1,
-        },
-        text: {
-          headline: "Project Started",
-          text: "<p>The project was officially launched in January 2020.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2021,
-          month: 6,
-          day: 15,
-        },
-        text: {
-          headline: "First Major Release",
-          text: "<p>Released version 1.0 with core features.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2023,
-          month: 3,
-          day: 20,
-        },
-        text: {
-          headline: "Community Milestone",
-          text: "<p>Reached 10,000 active users!</p>",
-        },
-      },
-    ],
-    title: {
-      text: {
-        headline: "Project Timeline",
-        text: "<p>Key milestones in our journey</p>",
-      },
-    },
-  };
+const Header = () => (
+  <TimelineHeader>
+    <TimelineTitle />
+    <TimelineActions>
+      <TimelineCopyButton />
+      <TimelineFullscreenButton />
+    </TimelineActions>
+  </TimelineHeader>
+);
 
+/** Picture cards, importance, categories, periods, eras, tags and read-more links. */
+export const spaceRaceEvents: TimelineEvent[] = [
+  {
+    id: "sputnik",
+    title: "Sputnik 1",
+    description: "The first artificial satellite orbits Earth for three weeks, beeping on 20 and 40 MHz.",
+    start: { year: 1957, month: 10, day: 4, precision: "day" },
+    importance: 4,
+    category: "Satellites",
+    group: "USSR",
+    tags: ["Orbit"],
+    link: { url: "https://en.wikipedia.org/wiki/Sputnik_1", label: "Sputnik 1 on Wikipedia" },
+  },
+  {
+    id: "gagarin",
+    title: "Yuri Gagarin orbits Earth",
+    subtitle: "Vostok 1",
+    description: "The first human in space completes one orbit in 108 minutes.",
+    start: { year: 1961, month: 4, day: 12, precision: "day" },
+    importance: 5,
+    category: "Crewed",
+    group: "USSR",
+    tags: ["Orbit", "First"],
+  },
+  {
+    id: "gemini",
+    title: "Project Gemini",
+    description: "Two-person missions rehearse rendezvous, docking and spacewalks for Apollo.",
+    start: { year: 1961, precision: "year" },
+    end: { year: 1966, precision: "year" },
+    importance: 2,
+    category: "Crewed",
+    group: "USA",
+    tags: ["Orbit"],
+  },
+  {
+    id: "apollo-11",
+    title: "Apollo 11 lands on the Moon",
+    subtitle: "Armstrong and Aldrin",
+    description: "Neil Armstrong and Buzz Aldrin walk on the Moon while Michael Collins orbits above.",
+    start: { year: 1969, month: 7, day: 20, precision: "day" },
+    importance: 5,
+    category: "Crewed",
+    group: "USA",
+    tags: ["Moon", "First"],
+    media: {
+      url: "https://upload.wikimedia.org/wikipedia/commons/9/98/Aldrin_Apollo_11_original.jpg",
+      caption: "Buzz Aldrin on the Moon",
+      credit: "NASA",
+      alt: "An astronaut standing on the lunar surface",
+    },
+    link: { url: "https://en.wikipedia.org/wiki/Apollo_11" },
+  },
+  {
+    id: "lunokhod",
+    title: "Lunokhod 1 rover",
+    start: { year: 1970, month: 11, day: 17, precision: "day" },
+    importance: 2,
+    category: "Robotic",
+    group: "USSR",
+    tags: ["Moon"],
+  },
+  {
+    id: "apollo-soyuz",
+    title: "Apollo–Soyuz",
+    description: "An American and a Soviet crew dock in orbit, closing the Space Race.",
+    start: { year: 1975, month: 7, day: 17, precision: "day" },
+    importance: 3,
+    category: "Crewed",
+    tags: ["Orbit"],
+  },
+  {
+    id: "hubble",
+    title: "Hubble Space Telescope",
+    start: { year: 1990, month: 4, day: 24, precision: "day" },
+    importance: 4,
+    category: "Satellites",
+    group: "USA",
+    media: {
+      url: "https://upload.wikimedia.org/wikipedia/commons/3/3f/HST-SM4.jpeg",
+      alt: "The Hubble Space Telescope in orbit",
+      credit: "NASA",
+    },
+    style: { card: "image" },
+  },
+];
+
+export const spaceRaceEras: TimelineEra[] = [
+  { title: "Space Race", start: { year: 1955 }, end: { year: 1975 }, category: "Crewed" },
+  { title: "Shuttle era", start: { year: 1981 }, end: { year: 2011 } },
+];
+
+export function SpaceRaceTimeline() {
   return (
-    <Timeline data={data}>
-      <TimelineHeader>
-        <TimelineTitle />
-        <TimelineActions>
-          <TimelineCopyButton />
-          <TimelineFullscreenButton />
-        </TimelineActions>
-      </TimelineHeader>
+    <Timeline title="The Space Race" events={spaceRaceEvents} eras={spaceRaceEras}>
+      <Header />
       <TimelineContent />
     </Timeline>
   );
 }
 
-// Example 2: Timeline with media (images and videos)
-export function TimelineWithMedia() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 1969,
-          month: 7,
-          day: 20,
-        },
-        text: {
-          headline: "Moon Landing",
-          text: "<p>Apollo 11 successfully landed on the Moon.</p>",
-        },
-        media: {
-          url: "https://upload.wikimedia.org/wikipedia/commons/9/98/Aldrin_Apollo_11_original.jpg",
-          caption: "Buzz Aldrin on the Moon",
-          credit: "NASA",
-        },
-      },
-      {
-        start_date: {
-          year: 1990,
-          month: 4,
-          day: 24,
-        },
-        text: {
-          headline: "Hubble Space Telescope Launch",
-          text: "<p>The Hubble Space Telescope was deployed into orbit.</p>",
-        },
-        media: {
-          url: "https://upload.wikimedia.org/wikipedia/commons/3/3f/HST-SM4.jpeg",
-          caption: "Hubble Space Telescope",
-          credit: "NASA",
-        },
-      },
-    ],
-    title: {
-      text: {
-        headline: "Space Exploration",
-        text: "<p>Major achievements in space exploration</p>",
-      },
-    },
-  };
+/** Spreadsheet-style input, converted into events. */
+export const artistsTable: TimelineTable = {
+  columns: ["Name", "Born", "Died", "Movement", "Rank", "Tags", "Article"],
+  rows: [
+    ["Giotto", "c. 1267", 1337, "Proto-Renaissance", 3, "painting, fresco", null],
+    ["Leonardo da Vinci", "1452-04-15", "1519-05-02", "High Renaissance", 5, "painting, science", "https://en.wikipedia.org/wiki/Leonardo_da_Vinci"],
+    ["Michelangelo", "1475-03-06", "1564-02-18", "High Renaissance", 5, "sculpture, painting", "https://en.wikipedia.org/wiki/Michelangelo"],
+    ["Raphael", "1483-04-06", "1520-04-06", "High Renaissance", 4, "painting", "https://en.wikipedia.org/wiki/Raphael"],
+    ["Caravaggio", "1571-09-29", "1610-07-18", "Baroque", 4, "painting", "https://en.wikipedia.org/wiki/Caravaggio"],
+  ],
+  map: { title: "Name", start: "Born", end: "Died", category: "Movement", importance: "Rank", tags: "Tags", link: "Article" },
+};
 
+export function TableTimeline() {
   return (
-    <Timeline data={data} title="Space Exploration Timeline">
-      <TimelineHeader>
-        <TimelineTitle />
-        <TimelineActions>
-          <TimelineCopyButton />
-          <TimelineFullscreenButton />
-        </TimelineActions>
-      </TimelineHeader>
+    <Timeline title="Renaissance artists" table={artistsTable}>
+      <Header />
       <TimelineContent />
     </Timeline>
   );
 }
 
-// Example 3: Timeline with date ranges (events with duration)
-export function TimelineWithDateRanges() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 2020,
-          month: 1,
-          day: 1,
-        },
-        end_date: {
-          year: 2020,
-          month: 3,
-          day: 31,
-        },
-        text: {
-          headline: "Q1 Development Sprint",
-          text: "<p>Initial development phase focusing on core architecture.</p>",
-        },
-        group: "Development",
-      },
-      {
-        start_date: {
-          year: 2020,
-          month: 4,
-          day: 1,
-        },
-        end_date: {
-          year: 2020,
-          month: 6,
-          day: 30,
-        },
-        text: {
-          headline: "Q2 Beta Testing",
-          text: "<p>Extensive beta testing with early adopters.</p>",
-        },
-        group: "Testing",
-      },
-      {
-        start_date: {
-          year: 2020,
-          month: 7,
-          day: 1,
-        },
-        text: {
-          headline: "Public Launch",
-          text: "<p>Product officially launched to the public.</p>",
-        },
-        group: "Launch",
-      },
-    ],
-    title: {
-      text: {
-        headline: "Product Development Timeline",
-        text: "<p>From concept to launch</p>",
-      },
-    },
-  };
-
-  return (
-    <Timeline data={data}>
-      <TimelineHeader>
-        <TimelineTitle />
-        <TimelineActions>
-          <TimelineCopyButton />
-          <TimelineFullscreenButton />
-        </TimelineActions>
-      </TimelineHeader>
-      <TimelineContent />
-    </Timeline>
-  );
-}
-
-// Example 4: Timeline with eras (background time periods)
-export function TimelineWithEras() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 1990,
-        },
-        text: {
-          headline: "World Wide Web Invented",
-          text: "<p>Tim Berners-Lee invented the World Wide Web.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2000,
-        },
-        text: {
-          headline: "Dot-com Bubble Burst",
-          text: "<p>The dot-com bubble crashed, affecting many tech companies.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2007,
-        },
-        text: {
-          headline: "iPhone Released",
-          text: "<p>Apple released the first iPhone, revolutionizing mobile computing.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2020,
-        },
-        text: {
-          headline: "AI Boom",
-          text: "<p>Large language models and AI tools become mainstream.</p>",
-        },
-      },
-    ],
-    eras: [
-      {
-        start_date: {
-          year: 1990,
-        },
-        end_date: {
-          year: 2000,
-        },
-        text: {
-          headline: "Web 1.0 Era",
-          text: "<p>The early internet and static web pages.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2000,
-        },
-        end_date: {
-          year: 2010,
-        },
-        text: {
-          headline: "Web 2.0 Era",
-          text: "<p>Social media and user-generated content.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2010,
-        },
-        end_date: {
-          year: 2020,
-        },
-        text: {
-          headline: "Mobile Era",
-          text: "<p>Mobile-first design and apps dominate.</p>",
-        },
-      },
-    ],
-    title: {
-      text: {
-        headline: "Tech Evolution Timeline",
-        text: "<p>Major technology milestones and eras</p>",
-      },
-    },
-  };
-
-  return (
-    <Timeline data={data}>
-      <TimelineHeader>
-        <TimelineTitle />
-        <TimelineActions>
-          <TimelineCopyButton />
-          <TimelineFullscreenButton />
-        </TimelineActions>
-      </TimelineHeader>
-      <TimelineContent />
-    </Timeline>
-  );
-}
-
-// Example 5: Timeline with custom options
-export function TimelineWithCustomOptions() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 2024,
-          month: 1,
-        },
-        text: {
-          headline: "Event One",
-          text: "<p>First event of the year.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2024,
-          month: 6,
-        },
-        text: {
-          headline: "Event Two",
-          text: "<p>Mid-year milestone.</p>",
-        },
-      },
-      {
-        start_date: {
-          year: 2024,
-          month: 12,
-        },
-        text: {
-          headline: "Event Three",
-          text: "<p>Year-end celebration.</p>",
-        },
-      },
-    ],
-  };
-
+/** Card shape, colour and font per event. */
+export function StyledTimeline() {
   return (
     <Timeline
-      data={data}
-      options={{
-        timenav_position: "top",
-        start_at_slide: 1,
-        hash_bookmark: true,
-        default_bg_color: "#f0f0f0",
-        scale_factor: 2,
-      }}
-      title="Custom Styled Timeline"
+      title="A company history"
+      height={420}
+      events={[
+        { id: "founded", title: "Founded in a garage", subtitle: "Two founders, one idea", start: { year: 2009, month: 3, precision: "month" }, importance: 4, style: { card: "note", font: "script" } },
+        { id: "launch", title: "First product ships", start: { year: 2011, month: 9, day: 1, precision: "day" }, importance: 5, style: { card: "rounded", color: "chart-2", font: "display" } },
+        { id: "ipo", title: "Public listing", dateLabel: "Spring 2018", start: { year: 2018, month: 4, precision: "month" }, importance: 3, style: { card: "dark", color: "#7c3aed", font: "serif" } },
+      ]}
     >
-      <TimelineHeader>
-        <TimelineTitle />
-        <TimelineActions>
-          <TimelineCopyButton />
-          <TimelineFullscreenButton />
-        </TimelineActions>
-      </TimelineHeader>
+      <Header />
       <TimelineContent />
     </Timeline>
   );
 }
 
-// Example 6: Minimal timeline (no header)
-export function MinimalTimeline() {
-  const data: TimelineData = {
-    events: [
-      {
-        start_date: {
-          year: 2024,
-          month: 1,
-          day: 1,
-        },
-        text: {
-          headline: "Start",
-        },
-      },
-      {
-        start_date: {
-          year: 2024,
-          month: 12,
-          day: 31,
-        },
-        text: {
-          headline: "End",
-        },
-      },
-    ],
-  };
-
+/** Deep time: negative years with million-year precision. */
+export function DeepTimeTimeline() {
   return (
-    <Timeline data={data}>
+    <Timeline
+      title="History of the universe"
+      events={[
+        { id: "big-bang", title: "Big Bang", start: { year: -13_800_000_000, precision: "million-years" }, importance: 5, category: "Cosmos" },
+        { id: "earth", title: "Earth forms", start: { year: -4_540_000_000, precision: "million-years" }, importance: 4, category: "Earth" },
+        { id: "dinosaurs", title: "Non-avian dinosaurs die out", start: { year: -66_000_000, precision: "million-years" }, importance: 3, category: "Life" },
+      ]}
+      eras={[{ title: "Mesozoic", start: { year: -252_000_000, precision: "million-years" }, end: { year: -66_000_000, precision: "million-years" }, color: "chart-4" }]}
+    >
+      <Header />
       <TimelineContent />
     </Timeline>
   );
 }
 
-// Example 7: Timeline with error handling (invalid data)
-export function TimelineWithError() {
-  const invalidData: TimelineData = {
-    events: [],
-    title: {
-      text: {
-        headline: "This will show an error",
-      },
-    },
-  };
-
+/** The legacy TimelineJS shape still renders, normalized to events. */
+export function LegacyTimeline() {
   return (
-    <Timeline data={invalidData}>
-      <TimelineHeader>
-        <TimelineTitle />
-      </TimelineHeader>
+    <Timeline
+      data={{
+        title: { text: { headline: "Legacy timeline" } },
+        events: [
+          { unique_id: "start", start_date: { year: 2024, month: 1, day: 1 }, text: { headline: "Start", text: "<p>First event.</p>" } },
+          { unique_id: "end", start_date: { year: 2024, month: 12, day: 31 }, text: { headline: "End" } },
+        ],
+      }}
+    >
+      <Header />
+      <TimelineContent />
+    </Timeline>
+  );
+}
+
+/** No dated events: an empty state, not a blank canvas. */
+export function EmptyTimeline() {
+  return (
+    <Timeline title="Nothing yet" events={[]}>
+      <Header />
       <TimelineContent />
     </Timeline>
   );

@@ -1,4 +1,5 @@
 import type { A2UIComponent, A2UIMessage } from '@/lib/a2ui/types';
+import { normalizeTimelineProps } from '@/lib/a2ui/timeline-contract';
 
 import contract from './galaxy-surface-contract.json';
 import {
@@ -183,6 +184,22 @@ function assertGalaxySvgDocument(svg: unknown, path: string): void {
 }
 
 /**
+ * The object schema that declares a component's props. Most components
+ * declare them at the top; one that accepts several shapes (Timeline) states
+ * them in its first alternative, which is the current shape.
+ */
+function objectShape(schema: JsonSchema, root: JsonSchema = schema): JsonSchema {
+  if (schema.properties !== undefined) return schema;
+  if (typeof schema.$ref === 'string') {
+    const name = /^#\/\$defs\/([^/]+)$/.exec(schema.$ref)?.[1];
+    const defs = root.$defs as Record<string, JsonSchema> | undefined;
+    if (name && defs && Object.hasOwn(defs, name)) return objectShape(defs[name], root);
+  }
+  const alternatives = Array.isArray(schema.oneOf) ? schema.oneOf : Array.isArray(schema.anyOf) ? schema.anyOf : [];
+  return alternatives.length > 0 ? objectShape(alternatives[0] as JsonSchema, root) : schema;
+}
+
+/**
  * The props Galaxy will take for one component. Each declared prop is held to
  * Galaxy's schema for it and to the surface-wide bounds. Props Galaxy does not
  * declare, and optional props it would refuse, are left behind: the model
@@ -197,9 +214,13 @@ function toGalaxyProps(
   counter: { value: number },
 ): Record<string, unknown> {
   assertNoBehaviour(props, path);
+  // Every Timeline shape (events, table, legacy TimelineJS) goes to Galaxy as
+  // the current shape with events, which Galaxy, Dim-0 and Generous all draw.
+  if (componentType === 'Timeline') props = { ...normalizeTimelineProps(props) };
   const schema = COMPONENT_SCHEMAS[componentType].propsSchema;
-  const declared = (schema.properties ?? {}) as Record<string, JsonSchema>;
-  const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : []);
+  const shape = objectShape(schema);
+  const declared = (shape.properties ?? {}) as Record<string, JsonSchema>;
+  const required = new Set(Array.isArray(shape.required) ? (shape.required as string[]) : []);
   if (componentType === 'SVGPreview') assertGalaxySvgDocument(props.svg, `${path}.svg`);
 
   counter.value += 1;
@@ -215,7 +236,7 @@ function toGalaxyProps(
       if (!(error instanceof GalaxySurfaceContractError)) throw error;
       reason = error.message;
     }
-    reason ??= schemaError(value, declared[key], propPath);
+    reason ??= schemaError(value, declared[key], propPath, schema);
     if (reason === null) {
       kept[key] = value;
       counter.value = trial.value;

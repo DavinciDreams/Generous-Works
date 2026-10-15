@@ -16,9 +16,20 @@ const SUPPORTED_KEYWORDS = new Set([
   'additionalProperties', 'anyOf', 'const', 'enum', 'exclusiveMinimum', 'items',
   'maxItems', 'maxLength', 'maxProperties', 'maximum', 'minItems', 'minLength',
   'minProperties', 'minimum', 'not', 'oneOf', 'pattern', 'properties', 'required', 'type',
+  // Local references only: `$ref` must name an entry of the root schema's `$defs`.
+  '$defs', '$ref',
   // Annotations, which constrain nothing.
   'description', 'title',
 ]);
+
+const LOCAL_REF = /^#\/\$defs\/([^/]+)$/;
+
+/** The `$defs` entry a local `$ref` names in the root schema, or undefined. */
+function resolveRef(root: unknown, ref: unknown): unknown {
+  const match = typeof ref === 'string' ? LOCAL_REF.exec(ref) : null;
+  if (!match || !isObject(root) || !isObject(root.$defs)) return undefined;
+  return Object.hasOwn(root.$defs, match[1]) ? root.$defs[match[1]] : undefined;
+}
 
 /** A character outside the Basic Multilingual Plane is two UTF-16 units. */
 const SURROGATE_PAIR = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
@@ -37,19 +48,26 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Throw unless every keyword in the schema, at any depth, is one implemented here. */
-export function assertSupportedSchema(schema: unknown, path: string): void {
+export function assertSupportedSchema(schema: unknown, path: string, root: unknown = schema): void {
   if (typeof schema === 'boolean') return;
   if (!isObject(schema)) throw new Error(`${path} is not a schema`);
   for (const [keyword, value] of Object.entries(schema)) {
     if (!SUPPORTED_KEYWORDS.has(keyword)) throw new Error(`${path} uses unsupported keyword ${keyword}`);
+    if (keyword === '$ref' && resolveRef(root, value) === undefined) {
+      throw new Error(`${path} refers to ${String(value)}, which is not a local definition`);
+    }
+    if (keyword === '$defs') {
+      if (schema !== root || !isObject(value)) throw new Error(`${path} may only declare $defs at its root`);
+      for (const [name, child] of Object.entries(value)) assertSupportedSchema(child, `${path}.$defs.${name}`, root);
+    }
     if (keyword === 'properties' && isObject(value)) {
-      for (const [name, child] of Object.entries(value)) assertSupportedSchema(child, `${path}.properties.${name}`);
+      for (const [name, child] of Object.entries(value)) assertSupportedSchema(child, `${path}.properties.${name}`, root);
     }
     if ((keyword === 'items' || keyword === 'not' || keyword === 'additionalProperties') && typeof value !== 'boolean') {
-      assertSupportedSchema(value, `${path}.${keyword}`);
+      assertSupportedSchema(value, `${path}.${keyword}`, root);
     }
     if ((keyword === 'anyOf' || keyword === 'oneOf') && Array.isArray(value)) {
-      value.forEach((child, index) => assertSupportedSchema(child, `${path}.${keyword}[${index}]`));
+      value.forEach((child, index) => assertSupportedSchema(child, `${path}.${keyword}[${index}]`, root));
     }
   }
 }
@@ -98,11 +116,19 @@ const describe = (value: unknown) => JSON.stringify(value)?.slice(0, 60) ?? Stri
  * Why `value` fails `schema`, or null when it passes. Like jsonschema, an
  * unsatisfiable alternative reports only that no alternative matched.
  */
-export function schemaError(value: unknown, schema: unknown, path: string): string | null {
+export function schemaError(value: unknown, schema: unknown, path: string, root: unknown = schema): string | null {
   if (schema === true) return null;
   if (schema === false) return `${path} is not allowed`;
   if (!isObject(schema)) return `${path} has no schema`;
   const s = schema;
+
+  // In JSON Schema 2020-12 a $ref applies alongside its sibling keywords.
+  if (s.$ref !== undefined) {
+    const target = resolveRef(root, s.$ref);
+    if (target === undefined) return `${path} has no schema`;
+    const error = schemaError(value, target, path, root);
+    if (error) return error;
+  }
 
   if (s.type !== undefined) {
     const types = Array.isArray(s.type) ? s.type : [s.type];
@@ -136,7 +162,7 @@ export function schemaError(value: unknown, schema: unknown, path: string): stri
     if (typeof s.maxItems === 'number' && value.length > s.maxItems) return `${path} allows at most ${s.maxItems} items`;
     if (s.items !== undefined) {
       for (let index = 0; index < value.length; index += 1) {
-        const error = schemaError(value[index], s.items, `${path}[${index}]`);
+        const error = schemaError(value[index], s.items, `${path}[${index}]`, root);
         if (error) return error;
       }
     }
@@ -156,21 +182,21 @@ export function schemaError(value: unknown, schema: unknown, path: string): stri
     for (const key of keys) {
       const childPath = `${path}.${key}`;
       const error = Object.hasOwn(properties, key)
-        ? schemaError(value[key], properties[key], childPath)
+        ? schemaError(value[key], properties[key], childPath, root)
         : s.additionalProperties === undefined
           ? null
           : s.additionalProperties === false
             ? `${childPath} is not something Galaxy accepts here`
-            : schemaError(value[key], s.additionalProperties, childPath);
+            : schemaError(value[key], s.additionalProperties, childPath, root);
       if (error) return error;
     }
   }
 
-  if (s.not !== undefined && schemaError(value, s.not, path) === null) return `${path} is not in the accepted format`;
-  if (Array.isArray(s.anyOf) && !s.anyOf.some((option) => schemaError(value, option, path) === null)) {
+  if (s.not !== undefined && schemaError(value, s.not, path, root) === null) return `${path} is not in the accepted format`;
+  if (Array.isArray(s.anyOf) && !s.anyOf.some((option) => schemaError(value, option, path, root) === null)) {
     return `${path} does not match any accepted form`;
   }
-  if (Array.isArray(s.oneOf) && s.oneOf.filter((option) => schemaError(value, option, path) === null).length !== 1) {
+  if (Array.isArray(s.oneOf) && s.oneOf.filter((option) => schemaError(value, option, path, root) === null).length !== 1) {
     return `${path} must match exactly one accepted form`;
   }
   return null;

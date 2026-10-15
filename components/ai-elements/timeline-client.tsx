@@ -13,7 +13,12 @@ export {
   TimelineError,
   TimelineControls,
   type TimelineData,
+  type TimelineDate,
+  type TimelineEra,
+  type TimelineEvent,
   type TimelineOptions,
   type TimelineProps,
   type TimelineRef,
+  type TimelineTable,
+  type TimelineV2,
 } from "./timeline";

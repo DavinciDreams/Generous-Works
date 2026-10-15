@@ -4,18 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   turbopack: {
     root: __dirname,
-    rules: {
-      // Tell Turbopack to use ignore-loader for LESS files
-      "*.less": {
-        loaders: ["ignore-loader"],
-        as: "*.js",
-      },
-    },
   },
-  
-  // Transpile packages that need it
-  transpilePackages: ["@knight-lab/timelinejs"],
-  
+
   // Optimize images
   images: {
     formats: ['image/avif', 'image/webp'],
@@ -29,21 +19,7 @@ const nextConfig: NextConfig = {
   },
   
   // Webpack fallback: Keep for compatibility and specific package handling
-  webpack: (config, { isServer, dev }) => {
-    // Webpack fallback: Ignore LESS files from TimelineJS (we use compiled CSS instead)
-    config.module.rules.push({
-      test: /\.less$/,
-      loader: "ignore-loader",
-    });
-
-    // Make TimelineJS external for server-side rendering to avoid issues
-    if (isServer) {
-      config.externals = config.externals || [];
-      config.externals.push({
-        "@knight-lab/timelinejs": "commonjs @knight-lab/timelinejs",
-      });
-    }
-    
+  webpack: (config, { dev }) => {
     // Optimize webpack for development when not using Turbopack
     if (dev) {
       config.cache = {

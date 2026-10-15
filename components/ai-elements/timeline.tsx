@@ -1,26 +1,28 @@
 "use client";
 /**
  * @module Timeline
- * @description AI-powered interactive timeline component built on TimelineJS3.
- * Renders chronological events with rich media support (images, video, audio),
- * configurable navigation, zoom levels, and era markers. Supports both human
- * and cosmological time scales.
+ * @description Zoomable timeline built on HistropediaJS: picture cards hang on
+ * stems over a canvas axis the user can pan and zoom, from days to billions of
+ * years. Important cards show when zoomed out and sit in front; cards are
+ * coloured by category; periods draw as bars, eras as shaded bands and groups
+ * as lanes. Hovering a card previews it, clicking opens its details, and
+ * filters narrow the cards by category, group, tag or text.
  *
- * Uses a compound component pattern: Timeline (root), TimelineHeader, TimelineContent,
- * TimelineError, and action buttons.
+ * Takes the library-neutral Timeline shape (lib/a2ui/timeline-contract.ts):
+ * `events` or a spreadsheet-style `table`. The legacy TimelineJS shape
+ * (`data.events` with `start_date`) is still accepted and normalized.
  *
  * @example
  * ```tsx
  * <Timeline
- *   data={{
- *     title: { text: { headline: "History of AI" } },
- *     events: [
- *       { start_date: { year: 1950 }, text: { headline: "Turing Test", text: "Alan Turing proposes..." } }
- *     ]
- *   }}
+ *   title="Space exploration"
+ *   events={[
+ *     { id: "sputnik", title: "Sputnik 1", start: { year: 1957, month: 10, day: 4 }, importance: 4, category: "Satellites" },
+ *     { id: "apollo-11", title: "Apollo 11", start: { year: 1969, month: 7, day: 20 }, importance: 5, category: "Crewed" },
+ *   ]}
  * >
  *   <TimelineHeader>
- *     <TimelineTitle>AI Timeline</TimelineTitle>
+ *     <TimelineTitle />
  *   </TimelineHeader>
  *   <TimelineContent />
  * </Timeline>
@@ -28,14 +30,18 @@
  */
 
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
+import type { Timeline as HistropediaTimeline } from "histropediajs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
   CheckIcon,
   CopyIcon,
+  ExternalLinkIcon,
   MaximizeIcon,
   MinimizeIcon,
+  SearchIcon,
+  XIcon,
 } from "lucide-react";
 import {
   createContext,
@@ -45,119 +51,78 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
+import {
+  normalizeTimelineProps,
+  TIMELINE_COLOR_TOKENS,
+  type LegacyTimelineData,
+  type LegacyTimelineOptions,
+  type TimelineEraV2,
+  type TimelineEventV2,
+  type TimelineTable,
+  type TimelineV2,
+} from "@/lib/a2ui/timeline-contract";
+import {
+  DEFAULT_THEME,
+  EMPTY_FILTER,
+  categoryColorAt,
+  isFilterActive,
+  matchesFilter,
+  themeOptions,
+  themedStyles,
+  toHistropediaModel,
+  type HistropediaModel,
+  type PlacedEvent,
+  type TimelineFilter,
+  type TimelineTheme,
+} from "./timeline-histropedia";
 
-// Import TimelineJS3
-import "@knight-lab/timelinejs/dist/css/timeline.css";
+// --- Types ---
 
-// --- Types (Matching TimelineJS3 format) ---
+export type {
+  TimelineDateV2 as TimelineDate,
+  TimelineEventV2 as TimelineEvent,
+  TimelineEraV2 as TimelineEra,
+  TimelineTable,
+  TimelineV2,
+  LegacyTimelineData,
+  LegacyTimelineOptions,
+} from "@/lib/a2ui/timeline-contract";
 
-/** A date object matching TimelineJS3 date format with year, month, day, and time components. */
-export interface TimelineDate {
-  year: number;
-  month?: number;
-  day?: number;
-  hour?: number;
-  minute?: number;
-  second?: number;
-  millisecond?: number;
-  display_date?: string;
-  format?: string;
-}
+/** @deprecated The legacy TimelineJS data shape; pass `events` instead. */
+export type TimelineData = LegacyTimelineData;
+/** @deprecated The legacy TimelineJS options; only `height` is still honoured. */
+export type TimelineOptions = LegacyTimelineOptions;
 
-/** Text content for a timeline slide with headline and body text. */
-export interface TimelineText {
-  headline?: string;
-  text?: string;
-}
-
-/** Media attachment for a timeline slide supporting images, video, and audio URLs. */
-export interface TimelineMedia {
-  url: string;
-  caption?: string;
-  credit?: string;
-  thumbnail?: string;
-  alt?: string;
-  title?: string;
-  link?: string;
-  link_target?: string;
-}
-
-/** A single timeline event (slide) with date range, text, media, and display options. */
-export interface TimelineSlide {
-  start_date?: TimelineDate;
-  end_date?: TimelineDate;
-  text?: TimelineText;
-  media?: TimelineMedia;
-  group?: string;
-  display_date?: string;
-  background?: {
-    url?: string;
-    color?: string;
-  };
-  autolink?: boolean;
-  unique_id?: string;
-}
-
-/** An era marker spanning a date range on the timeline navigation bar. */
-export interface TimelineEra {
-  start_date: TimelineDate;
-  end_date: TimelineDate;
-  text?: TimelineText;
-}
-
-/** Data payload for the Timeline component including title slide, events, and optional eras. */
-export interface TimelineData {
-  title?: TimelineSlide;
-  events: TimelineSlide[];
-  eras?: TimelineEra[];
-  scale?: "human" | "cosmological";
-}
-
-/** Configuration options for the Timeline renderer and navigation. */
-export interface TimelineOptions {
-  height?: number | string;
-  width?: number | string;
-  language?: string;
-  start_at_end?: boolean;
-  start_at_slide?: number;
-  timenav_position?: "top" | "bottom";
-  hash_bookmark?: boolean;
-  default_bg_color?: string;
-  scale_factor?: number;
-  initial_zoom?: number;
-  zoom_sequence?: number[];
-  marker_height_min?: number;
-  marker_width_min?: number;
-  [key: string]: unknown;
-}
-
-/** Imperative handle exposed by the Timeline component via ref for navigation control. */
+/**
+ * Imperative handle exposed via ref. Indexes are the events in chronological
+ * order.
+ */
 export interface TimelineRef {
-  goTo: (slideIndex: number) => void;
+  goTo: (index: number) => void;
   goToId: (id: string) => void;
   goToNext: () => void;
   goToPrev: () => void;
   goToStart: () => void;
   goToEnd: () => void;
-  getData: (slideIndex: number) => TimelineSlide | null;
-  getDataById: (id: string) => TimelineSlide | null;
+  getData: (index: number) => TimelineEventV2 | null;
+  getDataById: (id: string) => TimelineEventV2 | null;
 }
 
 // --- Context ---
 
 interface TimelineContextValue {
-  data: TimelineData;
-  options?: TimelineOptions;
+  timeline: TimelineV2;
   error: string | null;
   setError: (error: string | null) => void;
   fullscreen: boolean;
   setFullscreen: (fullscreen: boolean) => void;
   copyToClipboard: () => Promise<void>;
-  timelineRef: React.RefObject<TimelineRef | null>;
-  timelineInstanceRef: React.RefObject<any>;
+  timelineInstanceRef: React.RefObject<TimelineRef | null>;
   timelineId: string;
 }
 
@@ -173,64 +138,72 @@ const useTimelineContext = () => {
 
 // --- Timeline Component ---
 
-/** Props for the {@link Timeline} root component. */
-export interface TimelineProps extends HTMLAttributes<HTMLDivElement> {
-  /** Timeline data including title, events, eras, and time scale. */
-  data: TimelineData;
-  /** Optional configuration for dimensions, language, navigation, and zoom. */
-  options?: TimelineOptions;
+/** Props for the {@link Timeline} root component: the Timeline contract's shape. */
+export interface TimelineProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+  /** Heading for the timeline. */
+  title?: string;
+  /** Canvas height in px (160–1600). */
+  height?: number;
+  /** The events. Give these or `table`. */
+  events?: TimelineEventV2[];
+  /** A spreadsheet-style table converted into events. Give this or `events`. */
+  table?: TimelineTable;
+  /** Shaded periods behind the events. */
+  eras?: TimelineEraV2[];
+  /** @deprecated Legacy TimelineJS data, normalized to events. */
+  data?: LegacyTimelineData;
+  /** @deprecated Legacy TimelineJS options; only `height` is used. */
+  options?: LegacyTimelineOptions;
   /** Child components (header, content, error). */
   children?: ReactNode;
 }
 
 export const Timeline = forwardRef<TimelineRef, TimelineProps>(
-  ({ data, options, children, className, ...props }, ref) => {
+  ({ title, height, events, table, eras, data, options, children, className, ...props }, ref) => {
     const [error, setError] = useState<string | null>(null);
     const [fullscreen, setFullscreen] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const timelineInstanceRef = useRef<any>(null);
-    const timelineRef = useRef<TimelineRef | null>(null);
+    const timelineInstanceRef = useRef<TimelineRef | null>(null);
     // Generate ID only on client to avoid hydration mismatch
     const [timelineId] = useState(() =>
-      typeof window !== 'undefined'
-        ? `timeline-${Math.random().toString(36).substr(2, 9)}`
-        : 'timeline-ssr'
+      typeof window !== "undefined"
+        ? `timeline-${Math.random().toString(36).slice(2, 11)}`
+        : "timeline-ssr"
     );
 
-    // Expose ref — delegate to timelineInstanceRef so the handle is valid
-    // immediately at mount (before async initialization completes).
+    // Normalize when the content changes, not on every new object identity.
+    const inputKey = JSON.stringify(
+      data ? { data, options } : { title, height, events, table, eras }
+    );
+    const timeline = useMemo(() => normalizeTimelineProps(JSON.parse(inputKey)), [inputKey]);
+
+    // Delegate to timelineInstanceRef so the handle is valid immediately at
+    // mount, before the canvas library has loaded.
     useImperativeHandle(ref, () => ({
-      goTo: (slideIndex: number) => timelineInstanceRef.current?.goTo(slideIndex),
+      goTo: (index: number) => timelineInstanceRef.current?.goTo(index),
       goToId: (id: string) => timelineInstanceRef.current?.goToId(id),
       goToNext: () => timelineInstanceRef.current?.goToNext(),
       goToPrev: () => timelineInstanceRef.current?.goToPrev(),
       goToStart: () => timelineInstanceRef.current?.goToStart(),
       goToEnd: () => timelineInstanceRef.current?.goToEnd(),
-      getData: (slideIndex: number) =>
-        timelineInstanceRef.current?.getData(slideIndex) ?? null,
-      getDataById: (id: string) =>
-        timelineInstanceRef.current?.getDataById(id) ?? null,
+      getData: (index: number) => timelineInstanceRef.current?.getData(index) ?? null,
+      getDataById: (id: string) => timelineInstanceRef.current?.getDataById(id) ?? null,
     }), []);
 
     const copyToClipboard = useCallback(async () => {
       try {
-        await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        await navigator.clipboard.writeText(JSON.stringify(timeline, null, 2));
       } catch (err) {
         console.error("Failed to copy:", err);
       }
-    }, [data]);
+    }, [timeline]);
 
     const contextValue: TimelineContextValue = {
-      data,
-      options,
+      timeline,
       error,
       setError,
       fullscreen,
       setFullscreen,
       copyToClipboard,
-      timelineRef,
       timelineInstanceRef,
       timelineId,
     };
@@ -279,12 +252,12 @@ export const TimelineTitle = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
 >(({ className, children, ...props }, ref) => {
-  const { data } = useTimelineContext();
+  const { timeline } = useTimelineContext();
 
   return (
     <div ref={ref} className={cn("flex-1", className)} {...props}>
       <h3 className="text-lg font-semibold">
-        {children || data.title?.text?.headline || "Timeline"}
+        {children || timeline.title || "Timeline"}
       </h3>
     </div>
   );
@@ -329,6 +302,7 @@ export const TimelineCopyButton = forwardRef<
       size="icon"
       className={cn("h-8 w-8", className)}
       onClick={handleCopy}
+      aria-label="Copy timeline data"
       {...props}
     >
       {copied ? (
@@ -357,6 +331,7 @@ export const TimelineFullscreenButton = forwardRef<
       size="icon"
       className={cn("h-8 w-8", className)}
       onClick={() => setFullscreen(!fullscreen)}
+      aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
       {...props}
     >
       {fullscreen ? (
@@ -370,129 +345,339 @@ export const TimelineFullscreenButton = forwardRef<
 
 TimelineFullscreenButton.displayName = "TimelineFullscreenButton";
 
+// --- Theme ---
+
+/** Canvas height when neither the data nor fullscreen sets one: taller with lanes, so each has room for its cards. */
+const defaultCanvasHeight = (lanes: number) => (lanes <= 1 ? 460 : Math.min(900, 220 + 150 * lanes));
+
+/**
+ * Resolves any CSS colour (the theme uses oklch) to hex or rgba by painting
+ * it, so card colours can be mixed and given legible text.
+ */
+function createColorResolver(): (color: string) => string {
+  let context: CanvasRenderingContext2D | null = null;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    context = canvas.getContext("2d", { willReadFrequently: true });
+  } catch {
+    context = null;
+  }
+  return (color) => {
+    if (!context) return color;
+    try {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = "#000000";
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+      if (a === 255) return `#${[r, g, b].map((part) => part.toString(16).padStart(2, "0")).join("")}`;
+      return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+    } catch {
+      return color;
+    }
+  };
+}
+
+/** The theme's colours, read from the page's CSS variables; a canvas can't read CSS itself. */
+function readTheme(element: HTMLElement): TimelineTheme {
+  const style = getComputedStyle(element);
+  const resolve = createColorResolver();
+  const token = (name: string, fallback: string) =>
+    resolve(style.getPropertyValue(`--${name}`).trim() || fallback);
+  const tokens = Object.fromEntries(
+    TIMELINE_COLOR_TOKENS.map((name) => [name, token(name, DEFAULT_THEME.tokens[name])])
+  ) as TimelineTheme["tokens"];
+  return {
+    background: token("background", DEFAULT_THEME.background),
+    card: token("card", DEFAULT_THEME.card),
+    cardForeground: token("card-foreground", DEFAULT_THEME.cardForeground),
+    muted: token("muted", DEFAULT_THEME.muted),
+    mutedForeground: token("muted-foreground", DEFAULT_THEME.mutedForeground),
+    border: token("border", DEFAULT_THEME.border),
+    primary: token("primary", DEFAULT_THEME.primary),
+    tokens,
+  };
+}
+
+/** A CSS colour for UI chips: hex as is, theme tokens via their variable. */
+const cssColor = (color: string) => (color.startsWith("#") ? color : `var(--${color})`);
+
+/**
+ * Histropedia has no public teardown, and its drag tracker listens on
+ * `window`. Release it so an unmounted timeline isn't kept alive.
+ */
+function disposeHistropedia(timeline: HistropediaTimeline) {
+  timeline.disableZoomByWheel();
+  // Private field: the only handle on the window listeners in histropediajs 1.6.
+  const internals = timeline as unknown as {
+    _dragPointerTracker?: { destroy: () => void };
+  };
+  internals._dragPointerTracker?.destroy();
+}
+
+/** The event to open with: the most important, earliest first. */
+function leadEvent(events: PlacedEvent[]): PlacedEvent | undefined {
+  return events.reduce<PlacedEvent | undefined>(
+    (best, placed) =>
+      !best || (placed.event.importance ?? 0) > (best.event.importance ?? 0) ? placed : best,
+    undefined
+  );
+}
+
+interface HoverPreview {
+  id: string;
+  x: number;
+  y: number;
+  /** The stage's width when the pointer moved, to keep the preview inside it. */
+  width: number;
+}
+
+const subscribeToNothing = () => () => {};
+
+/** False during server rendering and hydration, true once on the client: the canvas is client-only. */
+function useIsClient(): boolean {
+  return useSyncExternalStore(subscribeToNothing, () => true, () => false);
+}
+
 // --- Timeline Content ---
 
 export const TimelineContent = memo(
   forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
     ({ className, ...props }, ref) => {
       const {
-        data,
-        options,
+        timeline: data,
         error,
         setError,
         fullscreen,
         timelineId,
-        timelineRef,
         timelineInstanceRef,
       } = useTimelineContext();
 
       const containerRef = useRef<HTMLDivElement>(null);
-      const [isInitialized, setIsInitialized] = useState(false);
-      const [isMounted, setIsMounted] = useState(false);
-
-      // Only render on client to avoid SSR issues
+      const stageRef = useRef<HTMLDivElement>(null);
+      const histropediaRef = useRef<HistropediaTimeline | null>(null);
+      const isMounted = useIsClient();
+      const [selectedId, setSelectedId] = useState<string | null>(null);
+      const [hover, setHover] = useState<HoverPreview | null>(null);
+      const [filter, setFilter] = useState<TimelineFilter>(EMPTY_FILTER);
+      // Read by the canvas setup, which is async, so it sees the latest filter.
+      const filterRef = useRef(filter);
       useEffect(() => {
-        setIsMounted(true);
-      }, []);
+        filterRef.current = filter;
+      }, [filter]);
 
-      // Initialize TimelineJS3 when container is mounted
+      // Structure only (ids, order, categories); the canvas styles cards from the live theme.
+      const model: HistropediaModel = useMemo(() => toHistropediaModel(data), [data]);
+      const dataKey = useMemo(() => JSON.stringify(data), [data]);
+      const hasEvents = model.events.length > 0;
+      const visibleIds = useMemo(
+        () => new Set(model.events.filter((placed) => matchesFilter(placed, filter)).map(({ id }) => id)),
+        [model, filter]
+      );
+
       useEffect(() => {
-        if (typeof window === "undefined" || !containerRef.current || isInitialized) {
+        const container = containerRef.current;
+        if (!isMounted || !container || !hasEvents) {
           return;
         }
 
-        const initTimeline = async () => {
+        let cancelled = false;
+        let timeline: HistropediaTimeline | null = null;
+        let resizeObserver: ResizeObserver | null = null;
+        let themeObserver: MutationObserver | null = null;
+
+        const lastIndex = model.events.length - 1;
+        let current = 0;
+        // Until the user pans, zooms or navigates, keep every card in view as the canvas resizes.
+        let interacted = false;
+        const markInteracted = () => {
+          interacted = true;
+        };
+        const indexOfId = (id: string) => model.events.findIndex((placed) => placed.id === id);
+
+        const focusEvent = (index: number, animate: boolean) => {
+          const placed = model.events[index];
+          if (!timeline || !placed) return;
+          interacted = true;
+          current = index;
+          timeline.select(placed.id);
+          setSelectedId(placed.id);
+          timeline.setStartDate(model.articles[index].from, {
+            padding: Math.round(timeline.getWidth() / 2),
+            animation: { active: animate, duration: 600 },
+          });
+        };
+
+        const controller: TimelineRef = {
+          goTo: (index) => focusEvent(index, true),
+          goToId: (id) => {
+            const index = indexOfId(id);
+            if (index >= 0) focusEvent(index, true);
+          },
+          goToNext: () => focusEvent(Math.min(current + 1, lastIndex), true),
+          goToPrev: () => focusEvent(Math.max(current - 1, 0), true),
+          goToStart: () => focusEvent(0, true),
+          goToEnd: () => focusEvent(lastIndex, true),
+          getData: (index) => model.events[index]?.event ?? null,
+          getDataById: (id) => model.events[indexOfId(id)]?.event ?? null,
+        };
+
+        const previewAt = (id: string, event: PointerEvent) => {
+          const stage = stageRef.current;
+          if (!stage) return;
+          const rect = stage.getBoundingClientRect();
+          setHover({ id, x: event.clientX - rect.left, y: event.clientY - rect.top, width: rect.width });
+        };
+
+        const init = async () => {
           try {
-            // Ensure container has dimensions before initializing
-            const container = containerRef.current;
-            if (!container) return;
+            // Dynamic import keeps the canvas library out of the server bundle
+            const { Timeline: Histropedia } = await import("histropediajs");
+            if (cancelled) return;
 
-            // Wait for container to have dimensions
-            const checkDimensions = () => {
-              return container.offsetWidth > 0 && container.offsetHeight > 0;
-            };
+            const theme = readTheme(container);
+            const themed = toHistropediaModel(data, theme);
+            timeline = new Histropedia(container, {
+              ...themeOptions(theme),
+              width: Math.max(container.clientWidth, 1),
+              height: Math.max(container.clientHeight, 1),
+              // Negative years are BCE as people write them: -500 is 500 BCE.
+              shiftBceDates: true,
+              // Defence in depth: the normalizer already keeps only http(s) images.
+              image: { sanitizer: { allowedSchemes: ["http", "https"] } },
+              article: {
+                draggable: false,
+                star: { visible: false },
+                autoStacking: { active: true },
+              },
+              on: {
+                "article-select": (article) => {
+                  const id = String(article.id);
+                  const index = indexOfId(id);
+                  if (index >= 0) current = index;
+                  setSelectedId(id);
+                },
+                "article-pointerenter": (article, event) => previewAt(String(article.id), event),
+                "article-pointermove": (article, event) => previewAt(String(article.id), event),
+                "article-pointerleave": () => setHover(null),
+                "viewport-drag-start": () => {
+                  markInteracted();
+                  setHover(null);
+                },
+                "zoom-wheel": markInteracted,
+                "zoom-pinch-start": markInteracted,
+              },
+            });
 
-            if (!checkDimensions()) {
-              console.warn("Container not ready, waiting for dimensions...");
-              // Wait a bit for layout
-              await new Promise(resolve => setTimeout(resolve, 100));
-              if (!checkDimensions()) {
-                setError("Timeline container has no dimensions");
-                return;
+            if (themed.lanes.length > 0) timeline.loadLanes(themed.lanes);
+            if (themed.timeBands.length > 0) timeline.loadTimeBands(themed.timeBands);
+            const activeFilter = filterRef.current;
+            timeline.load(
+              themed.articles.map((article, index) => ({
+                ...article,
+                hiddenByFilter: !matchesFilter(model.events[index], activeFilter),
+              }))
+            );
+
+            timeline.fitArticles({ padding: 40, animation: { active: false } });
+            const lead = leadEvent(model.events);
+            if (lead) {
+              current = indexOfId(lead.id);
+              timeline.select(lead.id);
+              setSelectedId(lead.id);
+            }
+
+            if (typeof ResizeObserver !== "undefined") {
+              resizeObserver = new ResizeObserver(() => {
+                const { clientWidth, clientHeight } = container;
+                if (timeline && clientWidth > 0 && clientHeight > 0) {
+                  timeline.setSize(clientWidth, clientHeight);
+                  if (!interacted) timeline.fitArticles({ padding: 40, animation: { active: false } });
+                }
+              });
+              resizeObserver.observe(container);
+            }
+
+            // Dark mode is a class on <html>; recolour the canvas and cards when it flips.
+            themeObserver = new MutationObserver(() => {
+              if (!timeline) return;
+              const nextTheme = readTheme(container);
+              const restyled = themedStyles(data, nextTheme);
+              for (const { id, ...styles } of restyled.articles) {
+                timeline.getArticleById(id)?.setOption(styles);
               }
-            }
+              for (const { id, style } of restyled.timeBands) {
+                timeline.timeBands.find((band) => band.id === id)?.setStyle(style);
+              }
+              timeline.setOption(themeOptions(nextTheme));
+              timeline.defaultRedraw();
+            });
+            themeObserver.observe(document.documentElement, {
+              attributes: true,
+              attributeFilter: ["class", "style", "data-theme"],
+            });
 
-            // Dynamic import to avoid SSR issues
-            const { Timeline: TLTimeline } = await import("@knight-lab/timelinejs");
-
-            if (!timelineInstanceRef.current && containerRef.current) {
-              // Create Timeline instance
-              timelineInstanceRef.current = new (TLTimeline as any)(
-                timelineId,
-                data,
-                options
-              );
-
-              // Create ref API
-              timelineRef.current = {
-                goTo: (slideIndex: number) => timelineInstanceRef.current?.goTo(slideIndex),
-                goToId: (id: string) => timelineInstanceRef.current?.goToId(id),
-                goToNext: () => timelineInstanceRef.current?.goToNext(),
-                goToPrev: () => timelineInstanceRef.current?.goToPrev(),
-                goToStart: () => timelineInstanceRef.current?.goToStart(),
-                goToEnd: () => timelineInstanceRef.current?.goToEnd(),
-                getData: (slideIndex: number) =>
-                  timelineInstanceRef.current?.getData(slideIndex) || null,
-                getDataById: (id: string) =>
-                  timelineInstanceRef.current?.getDataById(id) || null,
-              };
-
-              setIsInitialized(true);
-            }
+            histropediaRef.current = timeline;
+            timelineInstanceRef.current = controller;
           } catch (err) {
+            if (cancelled) return;
             console.error("Failed to initialize timeline:", err);
             setError(err instanceof Error ? err.message : "Failed to initialize timeline");
           }
         };
 
-        // Small delay to ensure layout is complete
-        const timer = setTimeout(initTimeline, 50);
+        void init();
 
-        // Cleanup
         return () => {
-          clearTimeout(timer);
-          if (timelineInstanceRef.current) {
-            timelineInstanceRef.current = null;
-            timelineRef.current = null;
-            setIsInitialized(false);
-          }
+          cancelled = true;
+          resizeObserver?.disconnect();
+          themeObserver?.disconnect();
+          if (timeline) disposeHistropedia(timeline);
+          timeline = null;
+          histropediaRef.current = null;
+          container.replaceChildren();
+          timelineInstanceRef.current = null;
+          setSelectedId(null);
+          setHover(null);
         };
+      // model and data are derived from dataKey; setError and refs are stable.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [isMounted, timelineId]);
+      }, [isMounted, dataKey, hasEvents]);
+
+      // Filtering hides cards with Histropedia's own article filter, so the
+      // remaining cards restack and the density filter reconsiders them.
+      const visibleKey = [...visibleIds].join("\u0000");
+      useEffect(() => {
+        const timeline = histropediaRef.current;
+        if (!timeline) return;
+        for (const placed of model.events) {
+          timeline.getArticleById(placed.id)?.setOption({ hiddenByFilter: !visibleIds.has(placed.id) });
+        }
+        timeline.defaultRedraw();
+      // visibleIds is derived from visibleKey.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [visibleKey]);
 
       if (error) {
         return <TimelineError error={error} />;
       }
 
-      const height = options?.height || (fullscreen ? "100%" : 600);
-      const width = options?.width || "100%";
+      const height = data.height ?? (fullscreen ? undefined : defaultCanvasHeight(model.lanes.length));
+      const sizeStyle = { height: height === undefined ? undefined : `${height}px` };
+      const fillsHeight = height === undefined && "min-h-0 flex-1";
 
       // Don't render timeline container until mounted on client
       if (!isMounted) {
         return (
           <div
             ref={ref}
-            className={cn("relative flex-1 p-4", className)}
+            className={cn("relative flex min-h-0 flex-1 flex-col p-4", className)}
             {...props}
           >
             <div
-              style={{
-                width: typeof width === "number" ? `${width}px` : width,
-                height: typeof height === "number" ? `${height}px` : height,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className={cn("flex w-full items-center justify-center text-muted-foreground text-sm", fillsHeight)}
+              style={sizeStyle}
             >
               Loading timeline...
             </div>
@@ -500,20 +685,67 @@ export const TimelineContent = memo(
         );
       }
 
+      const selected = model.events.find((placed) => placed.id === selectedId) ?? null;
+      const hovered = hover ? model.events.find((placed) => placed.id === hover.id) ?? null : null;
+      const colorOf = (category?: string) =>
+        category ? cssColor(categoryColorAt(model.categories.indexOf(category))) : undefined;
+
       return (
         <div
           ref={ref}
-          className={cn("relative flex-1 p-4", className)}
+          className={cn("relative flex min-h-0 flex-1 flex-col gap-3 p-4", className)}
           {...props}
         >
-          <div
-            ref={containerRef}
-            id={timelineId}
-            style={{
-              width: typeof width === "number" ? `${width}px` : width,
-              height: typeof height === "number" ? `${height}px` : height,
-            }}
-          />
+          {hasEvents ? (
+            <>
+              <TimelineFilters
+                model={model}
+                filter={filter}
+                onChange={setFilter}
+                visibleCount={visibleIds.size}
+                colorOf={colorOf}
+              />
+              <div ref={stageRef} className={cn("relative w-full", fillsHeight)} style={sizeStyle}>
+                <div
+                  ref={containerRef}
+                  id={timelineId}
+                  role="region"
+                  aria-label={`Timeline of ${model.events.length} events`}
+                  className="relative h-full w-full overflow-hidden [&_canvas]:block"
+                />
+                {hovered && hover && (
+                  <TimelineHoverPreview
+                    placed={hovered}
+                    x={hover.x}
+                    y={hover.y}
+                    stageWidth={hover.width}
+                    color={hovered.event.style?.color ? cssColor(hovered.event.style.color) : colorOf(hovered.event.category)}
+                  />
+                )}
+              </div>
+              {/* The canvas isn't focusable: the same events, for keyboards and screen readers. */}
+              <ul className="sr-only" aria-label="Timeline events">
+                {model.events.map((placed, index) => (
+                  <li key={placed.id}>
+                    <button type="button" onClick={() => timelineInstanceRef.current?.goTo(index)}>
+                      {placed.dateLabel}: {placed.event.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {selected && (
+                // Keyed so a failed image is retried for the next event.
+                <TimelineEventDetails key={selected.id} placed={selected} color={colorOf(selected.event.category)} />
+              )}
+            </>
+          ) : (
+            <div
+              className={cn("flex w-full items-center justify-center text-muted-foreground text-sm", fillsHeight)}
+              style={sizeStyle}
+            >
+              No dated events to show.
+            </div>
+          )}
         </div>
       );
     }
@@ -521,6 +753,207 @@ export const TimelineContent = memo(
 );
 
 TimelineContent.displayName = "TimelineContent";
+
+// --- Timeline Filters ---
+
+interface TimelineFiltersProps {
+  model: HistropediaModel;
+  filter: TimelineFilter;
+  onChange: (filter: TimelineFilter) => void;
+  visibleCount: number;
+  colorOf: (category?: string) => string | undefined;
+}
+
+const toggle = (values: string[], value: string) =>
+  values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+
+const chipClass = (active: boolean) =>
+  cn(
+    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+    active ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted"
+  );
+
+/**
+ * Category chips, a group picker, tag chips and a search box, shown when the
+ * data has something to filter by, like Histropedia's article filter example.
+ */
+const TimelineFilters = ({ model, filter, onChange, visibleCount, colorOf }: TimelineFiltersProps) => {
+  const hasFacets = model.categories.length > 1 || model.groups.length > 1 || model.tags.length > 0;
+  if (!hasFacets && model.events.length < 8) return null;
+  const active = isFilterActive(filter);
+
+  return (
+    <div className="flex flex-col gap-2 text-sm" role="group" aria-label="Filter timeline">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative flex min-w-40 flex-1 items-center sm:max-w-64">
+          <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="search"
+            value={filter.query}
+            onChange={(event) => onChange({ ...filter, query: event.target.value })}
+            placeholder="Search events"
+            aria-label="Search events"
+            className="h-8 w-full rounded-md border bg-background pr-2 pl-7 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        {model.groups.length > 1 && (
+          <select
+            value={filter.group ?? ""}
+            onChange={(event) => onChange({ ...filter, group: event.target.value || null })}
+            aria-label="Group"
+            className="h-8 rounded-md border bg-background px-2 text-sm"
+          >
+            <option value="">All groups</option>
+            {model.groups.map((group) => (
+              <option key={group} value={group}>{group}</option>
+            ))}
+          </select>
+        )}
+        <span className="text-muted-foreground text-xs" aria-live="polite">
+          {visibleCount} of {model.events.length} events
+        </span>
+        {active && (
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onChange(EMPTY_FILTER)}>
+            <XIcon className="h-3 w-3" /> Clear
+          </Button>
+        )}
+      </div>
+      {model.categories.length > 1 && (
+        <div className="flex flex-wrap gap-1.5" aria-label="Categories">
+          {model.categories.map((category) => {
+            const pressed = filter.categories.includes(category);
+            return (
+              <button
+                key={category}
+                type="button"
+                aria-pressed={pressed}
+                className={chipClass(pressed)}
+                onClick={() => onChange({ ...filter, categories: toggle(filter.categories, category) })}
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: colorOf(category) }} />
+                {category}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {model.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5" aria-label="Tags">
+          {model.tags.map((tag) => {
+            const pressed = filter.tags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                aria-pressed={pressed}
+                className={chipClass(pressed)}
+                onClick={() => onChange({ ...filter, tags: toggle(filter.tags, tag) })}
+              >
+                #{tag}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Timeline Hover Preview ---
+
+const PREVIEW_WIDTH = 264;
+
+/** A preview card that follows the pointer over a card; clicking the card opens its details. */
+const TimelineHoverPreview = ({
+  placed,
+  x,
+  y,
+  stageWidth,
+  color,
+}: {
+  placed: PlacedEvent;
+  x: number;
+  y: number;
+  stageWidth: number;
+  color?: string;
+}) => {
+  const { event, dateLabel } = placed;
+  const left = stageWidth > 0 && x + 16 + PREVIEW_WIDTH > stageWidth ? Math.max(0, x - 16 - PREVIEW_WIDTH) : x + 16;
+  const snippet = event.description && event.description.length > 180
+    ? `${event.description.slice(0, 180).trimEnd()}…`
+    : event.description;
+
+  return (
+    <div
+      role="tooltip"
+      className="pointer-events-none absolute z-10 rounded-md border bg-popover p-3 text-popover-foreground text-sm shadow-lg"
+      style={{ left, top: Math.max(0, y + 16), width: PREVIEW_WIDTH }}
+    >
+      <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+        {color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />}
+        {[dateLabel, event.category].filter(Boolean).join(" · ")}
+      </p>
+      <p className="mt-1 font-semibold leading-snug">{event.title}</p>
+      {event.subtitle && <p className="text-muted-foreground text-xs">{event.subtitle}</p>}
+      {snippet && <p className="mt-1 whitespace-pre-line text-xs">{snippet}</p>}
+      <p className="mt-2 text-muted-foreground text-[11px]">Click the card for details</p>
+    </div>
+  );
+};
+
+// --- Timeline Event Details ---
+
+/**
+ * The selected event's full text, picture and link. Text is rendered as plain
+ * text, never as HTML, because timeline data can come from the model or from
+ * Galaxy; links and images are http(s) only (the normalizer drops others).
+ */
+const TimelineEventDetails = ({ placed, color }: { placed: PlacedEvent; color?: string }) => {
+  const { event, dateLabel } = placed;
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageUrl = imageFailed ? undefined : event.media?.url;
+  const credit = [event.media?.caption, event.media?.credit].filter(Boolean).join(" — ");
+  const badges = [event.category, event.group].filter(Boolean);
+
+  return (
+    <div aria-live="polite" className="flex max-h-64 gap-4 overflow-y-auto border-t pt-3">
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary remote URLs from timeline data
+        <img
+          src={imageUrl}
+          alt={event.media?.alt || event.media?.caption || event.title}
+          referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
+          className="h-28 w-auto max-w-[40%] shrink-0 rounded-md object-cover"
+        />
+      )}
+      <div className="min-w-0 space-y-1">
+        <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
+          {color && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
+          {[dateLabel, ...badges].filter(Boolean).join(" · ")}
+        </p>
+        <h4 className="font-semibold">{event.title}</h4>
+        {event.subtitle && <p className="text-muted-foreground text-sm">{event.subtitle}</p>}
+        {event.description && <p className="whitespace-pre-line text-sm">{event.description}</p>}
+        {event.tags && event.tags.length > 0 && (
+          <p className="text-muted-foreground text-xs">{event.tags.map((tag) => `#${tag}`).join(" ")}</p>
+        )}
+        {credit && <p className="text-muted-foreground text-xs">{credit}</p>}
+        {event.link && (
+          <a
+            href={event.link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary text-sm hover:underline"
+          >
+            {event.link.label || "Read more"}
+            <ExternalLinkIcon className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // --- Timeline Error ---
 
@@ -550,8 +983,8 @@ TimelineError.displayName = "TimelineError";
 export const TimelineControls = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => {
-  console.warn("TimelineControls is deprecated with TimelineJS3 - controls are built-in");
+>(() => {
+  console.warn("TimelineControls is deprecated - the timeline canvas has built-in zoom and pan");
   return null;
 });
 

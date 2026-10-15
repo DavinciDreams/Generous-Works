@@ -12,6 +12,9 @@ import { a2uiComponents, specializedComponents, getAvailableComponents, componen
 import { schemaRegistry } from '../../schemas/index';
 import { componentCatalog, getCatalogPrompt, getComponentTypes, getComponentDefinition } from '../catalog';
 import { directToolUIComponents } from '../direct-tool-ui-components';
+import { validateProps } from '../../schemas/index';
+import { normalizeTimelineProps } from '../timeline-contract';
+import { toGalaxySurfaceSpec } from '../../integrations/galaxy-surface';
 
 // Tool UI components that use ToolUIPropsSchema instead of individual schemas
 const TOOL_UI_COMPONENTS = [
@@ -248,4 +251,41 @@ describe('A2UI Component Registry', () => {
       expect(def.examples).toBeTruthy();
     });
   });
+});
+
+describe('Timeline contract agreement', () => {
+  const definition = getComponentDefinition('Timeline');
+  const examples = definition.examples ?? [];
+  const propsOf = (example: (typeof examples)[number]) =>
+    (example.spec.component as { Timeline: Record<string, unknown> }).Timeline;
+
+  it('documents the current shape, with table and styled examples', () => {
+    expect(definition.props).toEqual(['title', 'height', 'events', 'table', 'eras']);
+    expect(examples.some((example) => 'table' in propsOf(example))).toBe(true);
+    expect(examples.some((example) => JSON.stringify(propsOf(example)).includes('"style"'))).toBe(true);
+    for (const example of examples) {
+      expect(propsOf(example)).not.toHaveProperty('data');
+    }
+  });
+
+  it.each(examples.map((example) => [example.description, example] as const))(
+    'example "%s" passes the zod schema, normalizes without loss and is accepted by Galaxy',
+    (_description, example) => {
+      const props = propsOf(example);
+      expect(validateProps('Timeline', props).success).toBe(true);
+
+      const normalized = normalizeTimelineProps(props);
+      const given = Array.isArray(props.events)
+        ? props.events.length
+        : (props.table as { rows: unknown[] }).rows.length;
+      expect(normalized.events).toHaveLength(given);
+      // Examples are written canonically: what the model copies is what every app keeps.
+      if (Array.isArray(props.events)) expect(normalized.events).toEqual(props.events);
+
+      const spec = toGalaxySurfaceSpec({
+        surfaceUpdate: { surfaceId: 'example', components: [{ id: 'timeline', component: { Timeline: props } }] },
+      });
+      expect((spec.surfaceUpdate.components[0].component as { Timeline: unknown }).Timeline).toEqual(normalized);
+    },
+  );
 });
