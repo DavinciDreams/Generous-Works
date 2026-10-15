@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   Timeline,
@@ -10,38 +10,67 @@ import {
   TimelineFullscreenButton,
   TimelineContent,
   TimelineError,
-  type TimelineData,
+  type TimelineProps,
   type TimelineRef,
 } from './timeline';
+import { normalizeTimelineProps } from '@/lib/a2ui/timeline-contract';
 import { useRef, useEffect } from 'react';
 
 
 // Mock HistropediaJS: happy-dom has no canvas, so record what the component asks for
+interface MockArticle {
+  id: string;
+  title: string;
+  rank?: number;
+  hiddenByFilter?: boolean;
+  setOption: Mock;
+}
+
 interface MockHistropedia {
-  articles: Array<{ id: string; title: string }>;
+  options: { on?: Record<string, (...args: unknown[]) => void>; shiftBceDates?: boolean; image?: unknown };
+  articles: MockArticle[];
   select: Mock;
   setStartDate: Mock;
   fitArticles: Mock;
+  defaultRedraw: Mock;
   _dragPointerTracker: { destroy: Mock };
+  trigger: (event: string, ...args: unknown[]) => void;
 }
 
 const histropedia = vi.hoisted(() => ({ instances: [] as MockHistropedia[] }));
 
 vi.mock('histropediajs', () => ({
   Timeline: class implements MockHistropedia {
-    articles: Array<{ id: string; title: string }> = [];
+    options: MockHistropedia['options'];
+    articles: MockArticle[] = [];
+    timeBands: Array<{ id: string; setStyle: Mock }> = [];
     select = vi.fn();
     setStartDate = vi.fn();
     fitArticles = vi.fn();
+    defaultRedraw = vi.fn();
     _dragPointerTracker = { destroy: vi.fn() };
-    constructor() {
+    constructor(_container: HTMLElement, options: MockHistropedia['options']) {
+      this.options = options;
       histropedia.instances.push(this);
     }
-    load(articles: Array<{ id: string; title: string }>) {
-      this.articles.push(...articles);
+    load(articles: Array<{ id: string; title: string; rank?: number; hiddenByFilter?: boolean }>) {
+      for (const article of articles) {
+        const mock: MockArticle = { ...article, setOption: vi.fn((patch: { hiddenByFilter?: boolean }) => {
+          if ('hiddenByFilter' in patch) mock.hiddenByFilter = patch.hiddenByFilter;
+        }) };
+        this.articles.push(mock);
+      }
+    }
+    getArticleById(id: string) {
+      return this.articles.find((article) => article.id === id);
+    }
+    trigger(event: string, ...args: unknown[]) {
+      this.options.on?.[event]?.(...args);
     }
     loadLanes() {}
-    loadTimeBands() {}
+    loadTimeBands(bands: Array<{ id: string }>) {
+      this.timeBands.push(...bands.map((band) => ({ id: band.id, setStyle: vi.fn() })));
+    }
     getWidth() {
       return 800;
     }
@@ -52,35 +81,20 @@ vi.mock('histropediajs', () => ({
   },
 }));
 
-const mockTimelineData: TimelineData = {
-  title: {
-    text: {
-      headline: 'Test Timeline',
-      text: 'A timeline for testing',
-    },
-  },
+const mockTimelineData: TimelineProps = {
+  title: 'Test Timeline',
   events: [
     {
-      start_date: {
-        year: 2024,
-        month: 1,
-        day: 1,
-      },
-      text: {
-        headline: 'Event 1',
-        text: 'First event',
-      },
+      id: 'event-1',
+      title: 'Event 1',
+      description: 'First event',
+      start: { year: 2024, month: 1, day: 1, precision: 'day' },
     },
     {
-      start_date: {
-        year: 2024,
-        month: 6,
-        day: 15,
-      },
-      text: {
-        headline: 'Event 2',
-        text: 'Second event',
-      },
+      id: 'event-2',
+      title: 'Event 2',
+      description: 'Second event',
+      start: { year: 2024, month: 6, day: 15, precision: 'day' },
     },
   ],
 };
@@ -117,20 +131,20 @@ describe('Timeline', () => {
 
   describe('Timeline Container', () => {
     it('renders timeline container', () => {
-      const { container } = render(<Timeline data={mockTimelineData} />);
+      const { container } = render(<Timeline {...mockTimelineData} />);
       expect(container.firstChild).toBeInTheDocument();
     });
 
     it('applies custom className', () => {
       const { container } = render(
-        <Timeline data={mockTimelineData} className="custom-timeline" />
+        <Timeline {...mockTimelineData} className="custom-timeline" />
       );
       expect(container.firstChild).toHaveClass('custom-timeline');
     });
 
     it('renders children', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <div data-testid="child">Child content</div>
         </Timeline>
       );
@@ -140,7 +154,7 @@ describe('Timeline', () => {
     it('toggles fullscreen class', async () => {
       const user = userEvent.setup();
       const { container } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineFullscreenButton />
         </Timeline>
       );
@@ -155,7 +169,7 @@ describe('Timeline', () => {
   describe('TimelineHeader', () => {
     it('renders header with children', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineHeader>
             <span data-testid="header-content">Header</span>
           </TimelineHeader>
@@ -166,7 +180,7 @@ describe('Timeline', () => {
 
     it('applies custom className', () => {
       const { container } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineHeader className="custom-header" />
         </Timeline>
       );
@@ -178,7 +192,7 @@ describe('Timeline', () => {
   describe('TimelineTitle', () => {
     it('renders title from data when no children provided', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineTitle />
         </Timeline>
       );
@@ -187,7 +201,7 @@ describe('Timeline', () => {
 
     it('renders custom title when children provided', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineTitle>Custom Title</TimelineTitle>
         </Timeline>
       );
@@ -195,11 +209,8 @@ describe('Timeline', () => {
     });
 
     it('renders default title when no data title', () => {
-      const dataWithoutTitle: TimelineData = {
-        events: mockTimelineData.events,
-      };
       render(
-        <Timeline data={dataWithoutTitle}>
+        <Timeline events={mockTimelineData.events}>
           <TimelineTitle />
         </Timeline>
       );
@@ -210,7 +221,7 @@ describe('Timeline', () => {
   describe('TimelineActions', () => {
     it('renders actions container with children', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineActions>
             <button data-testid="action-btn">Action</button>
           </TimelineActions>
@@ -223,7 +234,7 @@ describe('Timeline', () => {
   describe('TimelineCopyButton', () => {
     it('renders copy button', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineCopyButton />
         </Timeline>
       );
@@ -232,7 +243,7 @@ describe('Timeline', () => {
 
     it('shows copy icon initially', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineCopyButton />
         </Timeline>
       );
@@ -244,7 +255,7 @@ describe('Timeline', () => {
     it('copies timeline data to clipboard on click', async () => {
       const user = userEvent.setup();
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineCopyButton />
         </Timeline>
       );
@@ -254,7 +265,7 @@ describe('Timeline', () => {
 
       await waitFor(() => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-          JSON.stringify(mockTimelineData, null, 2)
+          JSON.stringify(normalizeTimelineProps(mockTimelineData), null, 2)
         );
       });
     });
@@ -262,7 +273,7 @@ describe('Timeline', () => {
     it('shows check icon after successful copy', async () => {
       const user = userEvent.setup();
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineCopyButton />
         </Timeline>
       );
@@ -280,7 +291,7 @@ describe('Timeline', () => {
   describe('TimelineFullscreenButton', () => {
     it('renders fullscreen button', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineFullscreenButton />
         </Timeline>
       );
@@ -290,7 +301,7 @@ describe('Timeline', () => {
     it('toggles fullscreen state on click', async () => {
       const user = userEvent.setup();
       const { container } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineFullscreenButton />
         </Timeline>
       );
@@ -312,7 +323,7 @@ describe('Timeline', () => {
 
     it('shows maximize icon when not fullscreen', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineFullscreenButton />
         </Timeline>
       );
@@ -326,7 +337,7 @@ describe('Timeline', () => {
       // In React 18+ test environments act() flushes effects synchronously,
       // so the component is always in the mounted state after render().
       const { container } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineContent />
         </Timeline>
       );
@@ -336,7 +347,7 @@ describe('Timeline', () => {
 
     it('renders timeline container after mount', async () => {
       const { container } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineContent />
         </Timeline>
       );
@@ -347,29 +358,32 @@ describe('Timeline', () => {
       });
     });
 
-    it('applies custom height from options', async () => {
+    it('applies the height from the data', async () => {
       const { container } = render(
-        <Timeline data={mockTimelineData} options={{ height: 800 }}>
+        <Timeline {...mockTimelineData} height={800}>
           <TimelineContent />
         </Timeline>
       );
 
       await waitFor(() => {
         const timelineDiv = container.querySelector('[id^="timeline-"]');
-        expect(timelineDiv).toHaveStyle({ height: '800px' });
+        expect(timelineDiv?.parentElement).toHaveStyle({ height: '800px' });
       });
     });
 
-    it('applies custom width from options', async () => {
+    it('still takes the height from legacy options', async () => {
       const { container } = render(
-        <Timeline data={mockTimelineData} options={{ width: '80%' }}>
+        <Timeline
+          data={{ events: [{ start_date: { year: 2024 }, text: { headline: 'Legacy' } }] }}
+          options={{ height: 640 }}
+        >
           <TimelineContent />
         </Timeline>
       );
 
       await waitFor(() => {
         const timelineDiv = container.querySelector('[id^="timeline-"]');
-        expect(timelineDiv).toHaveStyle({ width: '80%' });
+        expect(timelineDiv?.parentElement).toHaveStyle({ height: '640px' });
       });
     });
   });
@@ -395,7 +409,7 @@ describe('Timeline', () => {
   describe('Composable Pattern', () => {
     it('renders complete timeline with all sub-components', () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineHeader>
             <TimelineTitle />
             <TimelineActions>
@@ -407,9 +421,12 @@ describe('Timeline', () => {
         </Timeline>
       );
 
-      // In the header, and in the details panel while no event is selected
+      // In the header
       expect(screen.getByRole('heading', { level: 3, name: 'Test Timeline' })).toBeInTheDocument();
-      expect(screen.getAllByRole('button')).toHaveLength(2);
+      expect(screen.getByRole('button', { name: 'Copy timeline data' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Fullscreen' })).toBeInTheDocument();
+      // The canvas's events are also reachable as buttons, for keyboards and screen readers.
+      expect(screen.getByRole('button', { name: '1 Jan 2024: Event 1' })).toBeInTheDocument();
     });
   });
 
@@ -448,7 +465,7 @@ describe('Timeline', () => {
         }, []);
 
         return (
-          <Timeline ref={ref} data={mockTimelineData}>
+          <Timeline ref={ref} {...mockTimelineData}>
             <TimelineContent />
           </Timeline>
         );
@@ -473,65 +490,97 @@ describe('Timeline', () => {
       }
     });
 
-    it('navigates slides with the title slide at index 0', async () => {
+    it('navigates events in chronological order', async () => {
       const ref = { current: null as TimelineRef | null };
-      const data: TimelineData = {
-        ...mockTimelineData,
-        events: [
-          { ...mockTimelineData.events[1], unique_id: 'later' },
-          { ...mockTimelineData.events[0], unique_id: 'earlier' },
-        ],
-      };
       render(
-        <Timeline ref={ref} data={data}>
+        <Timeline
+          ref={ref}
+          events={[
+            { ...mockTimelineData.events![1], id: 'later' },
+            { ...mockTimelineData.events![0], id: 'earlier' },
+          ]}
+        >
           <TimelineContent />
         </Timeline>
       );
       await waitFor(() => expect(histropedia.instances).toHaveLength(1));
       const canvas = histropedia.instances[0];
-      await waitFor(() => expect(ref.current?.getData(1)).not.toBeNull());
+      await waitFor(() => expect(ref.current?.getData(0)).not.toBeNull());
 
-      // Slides are chronological, as in TimelineJS
-      expect(ref.current?.getData(0)).toBe(data.title);
-      expect(ref.current?.getData(1)?.unique_id).toBe('earlier');
-      expect(ref.current?.getDataById('later')?.text?.headline).toBe('Event 2');
-
-      act(() => ref.current?.goToNext());
-      expect(canvas.select).toHaveBeenLastCalledWith('earlier');
-      expect(await screen.findByText('First event')).toBeInTheDocument();
+      expect(ref.current?.getData(0)?.id).toBe('earlier');
+      expect(ref.current?.getDataById('later')?.title).toBe('Event 2');
 
       act(() => ref.current?.goToEnd());
       expect(canvas.select).toHaveBeenLastCalledWith('later');
       expect(await screen.findByText('Second event')).toBeInTheDocument();
+
+      act(() => ref.current?.goToPrev());
+      expect(canvas.select).toHaveBeenLastCalledWith('earlier');
+      expect(await screen.findByText('First event')).toBeInTheDocument();
     });
   });
 
   describe('Histropedia canvas', () => {
-    it('loads every dated event as an article and fits them in view', async () => {
+    it('loads every event as an article, fits them in view and opens the most important', async () => {
       render(
-        <Timeline data={mockTimelineData}>
+        <Timeline
+          events={[
+            ...mockTimelineData.events!,
+            { id: 'major', title: 'Major', description: 'The big one', start: { year: 2024, month: 3 }, importance: 5 },
+          ]}
+        >
           <TimelineContent />
         </Timeline>
       );
       await waitFor(() => expect(histropedia.instances).toHaveLength(1));
       const canvas = histropedia.instances[0];
-      expect(canvas.articles.map((article) => article.title)).toEqual(['Event 1', 'Event 2']);
+      expect(canvas.articles.map((article) => [article.title, article.rank])).toEqual([
+        ['Event 1', 3],
+        ['Major', 5],
+        ['Event 2', 3],
+      ]);
       expect(canvas.fitArticles).toHaveBeenCalled();
-      // The title slide's text introduces the timeline; the first event starts selected
-      expect(screen.getByText('A timeline for testing')).toBeInTheDocument();
-      expect(canvas.select).toHaveBeenLastCalledWith('event-0');
-      expect(await screen.findByText('First event')).toBeInTheDocument();
+      expect(canvas.select).toHaveBeenLastCalledWith('major');
+      expect(await screen.findByText('The big one')).toBeInTheDocument();
+      // Negative years are BCE as written, and images are http(s) only.
+      expect(canvas.options.shiftBceDates).toBe(true);
+      expect(canvas.options.image).toEqual({ sanitizer: { allowedSchemes: ['http', 'https'] } });
     });
 
-    it('opens on start_at_slide', async () => {
+    it('renders the legacy TimelineJS shape', async () => {
       render(
-        <Timeline data={mockTimelineData} options={{ start_at_slide: 2 }}>
+        <Timeline
+          data={{
+            title: { text: { headline: 'Legacy timeline' } },
+            events: [{ unique_id: 'x', start_date: { year: 1969 }, text: { headline: '<b>Landing</b>', text: '<p>One small step</p>' } }],
+          }}
+        >
+          <TimelineHeader>
+            <TimelineTitle />
+          </TimelineHeader>
           <TimelineContent />
         </Timeline>
       );
       await waitFor(() => expect(histropedia.instances).toHaveLength(1));
-      expect(histropedia.instances[0].select).toHaveBeenCalledWith('event-1');
-      expect(await screen.findByText('Second event')).toBeInTheDocument();
+      expect(histropedia.instances[0].articles.map((article) => [article.id, article.title])).toEqual([['x', 'Landing']]);
+      expect(screen.getByRole('heading', { level: 3, name: 'Legacy timeline' })).toBeInTheDocument();
+      expect(await screen.findByText('One small step')).toBeInTheDocument();
+    });
+
+    it('renders table input', async () => {
+      render(
+        <Timeline
+          table={{
+            columns: ['Name', 'When'],
+            rows: [['Moon landing', '1969-07-20'], ['No date', 'someday']],
+            map: { title: 'Name', start: 'When' },
+          }}
+        >
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      expect(histropedia.instances[0].articles.map((article) => [article.id, article.title])).toEqual([['row-0', 'Moon landing']]);
     });
 
     it('shows an empty state instead of a blank canvas when no event has a date', async () => {
@@ -544,36 +593,97 @@ describe('Timeline', () => {
       expect(histropedia.instances).toHaveLength(0);
     });
 
-    it('shows event text as plain text and only links http(s) media', async () => {
-      const ref = { current: null as TimelineRef | null };
+    it('shows event text as plain text, links only http(s) and opens links in a new tab', async () => {
+      const unsafe = ['javascript', 'alert(1)'].join(':');
       render(
         <Timeline
-          ref={ref}
-          data={{
-            events: [
-              {
-                unique_id: 'x',
-                start_date: { year: 1969 },
-                text: { headline: 'Landing', text: '<img src=x onerror="alert(1)">One small step' },
-                media: { url: 'javascript:alert(1)' },
-              },
-            ],
-          }}
+          events={[
+            {
+              id: 'x',
+              title: 'Landing',
+              description: '<img src=x onerror="alert(1)">One small step',
+              start: { year: 1969 },
+              media: { url: unsafe },
+              link: { url: 'https://en.wikipedia.org/wiki/Apollo_11', label: 'Apollo 11' },
+            },
+            { id: 'y', title: 'Unsafe link', start: { year: 1970 }, link: { url: unsafe } },
+          ]}
         >
           <TimelineContent />
         </Timeline>
       );
-      await waitFor(() => expect(ref.current?.getData(0)).not.toBeNull());
-      act(() => ref.current?.goTo(0));
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
 
-      expect(await screen.findByText('One small step')).toBeInTheDocument();
+      expect(await screen.findByText('<img src=x onerror="alert(1)">One small step')).toBeInTheDocument();
       expect(document.querySelector('img[src="x"]')).toBeNull();
-      expect(screen.queryByText('Open media')).toBeNull();
+      expect(document.querySelector('img[src^="javascript"]')).toBeNull();
+      const link = screen.getByRole('link', { name: /Apollo 11/ });
+      expect(link).toHaveAttribute('href', 'https://en.wikipedia.org/wiki/Apollo_11');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+      act(() => histropedia.instances[0].trigger('article-select', { id: 'y' }));
+      expect(await screen.findByRole('heading', { level: 4, name: 'Unsafe link' })).toBeInTheDocument();
+      expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('previews a card on hover and opens it on selection', async () => {
+      render(
+        <Timeline {...mockTimelineData}>
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      const canvas = histropedia.instances[0];
+
+      act(() => canvas.trigger('article-pointerenter', { id: 'event-2' }, { clientX: 100, clientY: 50 }));
+      const preview = await screen.findByRole('tooltip');
+      expect(preview).toHaveTextContent('Event 2');
+      expect(preview).toHaveTextContent('Second event');
+
+      act(() => canvas.trigger('article-pointerleave', { id: 'event-2' }, { clientX: 100, clientY: 50 }));
+      expect(screen.queryByRole('tooltip')).toBeNull();
+
+      act(() => canvas.trigger('article-select', { id: 'event-2' }));
+      expect(await screen.findByRole('heading', { level: 4, name: 'Event 2' })).toBeInTheDocument();
+    });
+
+    it("filters cards by category, tag and search with Histropedia's article filter", async () => {
+      const user = userEvent.setup();
+      render(
+        <Timeline
+          events={[
+            { id: 'a', title: 'Alpha', start: { year: 1 }, category: 'Red', tags: ['one'] },
+            { id: 'b', title: 'Beta', start: { year: 2 }, category: 'Blue', tags: ['two'] },
+            { id: 'c', title: 'Gamma', start: { year: 3 }, category: 'Blue', tags: ['one'] },
+          ]}
+        >
+          <TimelineContent />
+        </Timeline>
+      );
+      await waitFor(() => expect(histropedia.instances).toHaveLength(1));
+      const canvas = histropedia.instances[0];
+      const hidden = () => canvas.articles.filter((article) => article.hiddenByFilter).map((article) => article.id);
+      expect(hidden()).toEqual([]);
+
+      await user.click(screen.getByRole('button', { name: 'Blue' }));
+      expect(hidden()).toEqual(['a']);
+      expect(canvas.defaultRedraw).toHaveBeenCalled();
+      expect(screen.getByText('2 of 3 events')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '#one' }));
+      expect(hidden()).toEqual(['a', 'b']);
+
+      await user.click(screen.getByRole('button', { name: /Clear/ }));
+      expect(hidden()).toEqual([]);
+
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search events' }), { target: { value: 'gam' } });
+      expect(hidden()).toEqual(['a', 'b']);
     });
 
     it('releases the window listeners on unmount', async () => {
       const { unmount } = render(
-        <Timeline data={mockTimelineData}>
+        <Timeline {...mockTimelineData}>
           <TimelineContent />
         </Timeline>
       );

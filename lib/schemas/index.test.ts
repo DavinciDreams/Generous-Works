@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getSchema, validateProps, schemaRegistry } from './index';
-import { TimelinePropsSchema, type TimelineProps } from './timeline.schema';
+import { TimelinePropsSchema, type LegacyTimelineProps } from './timeline.schema';
 import { MapsPropsSchema } from './maps.schema';
 
 describe('schemaRegistry', () => {
@@ -90,6 +90,50 @@ describe('getSchema', () => {
 });
 
 describe('validateProps - success cases', () => {
+  it('should validate Timeline props in the current shape', () => {
+    const result = validateProps('Timeline', {
+      title: 'Space',
+      events: [
+        {
+          id: 'apollo-11',
+          title: 'Apollo 11',
+          start: { year: 1969, month: 7, day: 20, precision: 'day' },
+          importance: 5,
+          category: 'Crewed',
+          tags: ['Moon'],
+          media: { url: 'https://example.com/a.jpg' },
+          link: { url: 'https://example.com', label: 'Read more' },
+          style: { card: 'rounded', color: 'chart-2', font: 'serif' },
+        },
+      ],
+      eras: [{ title: 'Space Race', start: { year: 1955 }, end: { year: 1975 }, color: '#336699' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate Timeline table input', () => {
+    const result = validateProps('Timeline', {
+      table: { columns: ['Name', 'Year'], rows: [['Apollo 11', 1969], ['Sputnik', null]], map: { title: 'Name', start: 'Year' } },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should refuse Timeline props with both events and table, or neither', () => {
+    const table = { columns: ['a'], rows: [], map: { title: 'a', start: 'a' } };
+    expect(validateProps('Timeline', { events: [], table }).success).toBe(false);
+    expect(validateProps('Timeline', { title: 'Nothing' }).success).toBe(false);
+  });
+
+  it('should refuse current-shape Timeline props that break the contract', () => {
+    const event = { id: 'a', title: 'A', start: { year: 1 } };
+    expect(validateProps('Timeline', { events: [{ ...event, id: undefined }] }).success).toBe(false);
+    expect(validateProps('Timeline', { events: [{ ...event, start: { year: 1, precision: 'week' } }] }).success).toBe(false);
+    expect(validateProps('Timeline', { events: [{ ...event, importance: 7 }] }).success).toBe(false);
+    expect(validateProps('Timeline', { events: [{ ...event, style: { color: 'red' } }] }).success).toBe(false);
+    expect(validateProps('Timeline', { events: [{ ...event, style: { card: 'neon' } }] }).success).toBe(false);
+    expect(validateProps('Timeline', { events: [event], height: 20 }).success).toBe(false);
+  });
+
   it('should validate valid Timeline props', () => {
     const validProps = {
       data: {
@@ -102,7 +146,7 @@ describe('validateProps - success cases', () => {
       }
     };
 
-    const result = validateProps<TimelineProps>('Timeline', validProps);
+    const result = validateProps<LegacyTimelineProps>('Timeline', validProps);
 
     expect(result.success).toBe(true);
     if (result.success) {

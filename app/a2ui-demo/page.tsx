@@ -148,7 +148,7 @@ export default function A2UIDemoPage() {
         <TabsContent value="timeline" className="space-y-4">
           <DemoSection
             title="Timeline Component"
-            description="Interactive timeline visualization with TimelineJS"
+            description="Zoomable timeline drawn with HistropediaJS"
             status="valid"
           >
             <A2UIRenderer message={timelineMessage} />
@@ -362,57 +362,48 @@ const timelineMessage: A2UIMessage = {
         id: 'timeline-demo',
         component: {
           Timeline: {
-            data: {
-              title: {
-                text: {
-                  headline: 'History of Computing',
-                  text: 'Major milestones in computer science and technology'
+            title: 'History of Computing',
+            height: 500,
+            events: [
+              {
+                id: 'turing-machine',
+                title: 'Turing Machine',
+                description: 'Alan Turing introduces the concept of a universal computing machine',
+                start: { year: 1936, precision: 'year' },
+                importance: 5,
+                category: 'Theory',
+                media: {
+                  url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Turing_Machine_Model_Davey_2012.jpg/440px-Turing_Machine_Model_Davey_2012.jpg',
+                  caption: 'Model of a Turing machine',
+                  credit: 'Wikimedia Commons'
                 }
               },
-              events: [
-                {
-                  unique_id: 'event-1',
-                  start_date: { year: 1936 },
-                  text: {
-                    headline: 'Turing Machine',
-                    text: 'Alan Turing introduces the concept of a universal computing machine'
-                  },
-                  media: {
-                    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Turing_Machine_Model_Davey_2012.jpg/440px-Turing_Machine_Model_Davey_2012.jpg',
-                    caption: 'Model of a Turing machine',
-                    credit: 'Wikimedia Commons',
-                    thumbnail: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Turing_Machine_Model_Davey_2012.jpg/200px-Turing_Machine_Model_Davey_2012.jpg'
-                  }
-                },
-                {
-                  unique_id: 'event-2',
-                  start_date: { year: 1971 },
-                  text: {
-                    headline: 'First Microprocessor',
-                    text: 'Intel releases the 4004, the first commercial microprocessor'
-                  }
-                },
-                {
-                  unique_id: 'event-3',
-                  start_date: { year: 1989 },
-                  text: {
-                    headline: 'World Wide Web',
-                    text: 'Tim Berners-Lee invents the World Wide Web at CERN'
-                  }
-                },
-                {
-                  unique_id: 'event-4',
-                  start_date: { year: 2007 },
-                  text: {
-                    headline: 'iPhone Released',
-                    text: 'Apple introduces the first iPhone, revolutionizing mobile computing'
-                  }
-                }
-              ]
-            },
-            options: {
-              height: 500
-            }
+              {
+                id: 'microprocessor',
+                title: 'First Microprocessor',
+                description: 'Intel releases the 4004, the first commercial microprocessor',
+                start: { year: 1971, precision: 'year' },
+                importance: 4,
+                category: 'Hardware'
+              },
+              {
+                id: 'www',
+                title: 'World Wide Web',
+                description: 'Tim Berners-Lee invents the World Wide Web at CERN',
+                start: { year: 1989, precision: 'year' },
+                importance: 5,
+                category: 'Networks',
+                link: { url: 'https://en.wikipedia.org/wiki/World_Wide_Web' }
+              },
+              {
+                id: 'iphone',
+                title: 'iPhone Released',
+                description: 'Apple introduces the first iPhone, revolutionizing mobile computing',
+                start: { year: 2007, precision: 'year' },
+                importance: 3,
+                category: 'Hardware'
+              }
+            ]
           }
         }
       }

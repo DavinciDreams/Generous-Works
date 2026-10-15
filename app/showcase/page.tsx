@@ -59,7 +59,7 @@ import {
   TimelineHeader,
   TimelineTitle,
 } from "@/components/ai-elements/timeline-client";
-import type { TimelineData } from "@/components/ai-elements/timeline-client";
+import type { TimelineProps } from "@/components/ai-elements/timeline-client";
 
 import {
   Latex,
@@ -216,41 +216,42 @@ const sampleSVG = `<svg width="300" height="200" xmlns="http://www.w3.org/2000/s
   </text>
 </svg>`;
 
-const sampleTimeline: TimelineData = {
-  title: {
-    text: {
-      headline: "Product Development Timeline",
-      text: "<p>Key milestones in our product journey</p>",
-    },
-  },
+const sampleTimeline: TimelineProps = {
+  title: "Product Development Timeline",
   events: [
     {
-      start_date: { year: 2023, month: 1, day: 15 },
-      text: {
-        headline: "Project Kickoff",
-        text: "<p>Initial planning and team formation</p>",
-      },
+      id: "kickoff",
+      title: "Project Kickoff",
+      description: "Initial planning and team formation",
+      start: { year: 2023, month: 1, day: 15, precision: "day" },
+      importance: 3,
+      category: "Planning",
     },
     {
-      start_date: { year: 2023, month: 4, day: 1 },
-      text: {
-        headline: "Alpha Release",
-        text: "<p>First working prototype completed</p>",
-      },
+      id: "alpha",
+      title: "Alpha Release",
+      description: "First working prototype completed",
+      start: { year: 2023, month: 4, day: 1, precision: "day" },
+      importance: 4,
+      category: "Release",
     },
     {
-      start_date: { year: 2023, month: 8, day: 15 },
-      text: {
-        headline: "Beta Launch",
-        text: "<p>Public beta testing begins</p>",
-      },
+      id: "beta",
+      title: "Beta Launch",
+      description: "Public beta testing begins",
+      start: { year: 2023, month: 8, day: 15, precision: "day" },
+      end: { year: 2023, month: 12, precision: "month" },
+      importance: 4,
+      category: "Release",
     },
     {
-      start_date: { year: 2024, month: 1, day: 1 },
-      text: {
-        headline: "Version 1.0",
-        text: "<p>Official product launch!</p>",
-      },
+      id: "v1",
+      title: "Version 1.0",
+      description: "Official product launch!",
+      start: { year: 2024, month: 1, day: 1, precision: "day" },
+      importance: 5,
+      category: "Release",
+      style: { card: "rounded" },
     },
   ],
 };
@@ -784,13 +785,13 @@ export default function ShowcasePage() {
               <CardHeader>
                 <CardTitle>Timeline Component</CardTitle>
                 <CardDescription>
-                  Create interactive timelines using TimelineJS. Display events,
-                  eras, and stories with rich media support.
+                  Zoomable HistropediaJS timelines: picture cards stacked by
+                  importance, coloured by category, with periods and eras.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {activeTab === "timeline" && (
-                  <Timeline data={sampleTimeline}>
+                  <Timeline {...sampleTimeline}>
                     <TimelineHeader>
                       <TimelineTitle />
                       <TimelineActions>

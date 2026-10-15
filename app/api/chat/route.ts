@@ -267,34 +267,33 @@ Each candlestick point MUST have: date, open, high, low, close (all required), a
       "id": "company-timeline",
       "component": {
         "Timeline": {
-          "data": {
-            "events": [
-              {
-                "unique_id": "event-1",
-                "start_date": { "year": 2020, "month": 1 },
-                "text": {
-                  "headline": "Company Founded",
-                  "text": "Started with 5 employees"
-                }
-              },
-              {
-                "unique_id": "event-2",
-                "start_date": { "year": 2021, "month": 6 },
-                "text": {
-                  "headline": "Series A Funding",
-                  "text": "Raised $5M"
-                }
-              },
-              {
-                "unique_id": "event-3",
-                "start_date": { "year": 2022, "month": 12 },
-                "text": {
-                  "headline": "Product Launch",
-                  "text": "First major release"
-                }
-              }
-            ]
-          }
+          "title": "Company history",
+          "events": [
+            {
+              "id": "founded",
+              "title": "Company Founded",
+              "description": "Started with 5 employees",
+              "start": { "year": 2020, "month": 1, "precision": "month" },
+              "importance": 4,
+              "category": "Company"
+            },
+            {
+              "id": "series-a",
+              "title": "Series A Funding",
+              "description": "Raised $5M",
+              "start": { "year": 2021, "month": 6, "precision": "month" },
+              "importance": 3,
+              "category": "Funding"
+            },
+            {
+              "id": "launch",
+              "title": "Product Launch",
+              "description": "First major release",
+              "start": { "year": 2022, "month": 12, "precision": "month" },
+              "importance": 5,
+              "category": "Product"
+            }
+          ]
         }
       }
     }]

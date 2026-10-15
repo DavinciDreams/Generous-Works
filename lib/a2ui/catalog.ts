@@ -15,30 +15,145 @@ import { standardUICatalog } from './catalog-standard-ui';
  */
 const timelineExamples: ComponentExample[] = [
   {
-    description: 'Simple timeline with 3 events',
+    description: 'Picture cards with importance, categories, periods, eras and read-more links',
     spec: {
-      id: 'timeline-1',
+      id: 'timeline-space',
       component: {
         Timeline: {
-          data: {
-            events: [
-              {
-                unique_id: 'event-1',
-                start_date: { year: 2020, month: 1 },
-                text: { headline: 'Event 1', text: 'Description' }
+          title: 'The Space Race',
+          events: [
+            {
+              id: 'sputnik',
+              title: 'Sputnik 1',
+              description: 'The first artificial satellite orbits Earth for three weeks.',
+              start: { year: 1957, month: 10, day: 4, precision: 'day' },
+              importance: 4,
+              category: 'Satellites',
+              link: { url: 'https://en.wikipedia.org/wiki/Sputnik_1', label: 'Sputnik 1 on Wikipedia' }
+            },
+            {
+              id: 'gemini',
+              title: 'Project Gemini',
+              description: 'Two-person missions rehearse rendezvous and spacewalks.',
+              start: { year: 1961, precision: 'year' },
+              end: { year: 1966, precision: 'year' },
+              importance: 2,
+              category: 'Crewed'
+            },
+            {
+              id: 'apollo-11',
+              title: 'Apollo 11 lands on the Moon',
+              subtitle: 'Armstrong and Aldrin',
+              description: 'Neil Armstrong and Buzz Aldrin walk on the Moon while Michael Collins orbits.',
+              start: { year: 1969, month: 7, day: 20, precision: 'day' },
+              importance: 5,
+              category: 'Crewed',
+              tags: ['Moon', 'NASA'],
+              media: {
+                url: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Aldrin_Apollo_11_original.jpg',
+                caption: 'Buzz Aldrin on the Moon',
+                credit: 'NASA',
+                alt: 'An astronaut standing on the lunar surface'
               },
-              {
-                unique_id: 'event-2',
-                start_date: { year: 2021, month: 6 },
-                text: { headline: 'Event 2', text: 'Description' }
-              },
-              {
-                unique_id: 'event-3',
-                start_date: { year: 2022, month: 12 },
-                text: { headline: 'Event 3', text: 'Description' }
-              }
-            ]
+              link: { url: 'https://en.wikipedia.org/wiki/Apollo_11' }
+            },
+            {
+              id: 'hubble',
+              title: 'Hubble Space Telescope',
+              start: { year: 1990, month: 4, day: 24, precision: 'day' },
+              importance: 3,
+              category: 'Satellites',
+              media: { url: 'https://upload.wikimedia.org/wikipedia/commons/3/3f/HST-SM4.jpeg', alt: 'Hubble in orbit' }
+            }
+          ],
+          eras: [
+            { title: 'Space Race', start: { year: 1955 }, end: { year: 1975 }, category: 'Crewed' }
+          ]
+        }
+      }
+    }
+  },
+  {
+    description: 'Spreadsheet input: columns, rows and a map from timeline fields to column names',
+    spec: {
+      id: 'timeline-table',
+      component: {
+        Timeline: {
+          title: 'Renaissance artists',
+          table: {
+            columns: ['Name', 'Born', 'Died', 'Movement', 'Rank', 'Tags', 'Article'],
+            rows: [
+              ['Leonardo da Vinci', '1452-04-15', '1519-05-02', 'High Renaissance', 5, 'painting, science', 'https://en.wikipedia.org/wiki/Leonardo_da_Vinci'],
+              ['Michelangelo', '1475-03-06', '1564-02-18', 'High Renaissance', 5, 'sculpture, painting', 'https://en.wikipedia.org/wiki/Michelangelo'],
+              ['Giotto', 'c. 1267', 1337, 'Proto-Renaissance', 3, 'painting', null]
+            ],
+            map: {
+              title: 'Name',
+              start: 'Born',
+              end: 'Died',
+              category: 'Movement',
+              importance: 'Rank',
+              tags: 'Tags',
+              link: 'Article'
+            }
           }
+        }
+      }
+    }
+  },
+  {
+    description: 'Styled cards: card shape, colour and font per event, with subtitles',
+    spec: {
+      id: 'timeline-styled',
+      component: {
+        Timeline: {
+          title: 'A company history',
+          height: 420,
+          events: [
+            {
+              id: 'founded',
+              title: 'Founded in a garage',
+              subtitle: 'Two founders, one idea',
+              start: { year: 2009, month: 3, precision: 'month' },
+              importance: 4,
+              style: { card: 'note', font: 'script' }
+            },
+            {
+              id: 'launch',
+              title: 'First product ships',
+              start: { year: 2011, month: 9, day: 1, precision: 'day' },
+              importance: 5,
+              style: { card: 'rounded', color: 'chart-2', font: 'display' }
+            },
+            {
+              id: 'ipo',
+              title: 'Public listing',
+              dateLabel: 'Spring 2018',
+              start: { year: 2018, month: 4, precision: 'month' },
+              importance: 3,
+              style: { card: 'dark', color: '#7c3aed', font: 'serif' }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    description: 'Deep time: negative years, million- and billion-year precision',
+    spec: {
+      id: 'timeline-deep-time',
+      component: {
+        Timeline: {
+          title: 'History of the universe',
+          events: [
+            { id: 'big-bang', title: 'Big Bang', start: { year: -13800000000, precision: 'million-years' }, importance: 5, category: 'Cosmos' },
+            { id: 'earth', title: 'Earth forms', start: { year: -4540000000, precision: 'million-years' }, importance: 4, category: 'Earth' },
+            { id: 'dinosaurs', title: 'Non-avian dinosaurs die out', start: { year: -66000000, precision: 'million-years' }, importance: 3, category: 'Life' },
+            { id: 'pyramids', title: 'Great Pyramid of Giza', dateLabel: 'c. 2560 BCE', start: { year: -2560, precision: 'decade' }, importance: 2, category: 'Humans' }
+          ],
+          eras: [
+            { title: 'Mesozoic', start: { year: -252000000, precision: 'million-years' }, end: { year: -66000000, precision: 'million-years' }, color: 'chart-4' }
+          ]
         }
       }
     }
@@ -1847,15 +1962,31 @@ const questionFlowExamples: ComponentExample[] = [
 export const specializedCatalog: ComponentCatalog = {
   Timeline: {
     type: 'Timeline',
-    description: `Interactive zoomable timeline (HistropediaJS). Draws each event as a card on a
-    canvas axis the user can pan and zoom, from days to billions of years. Supports:
-    - Events with start_date (required to be placed) and optional end_date for periods
-    - Headline on the card; text, image media, caption and credit shown when an event is selected
-    - Image media URLs become card pictures; other media URLs become an "Open media" link
-    - eras drawn as shaded time bands; events sharing a "group" drawn in their own lane
-    - Deep time: negative years for BCE, e.g. { year: -66000000 } for 66 million years ago
-    - Unique IDs for each event (required for proper rendering)`,
-    props: ['data', 'options'],
+    description: `Zoomable timeline (HistropediaJS): picture cards on stems over an axis the user pans
+    and zooms, from days to billions of years. Plain text only; URLs must be http(s).
+    Give EITHER events OR table, never both:
+    - events: [{ id, title, start, ... }]. id is unique; title is the card heading.
+      start / end: { year, month?, day?, precision? }. Negative years are BCE (-500 = 500 BCE,
+      -66000000 = 66 million years ago). precision is one of billion-years, million-years,
+      millennium, century, decade, year, month, day: state it, since the axis draws a date as the
+      whole span of its precision (use million-years for deep time). An end makes a period bar.
+    - Optional per event: subtitle, description (shown on hover and in the details panel),
+      dateLabel (display override such as "c. 1500"), importance 1-5 (5 = major: shown when zoomed
+      out, larger and in front), category (colour group), group (own lane), tags (filters),
+      media { url, caption?, credit?, alt? } (card picture), link { url, label? } (read-more link),
+      style { card: classic|rounded|note|image|dark, color, font: sans|serif|script|mono|display }.
+    - table: { columns, rows, map } for spreadsheet data. map names the column for each field
+      (title and start required; also id, subtitle, description, end, dateLabel, importance,
+      category, group, tags, image, imageCaption, imageCredit, link, linkLabel, color). Date cells
+      may be years (1969), "1969-07-20", "-500", "500 BCE" or "c. 1500"; tags are comma-separated.
+    - eras: [{ title, start, end, category?, color? }] shaded bands behind the events.
+    - color is "#RRGGBB" or a theme token: chart-1..chart-5, primary, secondary, muted, accent,
+      destructive. Never other CSS.
+    - title (heading) and height (160-1600 px) are optional.
+    Users can filter by category, group, tag and text, hover a card to preview it and click it for
+    details. The old TimelineJS shape (data.events with start_date/text.headline) still renders
+    but should not be generated.`,
+    props: ['title', 'height', 'events', 'table', 'eras'],
     examples: timelineExamples
   },
 
@@ -2741,7 +2872,7 @@ Generate A2UI messages in this format:
 
 Important rules:
 1. Always provide unique IDs for components
-2. Timeline events must have unique_id fields
+2. Timeline events need a unique id, a title and a start date with its precision
 3. Maps coordinates use { longitude, latitude } format (NOT lat/lon)
 4. ThreeScene objects should specify type and basic properties
 5. All dates use { year, month?, day? } format
