@@ -158,7 +158,11 @@ const ARTIFACT_COLORS = [
 
 function resolveArtifactMeta(block: ContentBlock): { name: string; emoji: string; color: string } {
   const color = ARTIFACT_COLORS[Math.floor(Math.random() * ARTIFACT_COLORS.length)];
+  return { ...getBlockLabel(block), color };
+}
 
+/** Human-readable name and emoji for a visual content block. */
+export function getBlockLabel(block: ContentBlock): { name: string; emoji: string } {
   if (block.type === 'a2ui') {
     const components = block.spec?.surfaceUpdate?.components;
     const key = components?.length ? Object.keys(components[0].component)[0] : null;
@@ -178,16 +182,15 @@ function resolveArtifactMeta(block: ContentBlock): { name: string; emoji: string
       DataTable: { name: 'Table', emoji: '📋' },
       NodeEditor: { name: 'Node Editor', emoji: '🔧' },
     };
-    const m = key ? (map[key] ?? { name: key, emoji: '✨' }) : { name: 'Component', emoji: '✨' };
-    return { ...m, color };
+    return key ? (map[key] ?? { name: key, emoji: '✨' }) : { name: 'Component', emoji: '✨' };
   }
 
   if (block.type === 'jsx') {
     const tagMatch = block.code.match(/<([A-Z][a-zA-Z0-9]*)/);
-    return { name: tagMatch ? tagMatch[1] : 'Component', emoji: '🧩', color };
+    return { name: tagMatch ? tagMatch[1] : 'Component', emoji: '🧩' };
   }
 
-  return { name: 'Artifact', emoji: '✨', color };
+  return { name: 'Artifact', emoji: '✨' };
 }
 
 interface BlockSaveWrapperProps {
