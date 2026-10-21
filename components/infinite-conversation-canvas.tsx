@@ -60,6 +60,43 @@ export function getDefaultCanvasPosition(
   };
 }
 
+/**
+ * Rebuild canvas nodes for the current conversation items.
+ *
+ * Existing nodes are carried forward rather than recreated: React Flow keeps
+ * each node hidden until it holds a `measured` size, and it only re-measures
+ * when the DOM element resizes. Dropping that field on an unrelated update
+ * (for example when a loaded chat stops streaming) left every card invisible.
+ */
+export function syncConversationNodes(
+  currentNodes: ConversationNode[],
+  items: InfiniteCanvasItem[],
+  storedPositions: Record<string, XYPosition>,
+): ConversationNode[] {
+  const currentById = new Map(currentNodes.map((node) => [node.id, node]));
+
+  return items.map((item, index) => {
+    const current = currentById.get(item.id);
+    const position = current?.position
+      ?? storedPositions[item.id]
+      ?? getDefaultCanvasPosition(index, item.role);
+
+    return {
+      ...current,
+      id: item.id,
+      type: "conversation",
+      position,
+      data: { item },
+      dragHandle: ".canvas-drag-handle",
+      connectable: false,
+      deletable: false,
+      selected: current?.selected ?? false,
+      zIndex: item.isStreaming ? 2 : 1,
+      ariaLabel: item.role === "user" ? "Your prompt" : "Generous response",
+    } satisfies ConversationNode;
+  });
+}
+
 function isPosition(value: unknown): value is XYPosition {
   if (!value || typeof value !== "object") return false;
   const position = value as Partial<XYPosition>;
@@ -198,29 +235,7 @@ export function InfiniteConversationCanvas({
       initializedRef.current = true;
     }
 
-    setNodes((currentNodes) => {
-      const currentById = new Map(currentNodes.map((node) => [node.id, node]));
-
-      return items.map((item, index) => {
-        const current = currentById.get(item.id);
-        const position = current?.position
-          ?? positionsRef.current[item.id]
-          ?? getDefaultCanvasPosition(index, item.role);
-
-        return {
-          id: item.id,
-          type: "conversation",
-          position,
-          data: { item },
-          dragHandle: ".canvas-drag-handle",
-          connectable: false,
-          deletable: false,
-          selected: current?.selected ?? false,
-          zIndex: item.isStreaming ? 2 : 1,
-          ariaLabel: item.role === "user" ? "Your prompt" : "Generous response",
-        } satisfies ConversationNode;
-      });
-    });
+    setNodes((currentNodes) => syncConversationNodes(currentNodes, items, positionsRef.current));
   }, [items, setNodes]);
 
   const persistPosition = useCallback((node: ConversationNode) => {

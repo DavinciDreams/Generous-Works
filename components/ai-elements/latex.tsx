@@ -306,12 +306,14 @@ export const LatexContent = memo(
         error,
         setError,
         latexRef,
-        renderedEquations,
         setRenderedEquations,
       } = useLatexContext();
 
       const [isMounted, setIsMounted] = useState(false);
       const contentRef = useRef<HTMLDivElement>(null);
+      // Read by getEquations() so the render effect does not depend on the
+      // state it writes; that dependency re-ran the effect on every render.
+      const renderedEquationsRef = useRef<LatexEquation[]>([]);
 
       // Only render on client to avoid SSR issues
       useEffect(() => {
@@ -351,6 +353,7 @@ export const LatexContent = memo(
               }));
             }
 
+            renderedEquationsRef.current = equationsToRender;
             setRenderedEquations(equationsToRender);
 
             // Render each equation
@@ -418,15 +421,17 @@ export const LatexContent = memo(
                   equation,
                   displayMode,
                 };
-                setRenderedEquations((prev) => [...prev, newEquation]);
+                renderedEquationsRef.current = [...renderedEquationsRef.current, newEquation];
+                setRenderedEquations(renderedEquationsRef.current);
               },
               clearEquations: () => {
+                renderedEquationsRef.current = [];
                 setRenderedEquations([]);
                 if (contentRef.current) {
                   contentRef.current.innerHTML = "";
                 }
               },
-              getEquations: () => renderedEquations,
+              getEquations: () => renderedEquationsRef.current,
             };
           } catch (err) {
             console.error("Failed to load KaTeX:", err);
@@ -443,7 +448,6 @@ export const LatexContent = memo(
         options,
         setError,
         latexRef,
-        renderedEquations,
         setRenderedEquations,
       ]);
 
