@@ -137,7 +137,7 @@
     "@vitest/ui": "^4.0.18",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "happy-dom": "^20.6.1",
+    "happy-dom": "^21.0.4",
     "ignore-loader": "^0.1.2",
     "shadcn": "^3.8.4",
     "tailwindcss": "^4",
